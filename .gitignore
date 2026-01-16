@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Backend (Spring Boot)
+backend/target/
+backend/.classpath
+backend/.project
+backend/.settings/
+
+# Frontend / Web
+node_modules/
+.next/
+dist/
+
+# Mobile
+android/.gradle/
+android/build/
+ios/Pods/
+
+# Env
+.env
+.env.local
