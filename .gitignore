@@ -1,50 +1,26 @@
 ####################################
-# OS
+# GLOBAL - Áp dụng cho toàn project
 ####################################
+
+# OS
 .DS_Store
 Thumbs.db
 
-####################################
-# IDE (IntelliJ / VS Code)
-####################################
+# IDE - IntelliJ IDEA
 .idea/
-.vscode/
 *.iml
-
-####################################
-# Java / Gradle (Spring Boot)
-####################################
-**/build/
-**/.gradle/
-*.log
-
-####################################
-# Frontend / Web (React / Next / Vite)
-####################################
-node_modules/
-dist/
-.next/
+*.iws
+*.ipr
 out/
 
-####################################
-# Mobile (Android / iOS)
-####################################
-android/.gradle/
-android/build/
-android/app/build/
-ios/Pods/
-ios/build/
-ios/.symlinks/
+# IDE - VSCode
+.vscode/
 
-####################################
-# Environment variables
-####################################
+# Environment (safety net)
 .env
 .env.local
 .env.*.local
 
-####################################
 # Misc
-####################################
-coverage/
+*.log
 .tmp/
