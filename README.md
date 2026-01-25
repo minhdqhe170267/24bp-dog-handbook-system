@@ -28,11 +28,12 @@ Hệ thống sổ tay số hỗ trợ huấn luyện chó nghiệp vụ quân đ
 - 📝 Hệ thống CMS quản trị nội dung
 
 👥 Thành viên nhóm
-Họ tên	Vai trò	Email
-Vương Tuấn Kiên	Leader	kienvthe186370@fpt.edu.vn
-Đinh Quang Minh	Member	minhdqhe170267@fpt.edu.vn
-Đinh Hoàng Phong	Member	phongdhhe181925@fpt.edu.vn
-Nguyễn Quốc Anh	Member	anhnqhe181014@fpt.edu.vn
+ |Họ tên	        |  Vai trò |       	Email                |
+ |----------------|----------|---------------------------- |
+ |Vương Tuấn Kiên |   Leader |	kienvthe186370@fpt.edu.vn  |
+ |Đinh Quang Minh |  	Member |	minhdqhe170267@fpt.edu.vn  |
+ |Đinh Hoàng Phong|  	Member |	phongdhhe181925@fpt.edu.vn |
+ |Nguyễn Quốc Anh |  	Member |	anhnqhe181014@fpt.edu.vn   |
 Giảng viên hướng dẫn: Nghiêm Thị Lan Phương
 
 📄 License  
