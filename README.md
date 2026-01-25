@@ -34,7 +34,8 @@ Hệ thống sổ tay số hỗ trợ huấn luyện chó nghiệp vụ quân đ
  |Đinh Quang Minh |  	Member |	minhdqhe170267@fpt.edu.vn  |
  |Đinh Hoàng Phong|  	Member |	phongdhhe181925@fpt.edu.vn |
  |Nguyễn Quốc Anh |  	Member |	anhnqhe181014@fpt.edu.vn   |
-Giảng viên hướng dẫn: Nghiêm Thị Lan Phương
+ 
+Mentor: Nghiêm Thị Lan Phương
 
 📄 License  
 Dự án này được phát triển cho mục đích học tập tại FPT University - SEP490 Capstone Project.
