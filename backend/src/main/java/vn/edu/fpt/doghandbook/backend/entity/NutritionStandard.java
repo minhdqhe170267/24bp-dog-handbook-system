@@ -29,6 +29,7 @@ public class NutritionStandard {
     @Column(name = "code", nullable = false)
     private String code;
 
+
     @Column(name = "description")
     private String description;
 
