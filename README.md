@@ -53,6 +53,7 @@ Hệ thống được thiết kế theo mô hình **offline-first**, cho phép h
 
 ---
 
+
 ## 🧱 Kiến trúc tổng thể
 
 - Mobile App và Web Admin **không truy cập trực tiếp database**
