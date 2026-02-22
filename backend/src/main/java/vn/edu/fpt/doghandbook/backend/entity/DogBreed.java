@@ -24,8 +24,12 @@ public class DogBreed {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "breed_id")
     private Long id;
 
-    @Column(name = "name", nullable = false)
-    private String name;
+    @Column(name = "breed_name", nullable = false)
+    private String breedName;
+
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted;
 }
