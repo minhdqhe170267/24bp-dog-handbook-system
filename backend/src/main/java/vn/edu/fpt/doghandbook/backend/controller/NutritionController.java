@@ -1,85 +1,48 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
-import vn.edu.fpt.doghandbook.backend.service.NutritionService;
+import org.springframework.web.bind.annotation.*;
+import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 
 import java.util.List;
+import java.util.Map;
 
-/**
- * REST endpoints for trainer/mobile nutrition module.
- */
 @RestController
-@RequestMapping("/api/nutrition")
-@RequiredArgsConstructor
+@RequestMapping("/nutrition-standards")
 public class NutritionController {
 
-    private final NutritionService nutritionService;
-
-    /**
-     * Lookup nutrition rations by breed or standard.
-     *
-     * @param breedId    dog breed id
-     * @param standardId nutrition standard id
-     * @return list of rations (empty when no match)
-     */
-    @GetMapping("/rations")
-    public ResponseEntity<List<NutritionRationResponse>> getRations(
-            @RequestParam(value = "breedId", required = false) Long breedId,
-            @RequestParam(value = "standardId", required = false) Long standardId) {
-
-        if (breedId != null && standardId != null) {
-            throw new IllegalArgumentException("Use either breedId or standardId, not both");
-        }
-        if (breedId == null && standardId == null) {
-            throw new IllegalArgumentException("Either breedId or standardId is required");
-        }
-
-        if (standardId != null) {
-            return ResponseEntity.ok(nutritionService.getRationsByStandard(standardId));
-        }
-        return ResponseEntity.ok(nutritionService.getRationsByBreed(breedId));
-    }
-
-    /**
-     * Get published nutrition standards with optional filters.
-     *
-     * @return list of standards (empty when no row)
-     */
-    @GetMapping("/standards")
-    public ResponseEntity<List<NutritionStandardResponse>> getNutritionStandards(
-            @RequestParam(value = "keyword", required = false) String keyword,
-            @RequestParam(value = "activityLevel", required = false) String activityLevel,
-            @RequestParam(value = "weightKg", required = false) Double weightKg,
-            @RequestParam(value = "ageMonths", required = false) Integer ageMonths) {
-
-        return ResponseEntity.ok(
-                nutritionService.getNutritionStandards(keyword, activityLevel, weightKg, ageMonths)
+    @GetMapping
+    public ApiResponse<?> getAllStandards() {
+        List<Map<String, Object>> standards = List.of(
+                Map.of("standardId", 1, "rationCode", "BS-001",
+                        "rationName", "Khẩu phần Berger trưởng thành",
+                        "activityLevel", "HIGH",
+                        "metadata", Map.of("dailyCalories", 2100, "proteinG", 115,
+                                "ingredients", List.of("Thịt gà", "Gạo", "Rau xanh")),
+                        "status", "PUBLISHED"),
+                Map.of("standardId", 2, "rationCode", "MS-001",
+                        "rationName", "Khẩu phần Malinois hoạt động cao",
+                        "activityLevel", "VERY_HIGH",
+                        "metadata", Map.of("dailyCalories", 2400, "proteinG", 130,
+                                "ingredients", List.of("Thịt bò", "Khoai lang", "Trứng")),
+                        "status", "PUBLISHED")
         );
+        return ApiResponse.success(PageResponse.builder()
+                .content(standards)
+                .page(0).size(10).totalElements(2).totalPages(1)
+                .build());
     }
 
-    /**
-     * Get one published nutrition standard by id.
-     */
-    @GetMapping("/standards/{standardId}")
-    public ResponseEntity<NutritionStandardResponse> getNutritionStandard(
-            @PathVariable("standardId") Long standardId) {
-        return ResponseEntity.ok(nutritionService.getNutritionStandard(standardId));
-    }
-
-    /**
-     * Get published ration list for a standard.
-     */
-    @GetMapping("/standards/{standardId}/rations")
-    public ResponseEntity<List<NutritionRationResponse>> getNutritionStandardRations(
-            @PathVariable("standardId") Long standardId) {
-        return ResponseEntity.ok(nutritionService.getNutritionStandardRations(standardId));
+    @PostMapping("/calculate")
+    public ApiResponse<?> calculateNutrition(@RequestBody Map<String, Object> request) {
+        return ApiResponse.success(Map.of(
+                "dailyCalories", 2150,
+                "proteinG", 118,
+                "fatG", 75,
+                "carbG", 195,
+                "weightStatus", "NORMAL",
+                "recommendation", "Cân nặng trong chuẩn. Duy trì khẩu phần hiện tại.",
+                "suggestedRation", Map.of("standardId", 1, "rationName", "Khẩu phần Berger trưởng thành")
+        ));
     }
 }

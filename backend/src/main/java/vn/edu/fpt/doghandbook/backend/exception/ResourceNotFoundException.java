@@ -1,11 +1,12 @@
 package vn.edu.fpt.doghandbook.backend.exception;
 
-/**
- * Raised when a requested resource cannot be found.
- */
 public class ResourceNotFoundException extends RuntimeException {
 
     public ResourceNotFoundException(String message) {
         super(message);
+    }
+
+    public ResourceNotFoundException(String resourceName, String fieldName, Object fieldValue) {
+        super(String.format("%s không tìm thấy với %s: '%s'", resourceName, fieldName, fieldValue));
     }
 }
