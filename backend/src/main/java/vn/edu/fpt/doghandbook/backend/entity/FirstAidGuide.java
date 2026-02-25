@@ -20,67 +20,44 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
-import vn.edu.fpt.doghandbook.backend.entity.enums.SizeClassification;
-import vn.edu.fpt.doghandbook.backend.entity.enums.TrainabilityLevel;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "dog_breed")
+@Table(name = "first_aid_guide")
 @SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DogBreed {
+public class FirstAidGuide {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "breed_id")
-    private Integer breedId;
+    @Column(name = "guide_id")
+    private Integer guideId;
 
-    @Column(name = "breed_name", nullable = false, unique = true)
-    private String breedName;
+    @Column(name = "guide_title", nullable = false)
+    private String guideTitle;
 
-    @Column(name = "origin", nullable = true)
-    private String origin;
+    @Column(name = "emergency_type", nullable = false)
+    private String emergencyType;
 
     @Column(name = "description", nullable = true)
     private String description;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "size_classification", nullable = true)
-    private SizeClassification sizeClassification;
+    @Column(name = "immediate_steps", nullable = false)
+    private String immediateSteps;
 
-    @Column(name = "weight_male_min_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightMaleMinKg;
+    @Column(name = "required_materials", nullable = true)
+    private String requiredMaterials;
 
-    @Column(name = "weight_male_max_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightMaleMaxKg;
+    @Column(name = "do_not_actions", nullable = true)
+    private String doNotActions;
 
-    @Column(name = "weight_female_min_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightFemaleMinKg;
-
-    @Column(name = "weight_female_max_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightFemaleMaxKg;
-
-    @Column(name = "avg_height_cm", precision = 5, scale = 2, nullable = true)
-    private BigDecimal avgHeightCm;
-
-    @Column(name = "lifespan_years", nullable = true)
-    private String lifespanYears;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "trainability_level", nullable = true)
-    private TrainabilityLevel trainabilityLevel;
-
-    @Column(name = "operational_capabilities", nullable = true)
-    private String operationalCapabilities;
-
-    @Column(name = "metadata", columnDefinition = "json", nullable = true)
-    private String metadata;
+    @Column(name = "when_to_seek_vet", nullable = true)
+    private String whenToSeekVet;
 
     @Column(name = "image_url", nullable = true)
     private String imageUrl;
@@ -124,13 +101,5 @@ public class DogBreed {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
-    }
-
-    public Long getId() {
-        return breedId == null ? null : breedId.longValue();
-    }
-
-    public void setId(Long id) {
-        this.breedId = id == null ? null : id.intValue();
     }
 }

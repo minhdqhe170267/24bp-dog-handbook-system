@@ -20,70 +20,37 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
-import vn.edu.fpt.doghandbook.backend.entity.enums.SizeClassification;
-import vn.edu.fpt.doghandbook.backend.entity.enums.TrainabilityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "dog_breed")
+@Table(name = "content")
 @SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DogBreed {
+public class Content {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "breed_id")
-    private Integer breedId;
+    @Column(name = "content_id")
+    private Integer contentId;
 
-    @Column(name = "breed_name", nullable = false, unique = true)
-    private String breedName;
-
-    @Column(name = "origin", nullable = true)
-    private String origin;
-
-    @Column(name = "description", nullable = true)
-    private String description;
+    @Column(name = "title", nullable = false)
+    private String title;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "size_classification", nullable = true)
-    private SizeClassification sizeClassification;
+    @Column(name = "content_type", nullable = false)
+    private ContentType contentType;
 
-    @Column(name = "weight_male_min_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightMaleMinKg;
+    @Column(name = "body", nullable = true)
+    private String body;
 
-    @Column(name = "weight_male_max_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightMaleMaxKg;
-
-    @Column(name = "weight_female_min_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightFemaleMinKg;
-
-    @Column(name = "weight_female_max_kg", precision = 5, scale = 2, nullable = true)
-    private BigDecimal weightFemaleMaxKg;
-
-    @Column(name = "avg_height_cm", precision = 5, scale = 2, nullable = true)
-    private BigDecimal avgHeightCm;
-
-    @Column(name = "lifespan_years", nullable = true)
-    private String lifespanYears;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "trainability_level", nullable = true)
-    private TrainabilityLevel trainabilityLevel;
-
-    @Column(name = "operational_capabilities", nullable = true)
-    private String operationalCapabilities;
-
-    @Column(name = "metadata", columnDefinition = "json", nullable = true)
-    private String metadata;
-
-    @Column(name = "image_url", nullable = true)
-    private String imageUrl;
+    @Column(name = "summary", nullable = true)
+    private String summary;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -91,8 +58,18 @@ public class DogBreed {
     private ContentStatus status = ContentStatus.DRAFT;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", nullable = true)
-    private User createdBy;
+    @JoinColumn(name = "author_id", nullable = false)
+    private User author;
+
+    @Column(name = "published_at", nullable = true)
+    private LocalDateTime publishedAt;
+
+    @Builder.Default
+    @Column(name = "version", nullable = false)
+    private int version = 1;
+
+    @Column(name = "tags", nullable = true)
+    private String tags;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -116,6 +93,9 @@ public class DogBreed {
         if (this.status == null) {
             this.status = ContentStatus.DRAFT;
         }
+        if (this.version <= 0) {
+            this.version = 1;
+        }
         if (this.isDeleted == null) {
             this.isDeleted = false;
         }
@@ -124,13 +104,5 @@ public class DogBreed {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
-    }
-
-    public Long getId() {
-        return breedId == null ? null : breedId.longValue();
-    }
-
-    public void setId(Long id) {
-        this.breedId = id == null ? null : id.intValue();
     }
 }

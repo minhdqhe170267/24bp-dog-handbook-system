@@ -16,11 +16,24 @@ import lombok.Setter;
 @Builder
 public class NutritionStandardResponse {
 
-    private Long id;
-    private String code;
+    private Long standardId;
+    private Long breedId;
+    private String breedName;
+    private String rationCode;
+    private String rationName;
     private String description;
-    private Double minWeight;
-    private Double maxWeight;
-    private Integer minAgeMonth;
-    private Integer maxAgeMonth;
+    private Double targetWeightMinKg;
+    private Double targetWeightMaxKg;
+    private Integer targetAgeMinMonths;
+    private Integer targetAgeMaxMonths;
+    private String activityLevel;
+    private String healthCondition;
+    private Integer dailyCalories;
+    private Double proteinGrams;
+    private Double fatGrams;
+    private Double carbGrams;
+    private String ingredientsList;
+    private String feedingSchedule;
+    private String specialNotes;
+    private String status;
 }

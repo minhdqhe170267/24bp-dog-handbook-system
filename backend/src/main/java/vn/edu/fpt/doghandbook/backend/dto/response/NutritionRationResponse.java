@@ -16,10 +16,24 @@ import lombok.Setter;
 @Builder
 public class NutritionRationResponse {
 
-    private Long id;
+    private Long rationId;
+    private Long standardId;
     private Long breedId;
     private String breedName;
-    private Integer dailyFoodGram;
-    private String note;
+    private String rationCode;
+    private String rationName;
+    private String foodItemName;
+    private String foodCategory;
+    private Double quantityPerDay;
+    private String unit;
+    private String mealTime;
+    private Double caloriesKcal;
+    private Double proteinGrams;
+    private Double fatGrams;
+    private Double carbGrams;
+    private String preparationNotes;
+    private String feedingInstructions;
+    private Integer displayOrder;
+    private String status;
     private NutritionStandardResponse standard;
 }
