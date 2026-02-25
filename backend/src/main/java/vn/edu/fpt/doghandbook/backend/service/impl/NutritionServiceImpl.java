@@ -10,12 +10,10 @@ import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculatorVerifyResp
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogBreed;
-import vn.edu.fpt.doghandbook.backend.entity.NutritionRation;
 import vn.edu.fpt.doghandbook.backend.entity.NutritionStandard;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
-import vn.edu.fpt.doghandbook.backend.repository.NutritionRationRepository;
 import vn.edu.fpt.doghandbook.backend.repository.NutritionStandardRepository;
 import vn.edu.fpt.doghandbook.backend.service.NutritionService;
 
@@ -23,9 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Nutrition service implementation.
- */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -34,14 +29,9 @@ public class NutritionServiceImpl implements NutritionService {
     private static final Set<String> STANDARD_STATUSES = Set.of("DRAFT", "PENDING", "APPROVED", "PUBLISHED", "REJECTED");
     private static final Set<String> ACTIVITY_LEVELS = Set.of("LOW", "MEDIUM", "HIGH", "VERY_HIGH");
     private static final Set<String> HEALTH_CONDITIONS = Set.of("NORMAL", "RECOVERY", "SPECIAL");
-    private static final Set<String> FOOD_CATEGORIES = Set.of("PROTEIN", "CARBOHYDRATE", "FAT", "VITAMIN", "MINERAL", "WATER", "SUPPLEMENT", "OTHER");
-    private static final Set<String> MEAL_TIMES = Set.of("BREAKFAST", "LUNCH", "DINNER", "SNACK", "ANY");
 
     private static final String DEFAULT_STANDARD_STATUS = "DRAFT";
-    private static final String DEFAULT_RATION_STATUS = "DRAFT";
     private static final String DEFAULT_HEALTH_CONDITION = "NORMAL";
-    private static final String DEFAULT_FOOD_CATEGORY = "OTHER";
-    private static final String DEFAULT_MEAL_TIME = "ANY";
 
     private static final Map<String, Double> ACTIVITY_MULTIPLIERS = Map.of(
             "LOW", 0.90,
@@ -56,28 +46,19 @@ public class NutritionServiceImpl implements NutritionService {
             "SPECIAL", 1.05
     );
 
-    private final NutritionRationRepository nutritionRationRepository;
     private final NutritionStandardRepository nutritionStandardRepository;
     private final DogBreedRepository dogBreedRepository;
 
     @Override
     public List<NutritionRationResponse> getRationsByBreed(Long breedId) {
         validatePositiveId("breedId", breedId);
-
-        return nutritionRationRepository.findByBreedId(breedId)
-                .stream()
-                .map(this::toRationResponse)
-                .toList();
+        return List.of();
     }
 
     @Override
     public List<NutritionRationResponse> getRationsByStandard(Long standardId) {
         validatePositiveId("standardId", standardId);
-
-        return nutritionRationRepository.findTrainerByStandardId(standardId)
-                .stream()
-                .map(this::toRationResponse)
-                .toList();
+        return List.of();
     }
 
     @Override
@@ -94,14 +75,51 @@ public class NutritionServiceImpl implements NutritionService {
             throw new IllegalArgumentException("ageMonths must be 0 or greater");
         }
 
+        String normalizedKeyword = normalizeKeyword(keyword);
         String normalizedActivity = normalizeOptionalEnum(activityLevel, ACTIVITY_LEVELS, "activityLevel");
 
-        return nutritionStandardRepository.findTrainerStandards(
-                        normalizeKeyword(keyword),
-                        normalizedActivity,
-                        weightKg,
-                        ageMonths)
+        return nutritionStandardRepository.findAll()
                 .stream()
+                .filter(standard -> {
+                    String standardStatus = standard.getStatus();
+                    if (standardStatus == null
+                            || (!"APPROVED".equalsIgnoreCase(standardStatus) && !"PUBLISHED".equalsIgnoreCase(standardStatus))) {
+                        return false;
+                    }
+
+                    if (normalizedKeyword != null) {
+                        boolean keywordMatches = containsIgnoreCase(standard.getRationCode(), normalizedKeyword)
+                                || containsIgnoreCase(standard.getRationName(), normalizedKeyword);
+                        if (!keywordMatches) {
+                            return false;
+                        }
+                    }
+
+                    if (normalizedActivity != null) {
+                        String standardActivity = standard.getActivityLevel();
+                        if (standardActivity == null || !normalizedActivity.equalsIgnoreCase(standardActivity)) {
+                            return false;
+                        }
+                    }
+
+                    if (weightKg != null) {
+                        Double minWeight = standard.getTargetWeightMinKg();
+                        Double maxWeight = standard.getTargetWeightMaxKg();
+                        if ((minWeight != null && minWeight > weightKg) || (maxWeight != null && maxWeight < weightKg)) {
+                            return false;
+                        }
+                    }
+
+                    if (ageMonths != null) {
+                        Integer minAge = standard.getTargetAgeMinMonths();
+                        Integer maxAge = standard.getTargetAgeMaxMonths();
+                        if ((minAge != null && minAge > ageMonths) || (maxAge != null && maxAge < ageMonths)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                })
                 .map(this::toStandardResponse)
                 .toList();
     }
@@ -110,7 +128,12 @@ public class NutritionServiceImpl implements NutritionService {
     public NutritionStandardResponse getNutritionStandard(Long standardId) {
         validatePositiveId("standardId", standardId);
 
-        NutritionStandard standard = nutritionStandardRepository.findTrainerStandardById(standardId)
+        NutritionStandard standard = nutritionStandardRepository.findById(toIntegerId(standardId, "standardId"))
+                .filter(item -> {
+                    String status = item.getStatus();
+                    return status != null
+                            && ("APPROVED".equalsIgnoreCase(status) || "PUBLISHED".equalsIgnoreCase(status));
+                })
                 .orElseThrow(() -> new ResourceNotFoundException("Nutrition standard not found: " + standardId));
 
         return toStandardResponse(standard);
@@ -119,16 +142,41 @@ public class NutritionServiceImpl implements NutritionService {
     @Override
     public List<NutritionRationResponse> getNutritionStandardRations(Long standardId) {
         getNutritionStandard(standardId);
-        return getRationsByStandard(standardId);
+        return List.of();
     }
 
     @Override
     public List<NutritionStandardResponse> getCmsNutritionStandards(String keyword, String activityLevel, String status) {
+        String normalizedKeyword = normalizeKeyword(keyword);
         String normalizedActivity = normalizeOptionalEnum(activityLevel, ACTIVITY_LEVELS, "activityLevel");
         String normalizedStatus = normalizeOptionalEnum(status, STANDARD_STATUSES, "status");
 
-        return nutritionStandardRepository.findCmsStandards(normalizeKeyword(keyword), normalizedActivity, normalizedStatus)
+        return nutritionStandardRepository.findAll()
                 .stream()
+                .filter(standard -> {
+                    if (normalizedKeyword != null) {
+                        boolean keywordMatches = containsIgnoreCase(standard.getRationCode(), normalizedKeyword)
+                                || containsIgnoreCase(standard.getRationName(), normalizedKeyword);
+                        if (!keywordMatches) {
+                            return false;
+                        }
+                    }
+
+                    if (normalizedActivity != null) {
+                        String standardActivity = standard.getActivityLevel();
+                        if (standardActivity == null || !normalizedActivity.equalsIgnoreCase(standardActivity)) {
+                            return false;
+                        }
+                    }
+
+                    if (normalizedStatus != null) {
+                        String standardStatus = standard.getStatus();
+                        if (standardStatus == null || !normalizedStatus.equalsIgnoreCase(standardStatus)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
                 .map(this::toStandardResponse)
                 .toList();
     }
@@ -139,7 +187,10 @@ public class NutritionServiceImpl implements NutritionService {
         validateStandardRequest(request);
 
         String normalizedCode = normalizeCode(request.getRationCode());
-        if (nutritionStandardRepository.existsByRationCodeIgnoreCaseAndIsDeletedFalse(normalizedCode)) {
+        boolean codeExists = nutritionStandardRepository.findAll()
+                .stream()
+                .anyMatch(item -> item.getRationCode() != null && item.getRationCode().equalsIgnoreCase(normalizedCode));
+        if (codeExists) {
             throw new ConflictException("rationCode already exists: " + normalizedCode);
         }
 
@@ -160,7 +211,12 @@ public class NutritionServiceImpl implements NutritionService {
         validateStandardRequest(request);
 
         String normalizedCode = normalizeCode(request.getRationCode());
-        if (nutritionStandardRepository.existsByRationCodeIgnoreCaseAndIsDeletedFalseAndIdNot(normalizedCode, standardId)) {
+        boolean codeExists = nutritionStandardRepository.findAll()
+                .stream()
+                .anyMatch(item -> item.getRationCode() != null
+                        && item.getRationCode().equalsIgnoreCase(normalizedCode)
+                        && !standardId.equals(item.getId()));
+        if (codeExists) {
             throw new ConflictException("rationCode already exists: " + normalizedCode);
         }
 
@@ -168,7 +224,6 @@ public class NutritionServiceImpl implements NutritionService {
         DogBreed breed = getBreedEntity(request.getBreedId());
 
         applyStandardFields(standard, request, breed);
-
         NutritionStandard saved = nutritionStandardRepository.save(standard);
         return toStandardResponse(saved);
     }
@@ -178,71 +233,33 @@ public class NutritionServiceImpl implements NutritionService {
     public void deleteNutritionStandard(Long standardId) {
         validatePositiveId("standardId", standardId);
         NutritionStandard standard = getCmsStandardEntity(standardId);
-
         standard.setIsDeleted(true);
         nutritionStandardRepository.save(standard);
-
-        List<NutritionRation> rationItems = nutritionRationRepository.findActiveByStandardId(standardId);
-        if (!rationItems.isEmpty()) {
-            rationItems.forEach(item -> item.setIsDeleted(true));
-            nutritionRationRepository.saveAll(rationItems);
-        }
     }
 
     @Override
     public List<NutritionRationResponse> getCmsNutritionRations(Long standardId) {
         validatePositiveId("standardId", standardId);
         getCmsStandardEntity(standardId);
-
-        return nutritionRationRepository.findCmsByStandardId(standardId)
-                .stream()
-                .map(this::toRationResponse)
-                .toList();
+        return List.of();
     }
 
     @Override
     @Transactional
     public NutritionRationResponse createNutritionRation(NutritionRationUpsertRequest request) {
-        validateRationRequest(request);
-
-        NutritionStandard standard = getCmsStandardEntity(request.getStandardId());
-
-        NutritionRation ration = new NutritionRation();
-        ration.setNutritionStandard(standard);
-        ration.setIsDeleted(false);
-        applyRationFields(ration, request);
-
-        NutritionRation saved = nutritionRationRepository.save(ration);
-        return toRationResponse(saved);
+        throw new UnsupportedOperationException("nutrition_ration table is removed from schema v3");
     }
 
     @Override
     @Transactional
     public NutritionRationResponse updateNutritionRation(Long rationId, NutritionRationUpsertRequest request) {
-        validatePositiveId("rationId", rationId);
-        validateRationRequest(request);
-
-        NutritionRation ration = nutritionRationRepository.findActiveById(rationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Nutrition ration not found: " + rationId));
-
-        NutritionStandard standard = getCmsStandardEntity(request.getStandardId());
-        ration.setNutritionStandard(standard);
-        applyRationFields(ration, request);
-
-        NutritionRation saved = nutritionRationRepository.save(ration);
-        return toRationResponse(saved);
+        throw new UnsupportedOperationException("nutrition_ration table is removed from schema v3");
     }
 
     @Override
     @Transactional
     public void deleteNutritionRation(Long rationId) {
-        validatePositiveId("rationId", rationId);
-
-        NutritionRation ration = nutritionRationRepository.findActiveById(rationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Nutrition ration not found: " + rationId));
-
-        ration.setIsDeleted(true);
-        nutritionRationRepository.save(ration);
+        throw new UnsupportedOperationException("nutrition_ration table is removed from schema v3");
     }
 
     @Override
@@ -267,10 +284,10 @@ public class NutritionServiceImpl implements NutritionService {
             healthCondition = DEFAULT_HEALTH_CONDITION;
         }
 
-        int baseCalories = resolveBaseCalories(standard.getId(), standard.getDailyCalories());
-        double baseProtein = resolveBaseMacro(standard.getId(), standard.getProteinGrams(), MacroField.PROTEIN);
-        double baseFat = resolveBaseMacro(standard.getId(), standard.getFatGrams(), MacroField.FAT);
-        double baseCarb = resolveBaseMacro(standard.getId(), standard.getCarbGrams(), MacroField.CARB);
+        int baseCalories = resolveRequiredInt(standard.getDailyCalories(), "dailyCalories is required");
+        double baseProtein = resolveRequiredDouble(standard.getProteinGrams(), "proteinGrams is required");
+        double baseFat = resolveRequiredDouble(standard.getFatGrams(), "fatGrams is required");
+        double baseCarb = resolveRequiredDouble(standard.getCarbGrams(), "carbGrams is required");
 
         double activityMultiplier = ACTIVITY_MULTIPLIERS.getOrDefault(activityLevel, 1.0);
         double healthMultiplier = HEALTH_MULTIPLIERS.getOrDefault(healthCondition, 1.0);
@@ -300,13 +317,12 @@ public class NutritionServiceImpl implements NutritionService {
     }
 
     private NutritionStandard getCmsStandardEntity(Long standardId) {
-        return nutritionStandardRepository.findCmsStandardById(standardId)
+        return nutritionStandardRepository.findById(toIntegerId(standardId, "standardId"))
                 .orElseThrow(() -> new ResourceNotFoundException("Nutrition standard not found: " + standardId));
     }
 
     private DogBreed getBreedEntity(Long breedId) {
-        validatePositiveId("breedId", breedId);
-        return dogBreedRepository.findByIdAndIsDeletedFalse(breedId)
+        return dogBreedRepository.findById(toIntegerId(breedId, "breedId"))
                 .orElseThrow(() -> new ResourceNotFoundException("Dog breed not found: " + breedId));
     }
 
@@ -320,12 +336,6 @@ public class NutritionServiceImpl implements NutritionService {
 
         normalizeRequiredEnum(request.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel");
         normalizeOptionalEnum(request.getHealthCondition(), HEALTH_CONDITIONS, "healthCondition");
-        normalizeOptionalEnum(request.getStatus(), STANDARD_STATUSES, "status");
-    }
-
-    private void validateRationRequest(NutritionRationUpsertRequest request) {
-        normalizeOptionalEnum(request.getFoodCategory(), FOOD_CATEGORIES, "foodCategory");
-        normalizeRequiredEnum(request.getMealTime(), MEAL_TIMES, "mealTime");
         normalizeOptionalEnum(request.getStatus(), STANDARD_STATUSES, "status");
     }
 
@@ -355,86 +365,83 @@ public class NutritionServiceImpl implements NutritionService {
         standard.setStatus(status == null ? DEFAULT_STANDARD_STATUS : status);
     }
 
-    private void applyRationFields(NutritionRation ration, NutritionRationUpsertRequest request) {
-        ration.setFoodItemName(cleanText(request.getFoodItemName()));
-
-        String category = normalizeOptionalEnum(request.getFoodCategory(), FOOD_CATEGORIES, "foodCategory");
-        ration.setFoodCategory(category == null ? DEFAULT_FOOD_CATEGORY : category);
-
-        ration.setQuantityPerDay(request.getQuantityPerDay());
-        ration.setUnit(cleanText(request.getUnit()));
-
-        String mealTime = normalizeOptionalEnum(request.getMealTime(), MEAL_TIMES, "mealTime");
-        ration.setMealTime(mealTime == null ? DEFAULT_MEAL_TIME : mealTime);
-
-        ration.setCaloriesKcal(request.getCaloriesKcal());
-        ration.setProteinGrams(request.getProteinGrams());
-        ration.setFatGrams(request.getFatGrams());
-        ration.setCarbGrams(request.getCarbGrams());
-        ration.setPreparationNotes(cleanTextOrNull(request.getPreparationNotes()));
-        ration.setFeedingInstructions(cleanTextOrNull(request.getFeedingInstructions()));
-        ration.setDisplayOrder(request.getDisplayOrder());
-
-        String status = normalizeOptionalEnum(request.getStatus(), STANDARD_STATUSES, "status");
-        ration.setStatus(status == null ? DEFAULT_RATION_STATUS : status);
+    private void validatePositiveId(String fieldName, Long value) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(fieldName + " must be greater than 0");
+        }
     }
 
-    private int resolveBaseCalories(Long standardId, Integer standardDailyCalories) {
-        if (standardDailyCalories != null && standardDailyCalories > 0) {
-            return standardDailyCalories;
+    private Integer toIntegerId(Long value, String fieldName) {
+        validatePositiveId(fieldName, value);
+        if (value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(fieldName + " exceeds Integer range");
         }
-
-        double totalCalories = nutritionRationRepository.findCmsByStandardId(standardId)
-                .stream()
-                .map(NutritionRation::getCaloriesKcal)
-                .filter(value -> value != null && value > 0)
-                .reduce(0.0, Double::sum);
-
-        if (totalCalories <= 0) {
-            throw new IllegalArgumentException("dailyCalories is missing and ration calories cannot be derived");
-        }
-
-        return (int) Math.round(totalCalories);
+        return value.intValue();
     }
 
-    private double resolveBaseMacro(Long standardId, Double standardMacro, MacroField macroField) {
-        if (standardMacro != null && standardMacro >= 0) {
-            return standardMacro;
+    private String normalizeKeyword(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
-
-        return nutritionRationRepository.findCmsByStandardId(standardId)
-                .stream()
-                .map(ration -> macroField.extract(ration))
-                .filter(value -> value != null && value >= 0)
-                .reduce(0.0, Double::sum);
+        return value.trim();
     }
 
-    private NutritionRationResponse toRationResponse(NutritionRation ration) {
-        NutritionStandard standard = ration.getNutritionStandard();
-        DogBreed breed = standard != null ? standard.getDogBreed() : null;
+    private String normalizeCode(String value) {
+        String cleaned = cleanText(value);
+        return cleaned.toUpperCase();
+    }
 
-        return NutritionRationResponse.builder()
-                .rationId(ration.getId())
-                .standardId(standard != null ? standard.getId() : null)
-                .breedId(breed != null ? breed.getId() : null)
-                .breedName(breed != null ? breed.getBreedName() : null)
-                .rationCode(standard != null ? standard.getRationCode() : null)
-                .rationName(standard != null ? standard.getRationName() : null)
-                .foodItemName(ration.getFoodItemName())
-                .foodCategory(ration.getFoodCategory())
-                .quantityPerDay(ration.getQuantityPerDay())
-                .unit(ration.getUnit())
-                .mealTime(ration.getMealTime())
-                .caloriesKcal(ration.getCaloriesKcal())
-                .proteinGrams(ration.getProteinGrams())
-                .fatGrams(ration.getFatGrams())
-                .carbGrams(ration.getCarbGrams())
-                .preparationNotes(ration.getPreparationNotes())
-                .feedingInstructions(ration.getFeedingInstructions())
-                .displayOrder(ration.getDisplayOrder())
-                .status(ration.getStatus())
-                .standard(toStandardResponse(standard))
-                .build();
+    private String cleanText(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Text value must not be blank");
+        }
+        return value.trim();
+    }
+
+    private String cleanTextOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String normalizeOptionalEnum(String value, Set<String> allowedValues, String fieldName) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase();
+        if (!allowedValues.contains(normalized)) {
+            throw new IllegalArgumentException(fieldName + " is invalid");
+        }
+        return normalized;
+    }
+
+    private String normalizeRequiredEnum(String value, Set<String> allowedValues, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        return normalizeOptionalEnum(value, allowedValues, fieldName);
+    }
+
+    private boolean containsIgnoreCase(String source, String keyword) {
+        if (source == null || keyword == null) {
+            return false;
+        }
+        return source.toUpperCase().contains(keyword.toUpperCase());
+    }
+
+    private int resolveRequiredInt(Integer value, String message) {
+        if (value == null || value <= 0) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
+    }
+
+    private double resolveRequiredDouble(Double value, String message) {
+        if (value == null || value < 0) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
     }
 
     private NutritionStandardResponse toStandardResponse(NutritionStandard standard) {
@@ -468,84 +475,10 @@ public class NutritionServiceImpl implements NutritionService {
                 .build();
     }
 
-    private void validatePositiveId(String fieldName, Long value) {
-        if (value == null || value <= 0) {
-            throw new IllegalArgumentException(fieldName + " must be greater than 0");
-        }
-    }
-
-    private String normalizeKeyword(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeCode(String value) {
-        String cleaned = cleanText(value);
-        return cleaned.toUpperCase();
-    }
-
-    private String cleanText(String value) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Text value must not be blank");
-        }
-        return value.trim();
-    }
-
-    private String cleanTextOrNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private String normalizeOptionalEnum(String value, Set<String> allowedValues, String fieldName) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-
-        String normalized = value.trim().toUpperCase();
-        if (!allowedValues.contains(normalized)) {
-            throw new IllegalArgumentException(fieldName + " is invalid");
-        }
-        return normalized;
-    }
-
-    private String normalizeRequiredEnum(String value, Set<String> allowedValues, String fieldName) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(fieldName + " is required");
-        }
-        return normalizeOptionalEnum(value, allowedValues, fieldName);
-    }
-
     private Double roundTo2(Double value) {
         if (value == null) {
             return null;
         }
         return Math.round(value * 100.0) / 100.0;
-    }
-
-    private enum MacroField {
-        PROTEIN {
-            @Override
-            Double extract(NutritionRation ration) {
-                return ration.getProteinGrams();
-            }
-        },
-        FAT {
-            @Override
-            Double extract(NutritionRation ration) {
-                return ration.getFatGrams();
-            }
-        },
-        CARB {
-            @Override
-            Double extract(NutritionRation ration) {
-                return ration.getCarbGrams();
-            }
-        };
-
-        abstract Double extract(NutritionRation ration);
     }
 }
