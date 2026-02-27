@@ -3,10 +3,10 @@ package vn.edu.fpt.doghandbook.backend.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculatorVerifyRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculateRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.NutritionRationUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculatorVerifyResponse;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculateResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogBreed;
@@ -17,7 +17,11 @@ import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
 import vn.edu.fpt.doghandbook.backend.repository.NutritionStandardRepository;
 import vn.edu.fpt.doghandbook.backend.service.NutritionService;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -27,17 +31,20 @@ import java.util.Set;
 public class NutritionServiceImpl implements NutritionService {
 
     private static final Set<String> STANDARD_STATUSES = Set.of("DRAFT", "PENDING", "APPROVED", "PUBLISHED", "REJECTED");
+    private static final Set<String> PUBLIC_STATUSES = Set.of("APPROVED", "PUBLISHED");
     private static final Set<String> ACTIVITY_LEVELS = Set.of("LOW", "MEDIUM", "HIGH", "VERY_HIGH");
     private static final Set<String> HEALTH_CONDITIONS = Set.of("NORMAL", "RECOVERY", "SPECIAL");
+    private static final Set<String> GENDERS = Set.of("MALE", "FEMALE");
 
     private static final String DEFAULT_STANDARD_STATUS = "DRAFT";
     private static final String DEFAULT_HEALTH_CONDITION = "NORMAL";
+    private static final String DEFAULT_ACTIVITY_LEVEL = "MEDIUM";
 
     private static final Map<String, Double> ACTIVITY_MULTIPLIERS = Map.of(
             "LOW", 0.90,
             "MEDIUM", 1.00,
-            "HIGH", 1.15,
-            "VERY_HIGH", 1.30
+            "HIGH", 1.23,
+            "VERY_HIGH", 1.40
     );
 
     private static final Map<String, Double> HEALTH_MULTIPLIERS = Map.of(
@@ -183,7 +190,7 @@ public class NutritionServiceImpl implements NutritionService {
 
     @Override
     @Transactional
-    public NutritionStandardResponse createNutritionStandard(NutritionStandardUpsertRequest request) {
+    public NutritionStandardResponse createNutritionStandard(NutritionStandardRequest request) {
         validateStandardRequest(request);
 
         String normalizedCode = normalizeCode(request.getRationCode());
@@ -194,7 +201,7 @@ public class NutritionServiceImpl implements NutritionService {
             throw new ConflictException("rationCode already exists: " + normalizedCode);
         }
 
-        DogBreed breed = getBreedEntity(request.getBreedId());
+        DogBreed breed = request.getBreedId() == null ? null : getBreedEntity(request.getBreedId());
 
         NutritionStandard standard = new NutritionStandard();
         applyStandardFields(standard, request, breed);
@@ -206,7 +213,7 @@ public class NutritionServiceImpl implements NutritionService {
 
     @Override
     @Transactional
-    public NutritionStandardResponse updateNutritionStandard(Long standardId, NutritionStandardUpsertRequest request) {
+    public NutritionStandardResponse updateNutritionStandard(Long standardId, NutritionStandardRequest request) {
         validatePositiveId("standardId", standardId);
         validateStandardRequest(request);
 
@@ -221,7 +228,7 @@ public class NutritionServiceImpl implements NutritionService {
         }
 
         NutritionStandard standard = getCmsStandardEntity(standardId);
-        DogBreed breed = getBreedEntity(request.getBreedId());
+        DogBreed breed = request.getBreedId() == null ? null : getBreedEntity(request.getBreedId());
 
         applyStandardFields(standard, request, breed);
         NutritionStandard saved = nutritionStandardRepository.save(standard);
@@ -263,56 +270,64 @@ public class NutritionServiceImpl implements NutritionService {
     }
 
     @Override
-    public NutritionCalculatorVerifyResponse verifyNutritionCalculation(NutritionCalculatorVerifyRequest request) {
-        validatePositiveId("standardId", request.getStandardId());
-
-        NutritionStandard standard = getCmsStandardEntity(request.getStandardId());
-
-        String activityLevel = normalizeOptionalEnum(request.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel");
-        if (activityLevel == null) {
-            activityLevel = normalizeOptionalEnum(standard.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel");
-        }
-        if (activityLevel == null) {
-            activityLevel = "MEDIUM";
+    public NutritionCalculateResponse calculateNutrition(NutritionCalculateRequest request) {
+        if (request.getBreedId() == null || request.getBreedId() <= 0) {
+            throw new IllegalArgumentException("breedId must be greater than 0");
         }
 
+        DogBreed breed = getBreedEntity(request.getBreedId());
+        String activityLevel = normalizeRequiredEnum(request.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel");
         String healthCondition = normalizeOptionalEnum(request.getHealthCondition(), HEALTH_CONDITIONS, "healthCondition");
-        if (healthCondition == null) {
-            healthCondition = normalizeOptionalEnum(standard.getHealthCondition(), HEALTH_CONDITIONS, "healthCondition");
-        }
         if (healthCondition == null) {
             healthCondition = DEFAULT_HEALTH_CONDITION;
         }
+        String gender = normalizeRequiredEnum(request.getGender(), GENDERS, "gender");
 
-        int baseCalories = resolveRequiredInt(standard.getDailyCalories(), "dailyCalories is required");
-        double baseProtein = resolveRequiredDouble(standard.getProteinGrams(), "proteinGrams is required");
-        double baseFat = resolveRequiredDouble(standard.getFatGrams(), "fatGrams is required");
-        double baseCarb = resolveRequiredDouble(standard.getCarbGrams(), "carbGrams is required");
-
+        double weight = request.getWeightKg().doubleValue();
+        double rer = 70.0 * Math.pow(weight, 0.75);
         double activityMultiplier = ACTIVITY_MULTIPLIERS.getOrDefault(activityLevel, 1.0);
         double healthMultiplier = HEALTH_MULTIPLIERS.getOrDefault(healthCondition, 1.0);
-        double adjustPercent = request.getKcalAdjustPercent() == null ? 0.0 : request.getKcalAdjustPercent();
+        double dailyCalories = rer * activityMultiplier * healthMultiplier;
 
-        double finalFactor = activityMultiplier * healthMultiplier * (1 + adjustPercent / 100.0);
-        int finalCalories = Math.max(1, (int) Math.round(baseCalories * finalFactor));
-        double macroFactor = finalCalories / (double) baseCalories;
+        BigDecimal calories = roundTo2(dailyCalories);
+        BigDecimal proteinG = roundTo2((dailyCalories * 0.30) / 4.0);
+        BigDecimal fatG = roundTo2((dailyCalories * 0.20) / 9.0);
+        BigDecimal carbG = roundTo2((dailyCalories * 0.50) / 4.0);
 
-        return NutritionCalculatorVerifyResponse.builder()
-                .standardId(standard.getId())
-                .rationCode(standard.getRationCode())
-                .rationName(standard.getRationName())
-                .baseDailyCalories(baseCalories)
-                .finalDailyCalories(finalCalories)
-                .baseProteinGrams(roundTo2(baseProtein))
-                .baseFatGrams(roundTo2(baseFat))
-                .baseCarbGrams(roundTo2(baseCarb))
-                .finalProteinGrams(roundTo2(baseProtein * macroFactor))
-                .finalFatGrams(roundTo2(baseFat * macroFactor))
-                .finalCarbGrams(roundTo2(baseCarb * macroFactor))
-                .activityMultiplier(activityMultiplier)
-                .healthMultiplier(healthMultiplier)
-                .kcalAdjustPercent(roundTo2(adjustPercent))
-                .feedingSchedule(standard.getFeedingSchedule())
+        WeightAssessmentResult weightAssessment = assessWeightStatus(breed, gender, request.getWeightKg());
+        NutritionStandard suggested = findSuggestedRation(
+                request.getBreedId(),
+                request.getAgeMonths(),
+                activityLevel,
+                healthCondition
+        );
+
+        NutritionCalculateResponse.SuggestedRation suggestedRation = suggested == null
+                ? null
+                : NutritionCalculateResponse.SuggestedRation.builder()
+                .standardId(suggested.getStandardId())
+                .rationCode(suggested.getRationCode())
+                .rationName(suggested.getRationName())
+                .build();
+
+        String formula = String.format(
+                Locale.ROOT,
+                "70 × %s^0.75 × %.2f × %.2f",
+                request.getWeightKg().stripTrailingZeros().toPlainString(),
+                activityMultiplier,
+                healthMultiplier
+        );
+
+        return NutritionCalculateResponse.builder()
+                .dailyCalories(calories)
+                .proteinG(proteinG)
+                .fatG(fatG)
+                .carbG(carbG)
+                .weightStatus(weightAssessment.weightStatus())
+                .deviationPercent(weightAssessment.deviationPercent())
+                .recommendation(buildRecommendation(weightAssessment.weightStatus()))
+                .suggestedRation(suggestedRation)
+                .formula(formula)
                 .build();
     }
 
@@ -321,31 +336,30 @@ public class NutritionServiceImpl implements NutritionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Nutrition standard not found: " + standardId));
     }
 
-    private DogBreed getBreedEntity(Long breedId) {
-        return dogBreedRepository.findById(toIntegerId(breedId, "breedId"))
+    private DogBreed getBreedEntity(Integer breedId) {
+        if (breedId == null || breedId <= 0) {
+            throw new IllegalArgumentException("breedId must be greater than 0");
+        }
+        return dogBreedRepository.findById(breedId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dog breed not found: " + breedId));
     }
 
-    private void validateStandardRequest(NutritionStandardUpsertRequest request) {
-        if (request.getTargetWeightMinKg() > request.getTargetWeightMaxKg()) {
-            throw new IllegalArgumentException("targetWeightMinKg must be less than or equal to targetWeightMaxKg");
-        }
-        if (request.getTargetAgeMinMonths() > request.getTargetAgeMaxMonths()) {
+    private void validateStandardRequest(NutritionStandardRequest request) {
+        if (request.getTargetAgeMinMonths() != null
+                && request.getTargetAgeMaxMonths() != null
+                && request.getTargetAgeMinMonths() > request.getTargetAgeMaxMonths()) {
             throw new IllegalArgumentException("targetAgeMinMonths must be less than or equal to targetAgeMaxMonths");
         }
 
         normalizeRequiredEnum(request.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel");
         normalizeOptionalEnum(request.getHealthCondition(), HEALTH_CONDITIONS, "healthCondition");
-        normalizeOptionalEnum(request.getStatus(), STANDARD_STATUSES, "status");
     }
 
-    private void applyStandardFields(NutritionStandard standard, NutritionStandardUpsertRequest request, DogBreed breed) {
+    private void applyStandardFields(NutritionStandard standard, NutritionStandardRequest request, DogBreed breed) {
         standard.setDogBreed(breed);
         standard.setRationCode(normalizeCode(request.getRationCode()));
         standard.setRationName(cleanText(request.getRationName()));
         standard.setDescription(cleanTextOrNull(request.getDescription()));
-        standard.setTargetWeightMinKg(request.getTargetWeightMinKg());
-        standard.setTargetWeightMaxKg(request.getTargetWeightMaxKg());
         standard.setTargetAgeMinMonths(request.getTargetAgeMinMonths());
         standard.setTargetAgeMaxMonths(request.getTargetAgeMaxMonths());
         standard.setActivityLevel(normalizeRequiredEnum(request.getActivityLevel(), ACTIVITY_LEVELS, "activityLevel"));
@@ -353,16 +367,12 @@ public class NutritionServiceImpl implements NutritionService {
         String healthCondition = normalizeOptionalEnum(request.getHealthCondition(), HEALTH_CONDITIONS, "healthCondition");
         standard.setHealthCondition(healthCondition == null ? DEFAULT_HEALTH_CONDITION : healthCondition);
 
-        standard.setDailyCalories(request.getDailyCalories());
-        standard.setProteinGrams(request.getProteinGrams());
-        standard.setFatGrams(request.getFatGrams());
-        standard.setCarbGrams(request.getCarbGrams());
-        standard.setIngredientsList(cleanTextOrNull(request.getIngredientsList()));
-        standard.setFeedingSchedule(cleanTextOrNull(request.getFeedingSchedule()));
+        standard.setMetadata(cleanTextOrNull(request.getMetadata()));
         standard.setSpecialNotes(cleanTextOrNull(request.getSpecialNotes()));
 
-        String status = normalizeOptionalEnum(request.getStatus(), STANDARD_STATUSES, "status");
-        standard.setStatus(status == null ? DEFAULT_STANDARD_STATUS : status);
+        if (standard.getStatus() == null) {
+            standard.setStatus(DEFAULT_STANDARD_STATUS);
+        }
     }
 
     private void validatePositiveId(String fieldName, Long value) {
@@ -430,55 +440,113 @@ public class NutritionServiceImpl implements NutritionService {
         return source.toUpperCase().contains(keyword.toUpperCase());
     }
 
-    private int resolveRequiredInt(Integer value, String message) {
-        if (value == null || value <= 0) {
-            throw new IllegalArgumentException(message);
-        }
-        return value;
-    }
-
-    private double resolveRequiredDouble(Double value, String message) {
-        if (value == null || value < 0) {
-            throw new IllegalArgumentException(message);
-        }
-        return value;
-    }
-
     private NutritionStandardResponse toStandardResponse(NutritionStandard standard) {
         if (standard == null) {
             return null;
         }
 
         DogBreed breed = standard.getDogBreed();
+        String createdByName = standard.getCreatedBy() == null ? null : standard.getCreatedBy().getFullName();
 
         return NutritionStandardResponse.builder()
-                .standardId(standard.getId())
-                .breedId(breed != null ? breed.getId() : null)
-                .breedName(breed != null ? breed.getBreedName() : null)
+                .standardId(standard.getStandardId())
                 .rationCode(standard.getRationCode())
                 .rationName(standard.getRationName())
                 .description(standard.getDescription())
-                .targetWeightMinKg(standard.getTargetWeightMinKg())
-                .targetWeightMaxKg(standard.getTargetWeightMaxKg())
+                .breedId(breed != null ? breed.getBreedId() : null)
+                .breedName(breed != null ? breed.getBreedName() : null)
                 .targetAgeMinMonths(standard.getTargetAgeMinMonths())
                 .targetAgeMaxMonths(standard.getTargetAgeMaxMonths())
                 .activityLevel(standard.getActivityLevel())
                 .healthCondition(standard.getHealthCondition())
-                .dailyCalories(standard.getDailyCalories())
-                .proteinGrams(standard.getProteinGrams())
-                .fatGrams(standard.getFatGrams())
-                .carbGrams(standard.getCarbGrams())
-                .ingredientsList(standard.getIngredientsList())
-                .feedingSchedule(standard.getFeedingSchedule())
+                .metadata(standard.getMetadata())
                 .specialNotes(standard.getSpecialNotes())
                 .status(standard.getStatus())
+                .createdByName(createdByName)
+                .createdAt(standard.getCreatedAt())
+                .updatedAt(standard.getUpdatedAt())
                 .build();
     }
 
-    private Double roundTo2(Double value) {
+    private NutritionStandard findSuggestedRation(Integer breedId, Integer ageMonths, String activityLevel, String healthCondition) {
+        return nutritionStandardRepository.findAll()
+                .stream()
+                .filter(standard -> standard.getStatus() != null && PUBLIC_STATUSES.contains(standard.getStatus().toUpperCase(Locale.ROOT)))
+                .filter(standard -> {
+                    DogBreed dogBreed = standard.getDogBreed();
+                    return dogBreed == null || dogBreed.getBreedId().equals(breedId);
+                })
+                .filter(standard -> matchesOptionalAge(standard, ageMonths))
+                .filter(standard -> activityLevel.equalsIgnoreCase(defaultIfBlank(standard.getActivityLevel(), DEFAULT_ACTIVITY_LEVEL)))
+                .filter(standard -> healthCondition.equalsIgnoreCase(defaultIfBlank(standard.getHealthCondition(), DEFAULT_HEALTH_CONDITION)))
+                .min(Comparator.comparingInt(standard -> standard.getStandardId() == null ? Integer.MAX_VALUE : standard.getStandardId()))
+                .orElse(null);
+    }
+
+    private boolean matchesOptionalAge(NutritionStandard standard, Integer ageMonths) {
+        Integer minAge = standard.getTargetAgeMinMonths();
+        Integer maxAge = standard.getTargetAgeMaxMonths();
+        if (ageMonths == null) {
+            return true;
+        }
+        if (minAge != null && ageMonths < minAge) {
+            return false;
+        }
+        return maxAge == null || ageMonths <= maxAge;
+    }
+
+    private WeightAssessmentResult assessWeightStatus(DogBreed breed, String gender, BigDecimal weightKg) {
+        BigDecimal min = "MALE".equals(gender) ? breed.getWeightMaleMinKg() : breed.getWeightFemaleMinKg();
+        BigDecimal max = "MALE".equals(gender) ? breed.getWeightMaleMaxKg() : breed.getWeightFemaleMaxKg();
+
+        if (min != null && weightKg.compareTo(min) < 0) {
+            BigDecimal deviation = min.subtract(weightKg)
+                    .divide(min, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100));
+            return new WeightAssessmentResult("UNDERWEIGHT", roundTo2(deviation));
+        }
+
+        if (max != null && weightKg.compareTo(max) > 0) {
+            BigDecimal deviation = weightKg.subtract(max)
+                    .divide(max, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100));
+            return new WeightAssessmentResult("OVERWEIGHT", roundTo2(deviation));
+        }
+
+        return new WeightAssessmentResult("NORMAL", BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private String buildRecommendation(String weightStatus) {
+        if ("UNDERWEIGHT".equals(weightStatus)) {
+            return "Tăng năng lượng khẩu phần và theo dõi cân nặng mỗi tuần.";
+        }
+        if ("OVERWEIGHT".equals(weightStatus)) {
+            return "Giảm năng lượng khẩu phần, tăng vận động và tái đánh giá sau 2 tuần.";
+        }
+        return "Cân nặng trong chuẩn, duy trì khẩu phần hiện tại.";
+    }
+
+    private BigDecimal roundTo2(Double value) {
         if (value == null) {
             return null;
         }
-        return Math.round(value * 100.0) / 100.0;
+        return roundTo2(BigDecimal.valueOf(value));
+    }
+
+    private BigDecimal roundTo2(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String defaultIfBlank(String value, String defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private record WeightAssessmentResult(String weightStatus, BigDecimal deviationPercent) {
     }
 }

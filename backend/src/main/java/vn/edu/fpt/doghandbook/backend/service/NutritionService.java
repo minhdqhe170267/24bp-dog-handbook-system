@@ -1,9 +1,9 @@
 package vn.edu.fpt.doghandbook.backend.service;
 
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculatorVerifyRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculateRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.NutritionRationUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculatorVerifyResponse;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculateResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
 
@@ -52,12 +52,12 @@ public interface NutritionService {
     /**
      * Create a nutrition standard (CMS).
      */
-    NutritionStandardResponse createNutritionStandard(NutritionStandardUpsertRequest request);
+    NutritionStandardResponse createNutritionStandard(NutritionStandardRequest request);
 
     /**
      * Update a nutrition standard (CMS).
      */
-    NutritionStandardResponse updateNutritionStandard(Long standardId, NutritionStandardUpsertRequest request);
+    NutritionStandardResponse updateNutritionStandard(Long standardId, NutritionStandardRequest request);
 
     /**
      * Soft-delete a nutrition standard (CMS).
@@ -84,8 +84,5 @@ public interface NutritionService {
      */
     void deleteNutritionRation(Long rationId);
 
-    /**
-     * Optional calculator verification endpoint for web-admin.
-     */
-    NutritionCalculatorVerifyResponse verifyNutritionCalculation(NutritionCalculatorVerifyRequest request);
+    NutritionCalculateResponse calculateNutrition(NutritionCalculateRequest request);
 }

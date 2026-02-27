@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculatorVerifyRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculateRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.NutritionRationUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardUpsertRequest;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculatorVerifyResponse;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculateResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
 import vn.edu.fpt.doghandbook.backend.service.NutritionService;
@@ -43,14 +43,14 @@ public class CmsNutritionController {
 
     @PostMapping("/standards")
     public ResponseEntity<NutritionStandardResponse> createStandard(
-            @Valid @RequestBody NutritionStandardUpsertRequest request) {
+            @Valid @RequestBody NutritionStandardRequest request) {
         return ResponseEntity.ok(nutritionService.createNutritionStandard(request));
     }
 
     @PutMapping("/standards/{standardId}")
     public ResponseEntity<NutritionStandardResponse> updateStandard(
             @PathVariable("standardId") Long standardId,
-            @Valid @RequestBody NutritionStandardUpsertRequest request) {
+            @Valid @RequestBody NutritionStandardRequest request) {
         return ResponseEntity.ok(nutritionService.updateNutritionStandard(standardId, request));
     }
 
@@ -85,12 +85,9 @@ public class CmsNutritionController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Optional endpoint used by web-admin to verify calculator logic against DB data.
-     */
     @PostMapping("/calculator/verify")
-    public ResponseEntity<NutritionCalculatorVerifyResponse> verifyCalculator(
-            @Valid @RequestBody NutritionCalculatorVerifyRequest request) {
-        return ResponseEntity.ok(nutritionService.verifyNutritionCalculation(request));
+    public ResponseEntity<NutritionCalculateResponse> calculateNutrition(
+            @Valid @RequestBody NutritionCalculateRequest request) {
+        return ResponseEntity.ok(nutritionService.calculateNutrition(request));
     }
 }
