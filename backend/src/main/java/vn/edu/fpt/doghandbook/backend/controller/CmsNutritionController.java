@@ -12,19 +12,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionCalculateRequest;
-import vn.edu.fpt.doghandbook.backend.dto.request.NutritionRationUpsertRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionCalculateResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.NutritionRationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.NutritionStandardResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.service.NutritionService;
 
 import java.util.List;
 
-/**
- * REST endpoints for CMS nutrition management.
- */
 @RestController
 @RequestMapping("/api/cms/nutrition")
 @RequiredArgsConstructor
@@ -33,61 +27,40 @@ public class CmsNutritionController {
     private final NutritionService nutritionService;
 
     @GetMapping("/standards")
-    public ResponseEntity<List<NutritionStandardResponse>> getStandards(
-            @RequestParam(value = "keyword", required = false) String keyword,
-            @RequestParam(value = "activityLevel", required = false) String activityLevel,
-            @RequestParam(value = "status", required = false) String status) {
+    public ResponseEntity<PageResponse<NutritionStandardResponse>> getAll(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "search", required = false) String search) {
+        return ResponseEntity.ok(nutritionService.getAll(page, size, search));
+    }
 
-        return ResponseEntity.ok(nutritionService.getCmsNutritionStandards(keyword, activityLevel, status));
+    @GetMapping("/standards/{id}")
+    public ResponseEntity<NutritionStandardResponse> getById(@PathVariable("id") Integer id) {
+        return ResponseEntity.ok(nutritionService.getById(id));
+    }
+
+    @GetMapping("/standards/breed/{breedId}")
+    public ResponseEntity<List<NutritionStandardResponse>> getByBreedId(@PathVariable("breedId") Integer breedId) {
+        return ResponseEntity.ok(nutritionService.getByBreedId(breedId));
     }
 
     @PostMapping("/standards")
-    public ResponseEntity<NutritionStandardResponse> createStandard(
+    public ResponseEntity<NutritionStandardResponse> create(
+            @Valid @RequestBody NutritionStandardRequest request,
+            @RequestParam("createdByUserId") Integer createdByUserId) {
+        return ResponseEntity.ok(nutritionService.create(request, createdByUserId));
+    }
+
+    @PutMapping("/standards/{id}")
+    public ResponseEntity<NutritionStandardResponse> update(
+            @PathVariable("id") Integer id,
             @Valid @RequestBody NutritionStandardRequest request) {
-        return ResponseEntity.ok(nutritionService.createNutritionStandard(request));
+        return ResponseEntity.ok(nutritionService.update(id, request));
     }
 
-    @PutMapping("/standards/{standardId}")
-    public ResponseEntity<NutritionStandardResponse> updateStandard(
-            @PathVariable("standardId") Long standardId,
-            @Valid @RequestBody NutritionStandardRequest request) {
-        return ResponseEntity.ok(nutritionService.updateNutritionStandard(standardId, request));
-    }
-
-    @DeleteMapping("/standards/{standardId}")
-    public ResponseEntity<Void> deleteStandard(@PathVariable("standardId") Long standardId) {
-        nutritionService.deleteNutritionStandard(standardId);
+    @DeleteMapping("/standards/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") Integer id) {
+        nutritionService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/rations")
-    public ResponseEntity<List<NutritionRationResponse>> getRations(
-            @RequestParam("standardId") Long standardId) {
-        return ResponseEntity.ok(nutritionService.getCmsNutritionRations(standardId));
-    }
-
-    @PostMapping("/rations")
-    public ResponseEntity<NutritionRationResponse> createRation(
-            @Valid @RequestBody NutritionRationUpsertRequest request) {
-        return ResponseEntity.ok(nutritionService.createNutritionRation(request));
-    }
-
-    @PutMapping("/rations/{rationId}")
-    public ResponseEntity<NutritionRationResponse> updateRation(
-            @PathVariable("rationId") Long rationId,
-            @Valid @RequestBody NutritionRationUpsertRequest request) {
-        return ResponseEntity.ok(nutritionService.updateNutritionRation(rationId, request));
-    }
-
-    @DeleteMapping("/rations/{rationId}")
-    public ResponseEntity<Void> deleteRation(@PathVariable("rationId") Long rationId) {
-        nutritionService.deleteNutritionRation(rationId);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/calculator/verify")
-    public ResponseEntity<NutritionCalculateResponse> calculateNutrition(
-            @Valid @RequestBody NutritionCalculateRequest request) {
-        return ResponseEntity.ok(nutritionService.calculateNutrition(request));
     }
 }
