@@ -21,4 +21,5 @@ public interface DogBreedRepository extends JpaRepository<DogBreed, Integer> {
     boolean existsByBreedNameAndIsDeletedFalse(String breedName);
 
     List<DogBreed> findByBreedIdInAndIsDeletedFalse(List<Integer> ids);
+    Optional<DogBreed> findByBreedIdAndIsDeletedFalse(Integer breedId);
 }
