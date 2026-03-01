@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -33,11 +34,13 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/login", "/error").permitAll()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.POST, "/breeds/compare").authenticated()
 
                         .requestMatchers(HttpMethod.POST,
                                 "/breeds/**", "/exercises/**", "/training-methods/**", "/roadmaps/**",
@@ -60,6 +63,10 @@ public class SecurityConfig {
                         ).hasAnyRole("ADMIN", "TRAINER")
 
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
