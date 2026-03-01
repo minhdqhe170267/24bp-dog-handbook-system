@@ -1,39 +1,28 @@
 package vn.edu.fpt.doghandbook.backend.dto.response;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * DTO for nutrition standard response.
- */
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class NutritionStandardResponse {
 
-    private Long standardId;
-    private Long breedId;
-    private String breedName;
+    private Integer standardId;
     private String rationCode;
     private String rationName;
     private String description;
-    private Double targetWeightMinKg;
-    private Double targetWeightMaxKg;
+    private Integer breedId;
+    private String breedName;
     private Integer targetAgeMinMonths;
     private Integer targetAgeMaxMonths;
     private String activityLevel;
     private String healthCondition;
-    private Integer dailyCalories;
-    private Double proteinGrams;
-    private Double fatGrams;
-    private Double carbGrams;
-    private String ingredientsList;
-    private String feedingSchedule;
+    private String metadata;
     private String specialNotes;
     private String status;
+    private String createdByName;
+    private java.time.LocalDateTime createdAt;
+    private java.time.LocalDateTime updatedAt;
 }
