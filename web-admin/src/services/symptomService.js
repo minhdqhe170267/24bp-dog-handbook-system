@@ -2,5 +2,6 @@ import api from './api';
 
 export const symptomService = {
   getAll: () => api.get('/symptoms'),
-  check: (symptomIds) => api.post('/symptom-checker/check', { symptomIds }),
+  getByBodyPart: (part) => api.get(`/symptoms/by-body-part?part=${part}`),
+  check: (data) => api.post('/symptom-checker/check', data),
 };
