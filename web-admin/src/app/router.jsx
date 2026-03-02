@@ -6,6 +6,7 @@ import DashboardPage from '../features/dashboard/DashboardPage';
 import BreedsPage from '../features/breeds/BreedsPage';
 import DiseasesPage from '../features/diseases/DiseasesPage';
 import MedicationsPage from '../features/medications/MedicationsPage';
+import MedicalPage from '../features/medical/MedicalPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
 import TrainingPage from '../features/training/TrainingPage';
 
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: 'breeds', element: <BreedsPage /> },
       { path: 'diseases', element: <DiseasesPage /> },
       { path: 'medications', element: <MedicationsPage /> },
+      { path: 'medical', element: <MedicalPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'training', element: <TrainingPage /> },
     ],
