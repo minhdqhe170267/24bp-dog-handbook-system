@@ -1,0 +1,875 @@
+-- ============================================================================
+-- 24BP DOG HANDBOOK SYSTEM (DHS) - Simplified Database Schema
+-- Database: MySQL 8.0+
+-- Project: SEP490-G52 Capstone Project - FPT University
+-- Version: 3.0 (Lean version - full coverage, reduced complexity)
+-- ============================================================================
+-- CHANGES FROM v2.1:
+--   REMOVED tables (7):
+--     - breed_weight_standard   → weight range gộp vào dog_breed
+--     - nutrition_ration        → gộp vào nutrition_standard.metadata
+--     - reproduction_record     → không có UC demo
+--     - field_note_photo        → photo_urls JSON gộp vào field_note
+--     - document_template       → không có logic phức tạp, hardcode ở app
+--     - sync_record             → sync_queue đã đủ
+--     - abnormal_sign           → không có UC riêng, gộp vào disease
+--
+--   SIMPLIFIED tables (4):
+--     - dog_breed               → thêm weight standard, bỏ trường text thừa
+--     - nutrition_standard      → bỏ 6 trường số dinh dưỡng → metadata JSON
+--     - operation_report        → bỏ 8 trường training/health riêng → metadata JSON
+--     - user                    → bỏ avatar_url, specialty_area không cần thiết
+--
+--   ADDED technique:
+--     - metadata JSON column    → extensible fields không cần ALTER TABLE
+--     - entity_attribute table  → mở rộng bất kỳ entity nào khi họp khách hàng
+--
+-- RESULT: 35 tables → 27 tables, không mất UC nào
+-- ============================================================================
+
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE DATABASE IF NOT EXISTS dhs_database
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE dhs_database;
+
+
+-- ============================================================================
+-- SECTION 1: USER & AUTHENTICATION MODULE
+-- ============================================================================
+
+CREATE TABLE `user` (
+    `user_id`               INT             NOT NULL AUTO_INCREMENT,
+    `username`              VARCHAR(50)     NOT NULL,
+    `password_hash`         VARCHAR(255)    NOT NULL    COMMENT 'BCrypt encrypted password',
+    `full_name`             VARCHAR(100)    NOT NULL,
+    `email`                 VARCHAR(150)    NULL,
+    `phone`                 VARCHAR(20)     NULL,
+    `role`                  ENUM('ADMIN', 'TRAINER', 'CONTENT_EDITOR', 'REVIEWER')
+                                            NOT NULL,
+    `military_rank`         VARCHAR(50)     NULL        COMMENT 'Cấp bậc quân sự (Trainer)',
+    `unit`                  VARCHAR(100)    NULL        COMMENT 'Đơn vị phụ trách (Trainer)',
+    `is_active`             TINYINT(1)      NOT NULL DEFAULT 1,
+    `is_locked`             TINYINT(1)      NOT NULL DEFAULT 0  COMMENT 'Khóa sau 5 lần đăng nhập sai',
+    `failed_login_count`    INT             NOT NULL DEFAULT 0,
+    `last_login_at`         DATETIME        NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`user_id`),
+    UNIQUE KEY `uk_user_username` (`username`),
+    INDEX `idx_user_role` (`role`),
+    INDEX `idx_user_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Bảng user trung tâm cho tất cả actors: Admin, Trainer, Editor, Reviewer';
+
+
+-- ============================================================================
+-- SECTION 2: DOG INFORMATION MODULE
+-- ============================================================================
+
+-- Gộp breed_weight_standard vào đây luôn (weight_min/max theo giống)
+-- Dùng metadata JSON cho các trường mở rộng
+CREATE TABLE `dog_breed` (
+    `breed_id`              INT             NOT NULL AUTO_INCREMENT,
+    `breed_name`            VARCHAR(100)    NOT NULL,
+    `origin`                VARCHAR(100)    NULL,
+    `description`           TEXT            NULL,
+    `size_classification`   ENUM('SMALL', 'MEDIUM', 'LARGE', 'GIANT')
+                                            NULL,
+    -- Weight standard gộp trực tiếp (thay breed_weight_standard)
+    `weight_male_min_kg`    DECIMAL(5,2)    NULL        COMMENT 'Cân nặng chuẩn tối thiểu (đực)',
+    `weight_male_max_kg`    DECIMAL(5,2)    NULL        COMMENT 'Cân nặng chuẩn tối đa (đực)',
+    `weight_female_min_kg`  DECIMAL(5,2)    NULL        COMMENT 'Cân nặng chuẩn tối thiểu (cái)',
+    `weight_female_max_kg`  DECIMAL(5,2)    NULL        COMMENT 'Cân nặng chuẩn tối đa (cái)',
+    `avg_height_cm`         DECIMAL(5,2)    NULL,
+    `lifespan_years`        VARCHAR(20)     NULL        COMMENT 'VD: 10-13',
+    `trainability_level`    ENUM('LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH')
+                                            NULL,
+    `operational_capabilities` TEXT         NULL        COMMENT 'Khả năng tác chiến quân sự',
+    -- Metadata JSON cho các trường có thể mở rộng sau
+    `metadata`              JSON            NULL        COMMENT 'Mở rộng: {behavioral_traits, temperament, care_requirements, physical_characteristics}',
+    `image_url`             VARCHAR(500)    NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`breed_id`),
+    UNIQUE KEY `uk_breed_name` (`breed_name`),
+    INDEX `idx_breed_size` (`size_classification`),
+    INDEX `idx_breed_status` (`status`),
+    CONSTRAINT `fk_breed_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Giống chó quân sự với thông số chuẩn cân nặng theo giới tính';
+
+
+CREATE TABLE `development_stage` (
+    `stage_id`              INT             NOT NULL AUTO_INCREMENT,
+    `breed_id`              INT             NOT NULL,
+    `stage_name`            VARCHAR(100)    NOT NULL    COMMENT 'VD: Chó con, Thiếu niên, Trưởng thành',
+    `age_min_months`        INT             NOT NULL,
+    `age_max_months`        INT             NOT NULL,
+    `stage_order`           INT             NOT NULL,
+    `physical_milestones`   TEXT            NULL,
+    `behavioral_milestones` TEXT            NULL,
+    `training_notes`        TEXT            NULL,
+    `nutrition_notes`       TEXT            NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`stage_id`),
+    INDEX `idx_devstage_breed` (`breed_id`),
+    INDEX `idx_devstage_status` (`status`),
+    CONSTRAINT `fk_devstage_breed` FOREIGN KEY (`breed_id`) REFERENCES `dog_breed`(`breed_id`),
+    CONSTRAINT `fk_devstage_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Cột mốc phát triển của chó theo giống và độ tuổi';
+
+
+-- ============================================================================
+-- SECTION 3: DOG PROFILE & ASSIGNMENT MODULE
+-- ============================================================================
+
+CREATE TABLE `dog_profile` (
+    `dog_id`                INT             NOT NULL AUTO_INCREMENT,
+    `dog_code`              VARCHAR(50)     NOT NULL    COMMENT 'Mã định danh chó quân sự',
+    `dog_name`              VARCHAR(100)    NULL,
+    `breed_id`              INT             NOT NULL,
+    `birth_date`            DATE            NULL,
+    `gender`                ENUM('MALE', 'FEMALE')
+                                            NOT NULL,
+    `current_weight_kg`     DECIMAL(5,2)    NULL,
+    `height_cm`             DECIMAL(5,2)    NULL,
+    `color`                 VARCHAR(100)    NULL,
+    `microchip_id`          VARCHAR(50)     NULL,
+    `status`                ENUM('ACTIVE', 'INACTIVE', 'RETIRED', 'DECEASED', 'TRANSFERRED')
+                                            NOT NULL DEFAULT 'ACTIVE',
+    `assignment_date`       DATE            NULL,
+    `is_sterilized`         TINYINT(1)      NOT NULL DEFAULT 0,
+    `image_url`             VARCHAR(500)    NULL,
+    `notes`                 TEXT            NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`dog_id`),
+    UNIQUE KEY `uk_dog_code` (`dog_code`),
+    INDEX `idx_dog_breed` (`breed_id`),
+    INDEX `idx_dog_status` (`status`),
+    CONSTRAINT `fk_dog_breed` FOREIGN KEY (`breed_id`) REFERENCES `dog_breed`(`breed_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Hồ sơ cá nhân chó quân sự';
+
+
+CREATE TABLE `dog_assignment` (
+    `assignment_id`         INT             NOT NULL AUTO_INCREMENT,
+    `trainer_id`            INT             NOT NULL,
+    `dog_id`                INT             NOT NULL,
+    `assignment_type`       ENUM('PRIMARY', 'SECONDARY', 'TEMPORARY')
+                                            NOT NULL DEFAULT 'PRIMARY',
+    `start_date`            DATE            NOT NULL,
+    `end_date`              DATE            NULL,
+    `is_active`             TINYINT(1)      NOT NULL DEFAULT 1,
+    `notes`                 VARCHAR(500)    NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`assignment_id`),
+    INDEX `idx_assign_trainer` (`trainer_id`),
+    INDEX `idx_assign_dog` (`dog_id`),
+    INDEX `idx_assign_active` (`is_active`),
+    CONSTRAINT `fk_assign_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_assign_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Quan hệ phân công Huấn luyện viên - Chó';
+
+
+-- ============================================================================
+-- SECTION 4: NUTRITION MODULE
+-- ============================================================================
+
+-- Bỏ nutrition_ration, gộp chi tiết khẩu phần vào metadata JSON
+CREATE TABLE `nutrition_standard` (
+    `standard_id`           INT             NOT NULL AUTO_INCREMENT,
+    `breed_id`              INT             NOT NULL,
+    `ration_code`           VARCHAR(50)     NOT NULL    COMMENT 'Mã khẩu phần (tự định nghĩa)',
+    `ration_name`           VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NULL,
+    `target_age_min_months` INT             NULL,
+    `target_age_max_months` INT             NULL,
+    `activity_level`        ENUM('LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH')
+                                            NULL,
+    `health_condition`      ENUM('NORMAL', 'RECOVERY', 'SPECIAL')
+                                            NULL DEFAULT 'NORMAL',
+    -- Chi tiết dinh dưỡng và khẩu phần ăn gộp vào metadata JSON
+    -- Ví dụ: {"daily_calories": 1200, "meals": [...], "ingredients": [...]}
+    `metadata`              JSON            NULL        COMMENT 'Mở rộng: {calories, protein_g, fat_g, carb_g, ingredients, feeding_schedule}',
+    `special_notes`         TEXT            NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`standard_id`),
+    UNIQUE KEY `uk_ration_code` (`ration_code`),
+    INDEX `idx_nutrition_breed` (`breed_id`),
+    INDEX `idx_nutrition_activity` (`activity_level`),
+    INDEX `idx_nutrition_status` (`status`),
+    CONSTRAINT `fk_nutrition_breed` FOREIGN KEY (`breed_id`) REFERENCES `dog_breed`(`breed_id`),
+    CONSTRAINT `fk_nutrition_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Tiêu chuẩn dinh dưỡng cho chó quân sự theo giống và hoạt động';
+
+
+-- ============================================================================
+-- SECTION 5: TRAINING MODULE
+-- ============================================================================
+
+CREATE TABLE `training_method` (
+    `method_id`             INT             NOT NULL AUTO_INCREMENT,
+    `method_name`           VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NULL,
+    `advantages`            TEXT            NULL,
+    `disadvantages`         TEXT            NULL,
+    `instructions`          TEXT            NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`method_id`),
+    INDEX `idx_method_status` (`status`),
+    CONSTRAINT `fk_method_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Phương pháp huấn luyện';
+
+
+CREATE TABLE `training_exercise` (
+    `exercise_id`           INT             NOT NULL AUTO_INCREMENT,
+    `exercise_name`         VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NULL,
+    `difficulty_level`      ENUM('BASIC', 'INTERMEDIATE', 'ADVANCED')
+                                            NOT NULL,
+    `method_id`             INT             NULL,
+    `instructions`          TEXT            NULL,
+    `duration_minutes`      INT             NULL,
+    `safety_precautions`    TEXT            NULL,
+    `required_equipment`    VARCHAR(500)    NULL,
+    `media_urls`            JSON            NULL        COMMENT 'Mở rộng: [{type, url, caption}]',
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`exercise_id`),
+    INDEX `idx_exercise_difficulty` (`difficulty_level`),
+    INDEX `idx_exercise_method` (`method_id`),
+    INDEX `idx_exercise_status` (`status`),
+    CONSTRAINT `fk_exercise_method` FOREIGN KEY (`method_id`) REFERENCES `training_method`(`method_id`),
+    CONSTRAINT `fk_exercise_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Bài tập huấn luyện chó quân sự';
+
+
+CREATE TABLE `training_roadmap` (
+    `roadmap_id`            INT             NOT NULL AUTO_INCREMENT,
+    `roadmap_name`          VARCHAR(200)    NOT NULL,
+    `breed_id`              INT             NULL        COMMENT 'NULL = áp dụng cho tất cả giống',
+    `target_role`           VARCHAR(100)    NULL        COMMENT 'VD: tuần tra, phát hiện ma túy',
+    `description`           TEXT            NULL,
+    `total_duration_weeks`  INT             NULL,
+    `phase_name`            VARCHAR(100)    NOT NULL,
+    `phase_order`           INT             NOT NULL,
+    `phase_duration_weeks`  INT             NULL,
+    `phase_objectives`      TEXT            NULL,
+    `assessment_criteria`   TEXT            NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`roadmap_id`),
+    INDEX `idx_roadmap_breed` (`breed_id`),
+    INDEX `idx_roadmap_status` (`status`),
+    CONSTRAINT `fk_roadmap_breed` FOREIGN KEY (`breed_id`) REFERENCES `dog_breed`(`breed_id`),
+    CONSTRAINT `fk_roadmap_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Lộ trình huấn luyện theo giai đoạn';
+
+
+CREATE TABLE `roadmap_exercise` (
+    `roadmap_exercise_id`   INT             NOT NULL AUTO_INCREMENT,
+    `roadmap_id`            INT             NOT NULL,
+    `exercise_id`           INT             NOT NULL,
+    `exercise_order`        INT             NOT NULL,
+    `is_mandatory`          TINYINT(1)      NOT NULL DEFAULT 1,
+
+    PRIMARY KEY (`roadmap_exercise_id`),
+    UNIQUE KEY `uk_roadmap_exercise` (`roadmap_id`, `exercise_id`),
+    CONSTRAINT `fk_re_roadmap` FOREIGN KEY (`roadmap_id`) REFERENCES `training_roadmap`(`roadmap_id`),
+    CONSTRAINT `fk_re_exercise` FOREIGN KEY (`exercise_id`) REFERENCES `training_exercise`(`exercise_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Junction: Lộ trình ↔ Bài tập (M-N)';
+
+
+-- ============================================================================
+-- SECTION 6: HEALTH & FIRST AID MODULE
+-- ============================================================================
+
+CREATE TABLE `disease` (
+    `disease_id`            INT             NOT NULL AUTO_INCREMENT,
+    `disease_name`          VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NULL,
+    `symptom_summary`       TEXT            NULL,
+    `treatment_guidelines`  TEXT            NULL,
+    `prevention_measures`   TEXT            NULL,
+    `severity_level`        ENUM('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+                                            NULL,
+    `is_contagious`         TINYINT(1)      NOT NULL DEFAULT 0,
+    `incubation_period`     VARCHAR(100)    NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`disease_id`),
+    INDEX `idx_disease_severity` (`severity_level`),
+    INDEX `idx_disease_status` (`status`),
+    CONSTRAINT `fk_disease_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Danh mục bệnh thường gặp ở chó quân sự';
+
+
+-- UC-NEW-02: Symptom Checker
+CREATE TABLE `symptom` (
+    `symptom_id`            INT             NOT NULL AUTO_INCREMENT,
+    `symptom_code`          VARCHAR(50)     NOT NULL,
+    `symptom_name`          VARCHAR(150)    NOT NULL,
+    `category`              ENUM('EATING', 'BEHAVIOR', 'PHYSICAL', 'RESPIRATORY', 'SKIN', 'OTHER')
+                                            NOT NULL,
+    `severity_indicator`    INT             NOT NULL DEFAULT 1  COMMENT 'Trọng số 1-5',
+    `description`           TEXT            NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`symptom_id`),
+    UNIQUE KEY `uk_symptom_code` (`symptom_code`),
+    INDEX `idx_symptom_category` (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Danh mục triệu chứng chuẩn hóa cho Symptom Checker';
+
+
+-- UC-NEW-02: Bảng trọng số bệnh-triệu chứng (rule-based scoring)
+CREATE TABLE `disease_symptom_mapping` (
+    `mapping_id`            INT             NOT NULL AUTO_INCREMENT,
+    `disease_id`            INT             NOT NULL,
+    `symptom_id`            INT             NOT NULL,
+    `weight`                DECIMAL(3,2)    NOT NULL DEFAULT 0.50  COMMENT 'Trọng số 0.10-1.00',
+    `is_primary`            TINYINT(1)      NOT NULL DEFAULT 0      COMMENT 'Triệu chứng đặc trưng?',
+    `notes`                 VARCHAR(500)    NULL,
+
+    PRIMARY KEY (`mapping_id`),
+    UNIQUE KEY `uk_disease_symptom` (`disease_id`, `symptom_id`),
+    CONSTRAINT `fk_dsm_disease` FOREIGN KEY (`disease_id`) REFERENCES `disease`(`disease_id`),
+    CONSTRAINT `fk_dsm_symptom` FOREIGN KEY (`symptom_id`) REFERENCES `symptom`(`symptom_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Mapping bệnh-triệu chứng với trọng số cho rule-based diagnosis';
+
+
+CREATE TABLE `medication` (
+    `medication_id`         INT             NOT NULL AUTO_INCREMENT,
+    `medication_name`       VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NULL,
+    `dosage_instructions`   TEXT            NULL,
+    `administration_method` VARCHAR(200)    NULL,
+    `side_effects`          TEXT            NULL,
+    `contraindications`     TEXT            NULL,
+    `storage_requirements`  VARCHAR(500)    NULL,
+    `image_url`             VARCHAR(500)    NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`medication_id`),
+    INDEX `idx_medication_status` (`status`),
+    CONSTRAINT `fk_medication_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Danh mục thuốc được phép dùng cho chó quân sự';
+
+
+CREATE TABLE `first_aid_guide` (
+    `guide_id`              INT             NOT NULL AUTO_INCREMENT,
+    `guide_title`           VARCHAR(200)    NOT NULL,
+    `emergency_type`        VARCHAR(100)    NOT NULL    COMMENT 'VD: Cảm nắng, Ngộ độc, Gãy xương',
+    `description`           TEXT            NULL,
+    `immediate_steps`       TEXT            NOT NULL,
+    `required_materials`    TEXT            NULL,
+    `do_not_actions`        TEXT            NULL,
+    `when_to_seek_vet`      TEXT            NULL,
+    `image_url`             VARCHAR(500)    NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `created_by`            INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`guide_id`),
+    INDEX `idx_guide_emergency_type` (`emergency_type`),
+    INDEX `idx_guide_status` (`status`),
+    CONSTRAINT `fk_guide_created_by` FOREIGN KEY (`created_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Hướng dẫn sơ cứu khẩn cấp từng bước';
+
+
+CREATE TABLE `health_record` (
+    `record_id`             INT             NOT NULL AUTO_INCREMENT,
+    `dog_id`                INT             NOT NULL,
+    `examiner_id`           INT             NOT NULL,
+    `examination_date`      DATETIME        NOT NULL,
+    `weight_kg`             DECIMAL(5,2)    NULL,
+    `temperature_c`         DECIMAL(4,1)    NULL,
+    `feces_status`          ENUM('NORMAL', 'BLOOD_PRESENT', 'ABNORMAL', 'NOT_CHECKED')
+                                            NULL DEFAULT 'NOT_CHECKED',
+    `appetite_level`        ENUM('NORMAL', 'DECREASED', 'NONE', 'INCREASED')
+                                            NULL,
+    `activity_level`        ENUM('NORMAL', 'LOW', 'VERY_LOW', 'HYPERACTIVE')
+                                            NULL,
+    `observed_symptoms`     TEXT            NULL,
+    `diagnosis`             TEXT            NULL,
+    `treatment_given`       TEXT            NULL,
+    `next_checkup_date`     DATE            NULL,
+    `notes`                 TEXT            NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`record_id`),
+    INDEX `idx_hr_dog` (`dog_id`),
+    INDEX `idx_hr_exam_date` (`examination_date`),
+    CONSTRAINT `fk_hr_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`),
+    CONSTRAINT `fk_hr_examiner` FOREIGN KEY (`examiner_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Hồ sơ khám sức khỏe chó với chỉ số sinh tồn và chẩn đoán';
+
+
+-- UC-NEW-01: Weight Assessment
+CREATE TABLE `weight_assessment` (
+    `assessment_id`         INT             NOT NULL AUTO_INCREMENT,
+    `dog_id`                INT             NOT NULL,
+    `assessor_id`           INT             NOT NULL,
+    `recorded_weight_kg`    DECIMAL(5,2)    NOT NULL,
+    -- Lấy standard_min/max từ dog_breed tại thời điểm đánh giá, lưu lại để audit
+    `standard_min_kg`       DECIMAL(5,2)    NOT NULL,
+    `standard_max_kg`       DECIMAL(5,2)    NOT NULL,
+    `status`                ENUM('UNDERWEIGHT', 'NORMAL', 'OVERWEIGHT')
+                                            NOT NULL,
+    `deviation_percent`     DECIMAL(5,2)    NULL,
+    `recommendation`        TEXT            NULL        COMMENT 'Advisory tự động từ system',
+    `follow_up_weeks`       INT             NULL,
+    `assessed_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`assessment_id`),
+    INDEX `idx_wa_dog` (`dog_id`),
+    INDEX `idx_wa_status` (`status`),
+    INDEX `idx_wa_assessed_at` (`assessed_at`),
+    CONSTRAINT `fk_wa_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`),
+    CONSTRAINT `fk_wa_assessor` FOREIGN KEY (`assessor_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Kết quả đánh giá cân nặng với so sánh chuẩn và advisory dinh dưỡng';
+
+
+-- UC-NEW-02: Symptom Checker results
+CREATE TABLE `diagnosis_record` (
+    `diagnosis_id`          INT             NOT NULL AUTO_INCREMENT,
+    `dog_id`                INT             NOT NULL,
+    `trainer_id`            INT             NOT NULL,
+    `selected_symptoms`     JSON            NOT NULL    COMMENT '[symptom_id, ...]',
+    `matched_disease_id`    INT             NULL,
+    `match_score`           DECIMAL(5,2)    NULL        COMMENT 'Điểm khớp %',
+    `all_results`           JSON            NULL        COMMENT '[{disease_id, score, name}, ...]',
+    `action_taken`          TEXT            NULL,
+    `diagnosed_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`diagnosis_id`),
+    INDEX `idx_dr_dog` (`dog_id`),
+    INDEX `idx_dr_trainer` (`trainer_id`),
+    CONSTRAINT `fk_dr_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`),
+    CONSTRAINT `fk_dr_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_dr_disease` FOREIGN KEY (`matched_disease_id`) REFERENCES `disease`(`disease_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Kết quả chẩn đoán từ Symptom Checker với điểm khớp bệnh';
+
+
+-- UC-NEW-03: Health Session Context
+CREATE TABLE `health_session` (
+    `session_id`            INT             NOT NULL AUTO_INCREMENT,
+    `dog_id`                INT             NOT NULL,
+    `trainer_id`            INT             NOT NULL,
+    `issue_summary`         VARCHAR(500)    NOT NULL,
+    `initial_diagnosis_id`  INT             NULL,
+    `status`                ENUM('ACTIVE', 'MONITORING', 'RESOLVED', 'ESCALATED')
+                                            NOT NULL DEFAULT 'ACTIVE',
+    `severity`              ENUM('LOW', 'MEDIUM', 'HIGH')
+                                            NOT NULL DEFAULT 'MEDIUM',
+    `started_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_update_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `follow_up_date`        DATE            NULL,
+    `resolution_notes`      TEXT            NULL,
+    `resolved_at`           DATETIME        NULL,
+
+    PRIMARY KEY (`session_id`),
+    INDEX `idx_hs_dog` (`dog_id`),
+    INDEX `idx_hs_status` (`status`),
+    INDEX `idx_hs_followup` (`follow_up_date`),
+    CONSTRAINT `fk_hs_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`),
+    CONSTRAINT `fk_hs_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_hs_diagnosis` FOREIGN KEY (`initial_diagnosis_id`) REFERENCES `diagnosis_record`(`diagnosis_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Theo dõi phiên sức khỏe liên tục với context-aware follow-up';
+
+
+CREATE TABLE `session_follow_up` (
+    `followup_id`           INT             NOT NULL AUTO_INCREMENT,
+    `session_id`            INT             NOT NULL,
+    `followup_date`         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `status_update`         ENUM('IMPROVED', 'SAME', 'WORSE', 'RESOLVED')
+                                            NOT NULL,
+    `notes`                 TEXT            NULL,
+    `weight_kg`             DECIMAL(5,2)    NULL,
+    `temperature_c`         DECIMAL(4,1)    NULL,
+    `next_action`           VARCHAR(500)    NULL,
+
+    PRIMARY KEY (`followup_id`),
+    INDEX `idx_sfu_session` (`session_id`),
+    CONSTRAINT `fk_sfu_session` FOREIGN KEY (`session_id`) REFERENCES `health_session`(`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Nhật ký theo dõi trong phiên sức khỏe';
+
+
+-- ============================================================================
+-- SECTION 7: FIELD OPERATIONS MODULE
+-- ============================================================================
+
+-- Gộp field_note_photo vào đây qua JSON photo_urls
+CREATE TABLE `field_note` (
+    `note_id`               INT             NOT NULL AUTO_INCREMENT,
+    `trainer_id`            INT             NOT NULL,
+    `dog_id`                INT             NULL,
+    `title`                 VARCHAR(200)    NOT NULL,
+    `content`               TEXT            NOT NULL,
+    `photo_urls`            JSON            NULL        COMMENT '[{url, caption, order}]',
+    `recording_date`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `location`              VARCHAR(200)    NULL,
+    `linked_content_id`     INT             NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`note_id`),
+    INDEX `idx_fn_trainer` (`trainer_id`),
+    INDEX `idx_fn_dog` (`dog_id`),
+    INDEX `idx_fn_date` (`recording_date`),
+    CONSTRAINT `fk_fn_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_fn_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`),
+    CONSTRAINT `fk_fn_content` FOREIGN KEY (`linked_content_id`) REFERENCES `content`(`content_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Ghi chú thực địa với ảnh đính kèm (JSON)';
+
+
+-- Bỏ 8 trường training/health riêng biệt → gộp vào metadata JSON
+CREATE TABLE `operation_report` (
+    `report_id`             INT             NOT NULL AUTO_INCREMENT,
+    `trainer_id`            INT             NOT NULL,
+    `dog_id`                INT             NOT NULL,
+    `report_type`           ENUM('TRAINING', 'HEALTH')
+                                            NOT NULL,
+    `report_title`          VARCHAR(200)    NOT NULL,
+    `report_date`           DATE            NOT NULL,
+    `report_content`        LONGTEXT        NULL        COMMENT 'Nội dung chính (rich text)',
+    -- Các trường training/health cụ thể gộp vào metadata
+    -- Training: {exercises, duration_minutes, results, observations}
+    -- Health: {condition, symptoms, cause, treatment, effectiveness}
+    `metadata`              JSON            NULL        COMMENT 'Mở rộng theo report_type',
+    `export_url`            VARCHAR(500)    NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`report_id`),
+    INDEX `idx_opr_trainer` (`trainer_id`),
+    INDEX `idx_opr_dog` (`dog_id`),
+    INDEX `idx_opr_type` (`report_type`),
+    INDEX `idx_opr_date` (`report_date`),
+    CONSTRAINT `fk_opr_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_opr_dog` FOREIGN KEY (`dog_id`) REFERENCES `dog_profile`(`dog_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Báo cáo huấn luyện và sức khỏe được tạo từ template';
+
+
+-- ============================================================================
+-- SECTION 8: CONTENT MANAGEMENT (CMS) MODULE
+-- ============================================================================
+
+CREATE TABLE `content` (
+    `content_id`            INT             NOT NULL AUTO_INCREMENT,
+    `title`                 VARCHAR(300)    NOT NULL,
+    `content_type`          ENUM('BREED_INFO', 'TRAINING_GUIDE', 'HEALTH_INFO',
+                                 'NUTRITION_GUIDE', 'FIRST_AID', 'GENERAL_ARTICLE')
+                                            NOT NULL,
+    `body`                  LONGTEXT        NULL,
+    `summary`               TEXT            NULL,
+    `status`                ENUM('DRAFT', 'PENDING', 'APPROVED', 'PUBLISHED', 'REJECTED')
+                                            NOT NULL DEFAULT 'DRAFT',
+    `author_id`             INT             NOT NULL,
+    `published_at`          DATETIME        NULL,
+    `version`               INT             NOT NULL DEFAULT 1,
+    `tags`                  VARCHAR(500)    NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`content_id`),
+    INDEX `idx_content_type` (`content_type`),
+    INDEX `idx_content_status` (`status`),
+    CONSTRAINT `fk_content_author` FOREIGN KEY (`author_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Nội dung tri thức trên CMS với versioning và approval';
+
+
+CREATE TABLE `media` (
+    `media_id`              INT             NOT NULL AUTO_INCREMENT,
+    `content_id`            INT             NULL,
+    `filename`              VARCHAR(255)    NOT NULL,
+    `media_type`            ENUM('IMAGE', 'VIDEO', 'DOCUMENT')
+                                            NOT NULL,
+    `file_url`              VARCHAR(500)    NOT NULL,
+    `file_size_bytes`       BIGINT          NULL,
+    `mime_type`             VARCHAR(100)    NULL,
+    `alt_text`              VARCHAR(300)    NULL,
+    `display_order`         INT             NOT NULL DEFAULT 1,
+    `uploaded_by`           INT             NOT NULL,
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_deleted`            TINYINT(1)      NOT NULL DEFAULT 0,
+    `deleted_at`            DATETIME        NULL,
+
+    PRIMARY KEY (`media_id`),
+    INDEX `idx_media_content` (`content_id`),
+    CONSTRAINT `fk_media_content` FOREIGN KEY (`content_id`) REFERENCES `content`(`content_id`),
+    CONSTRAINT `fk_media_uploaded_by` FOREIGN KEY (`uploaded_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='File đa phương tiện gắn với nội dung CMS';
+
+
+CREATE TABLE `approval_record` (
+    `approval_id`           INT             NOT NULL AUTO_INCREMENT,
+    `content_id`            INT             NOT NULL,
+    `reviewer_id`           INT             NOT NULL,
+    `decision`              ENUM('APPROVED', 'REJECTED', 'PENDING', 'REVISION_REQUESTED')
+                                            NOT NULL,
+    `comments`              TEXT            NULL,
+    `reviewed_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`approval_id`),
+    INDEX `idx_ar_content` (`content_id`),
+    INDEX `idx_ar_decision` (`decision`),
+    CONSTRAINT `fk_ar_content` FOREIGN KEY (`content_id`) REFERENCES `content`(`content_id`),
+    CONSTRAINT `fk_ar_reviewer` FOREIGN KEY (`reviewer_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Lịch sử duyệt nội dung với phản hồi của Reviewer';
+
+
+CREATE TABLE `content_suggestion` (
+    `suggestion_id`         INT             NOT NULL AUTO_INCREMENT,
+    `trainer_id`            INT             NOT NULL,
+    `suggestion_type`       ENUM('NEW_CONTENT', 'UPDATE_EXISTING', 'ERROR_REPORT', 'GENERAL_FEEDBACK')
+                                            NOT NULL,
+    `related_exercise_id`   INT             NULL,
+    `title`                 VARCHAR(200)    NOT NULL,
+    `description`           TEXT            NOT NULL,
+    `status`                ENUM('SUBMITTED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'IMPLEMENTED')
+                                            NOT NULL DEFAULT 'SUBMITTED',
+    `admin_response`        TEXT            NULL,
+    `reviewed_by`           INT             NULL,
+    `reviewed_at`           DATETIME        NULL,
+    `submitted_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`suggestion_id`),
+    INDEX `idx_cs_trainer` (`trainer_id`),
+    INDEX `idx_cs_status` (`status`),
+    CONSTRAINT `fk_cs_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `user`(`user_id`),
+    CONSTRAINT `fk_cs_exercise` FOREIGN KEY (`related_exercise_id`) REFERENCES `training_exercise`(`exercise_id`),
+    CONSTRAINT `fk_cs_reviewed_by` FOREIGN KEY (`reviewed_by`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Đề xuất nội dung từ Trainer lên đội biên tập';
+
+
+-- ============================================================================
+-- SECTION 9: EXTENSIBILITY TABLE
+-- ============================================================================
+
+-- Bảng này là "lưới an toàn" khi họp khách hàng yêu cầu thêm thuộc tính
+-- mà không cần ALTER TABLE hay migration
+CREATE TABLE `entity_attribute` (
+    `attr_id`               INT             NOT NULL AUTO_INCREMENT,
+    `entity_type`           VARCHAR(50)     NOT NULL    COMMENT 'dog_breed / disease / medication / training_exercise...',
+    `entity_id`             INT             NOT NULL,
+    `attr_key`              VARCHAR(100)    NOT NULL    COMMENT 'VD: coat_type, vaccine_required, preferred_climate',
+    `attr_value`            TEXT            NULL,
+    `attr_type`             ENUM('TEXT', 'NUMBER', 'BOOLEAN', 'DATE', 'JSON')
+                                            NOT NULL DEFAULT 'TEXT',
+    `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`attr_id`),
+    UNIQUE KEY `uk_entity_attr` (`entity_type`, `entity_id`, `attr_key`),
+    INDEX `idx_ea_entity` (`entity_type`, `entity_id`),
+    INDEX `idx_ea_key` (`attr_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Bảng mở rộng thuộc tính EAV - thêm trường mới không cần ALTER TABLE';
+
+
+-- ============================================================================
+-- SECTION 10: SEARCH & SYNC MODULE
+-- ============================================================================
+
+CREATE TABLE `search_history` (
+    `search_id`             INT             NOT NULL AUTO_INCREMENT,
+    `user_id`               INT             NOT NULL,
+    `search_keyword`        VARCHAR(300)    NOT NULL,
+    `search_context`        ENUM('BREED', 'EXERCISE', 'DISEASE', 'MEDICATION',
+                                 'NUTRITION', 'FIRST_AID', 'GENERAL')
+                                            NULL,
+    `result_count`          INT             NULL,
+    `searched_at`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`search_id`),
+    INDEX `idx_sh_user` (`user_id`),
+    INDEX `idx_sh_searched_at` (`searched_at`),
+    CONSTRAINT `fk_sh_user` FOREIGN KEY (`user_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Lịch sử tìm kiếm để gợi ý và phân tích';
+
+
+-- Gộp sync_queue + sync_record thành 1 bảng
+CREATE TABLE `sync_queue` (
+    `queue_id`              INT             NOT NULL AUTO_INCREMENT,
+    `user_id`               INT             NOT NULL,
+    `entity_type`           VARCHAR(50)     NOT NULL    COMMENT 'field_note / health_record / operation_report',
+    `entity_id`             INT             NOT NULL,
+    `action_type`           ENUM('CREATE', 'UPDATE', 'DELETE')
+                                            NOT NULL,
+    `payload_data`          LONGTEXT        NULL        COMMENT 'JSON: dữ liệu entity cần sync',
+    `sync_status`           ENUM('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'CONFLICT')
+                                            NOT NULL DEFAULT 'PENDING',
+    `retry_count`           INT             NOT NULL DEFAULT 0,
+    `error_message`         TEXT            NULL,
+    `queued_at`             DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `synced_at`             DATETIME        NULL,
+
+    PRIMARY KEY (`queue_id`),
+    INDEX `idx_sq_user` (`user_id`),
+    INDEX `idx_sq_status` (`sync_status`),
+    INDEX `idx_sq_entity` (`entity_type`, `entity_id`),
+    CONSTRAINT `fk_sq_user` FOREIGN KEY (`user_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Hàng đợi sync offline - theo dõi thay đổi chờ đồng bộ lên server';
+
+
+-- ============================================================================
+-- SECTION 11: SYSTEM AUDIT MODULE
+-- ============================================================================
+
+CREATE TABLE `audit_log` (
+    `log_id`                BIGINT          NOT NULL AUTO_INCREMENT,
+    `user_id`               INT             NULL,
+    `action_type`           VARCHAR(50)     NOT NULL    COMMENT 'LOGIN / LOGOUT / CREATE / UPDATE / DELETE / SYNC',
+    `entity_type`           VARCHAR(50)     NULL,
+    `entity_id`             INT             NULL,
+    `description`           TEXT            NULL,
+    `old_values`            JSON            NULL,
+    `new_values`            JSON            NULL,
+    `ip_address`            VARCHAR(45)     NULL,
+    `action_timestamp`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`log_id`),
+    INDEX `idx_al_user` (`user_id`),
+    INDEX `idx_al_action` (`action_type`),
+    INDEX `idx_al_entity` (`entity_type`, `entity_id`),
+    INDEX `idx_al_timestamp` (`action_timestamp`),
+    CONSTRAINT `fk_al_user` FOREIGN KEY (`user_id`) REFERENCES `user`(`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Audit log bảo mật cho tất cả thao tác nhạy cảm (yêu cầu quân sự)';
+
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+-- Tổng bảng: 27 (giảm từ 35)
+--
+-- SECTION 1 - User & Auth        : 1 bảng  (user)
+-- SECTION 2 - Dog Information    : 2 bảng  (dog_breed, development_stage)
+-- SECTION 3 - Dog Profile        : 2 bảng  (dog_profile, dog_assignment)
+-- SECTION 4 - Nutrition          : 1 bảng  (nutrition_standard)
+-- SECTION 5 - Training           : 4 bảng  (training_method, training_exercise,
+--                                            training_roadmap, roadmap_exercise)
+-- SECTION 6 - Health & First Aid : 9 bảng  (disease, symptom, disease_symptom_mapping,
+--                                            medication, first_aid_guide, health_record,
+--                                            weight_assessment, diagnosis_record,
+--                                            health_session, session_follow_up)
+-- SECTION 7 - Field Operations   : 2 bảng  (field_note, operation_report)
+-- SECTION 8 - CMS                : 4 bảng  (content, media, approval_record,
+--                                            content_suggestion)
+-- SECTION 9 - Extensibility      : 1 bảng  (entity_attribute)  ← MỚI
+-- SECTION 10 - Search & Sync     : 2 bảng  (search_history, sync_queue)
+-- SECTION 11 - Audit             : 1 bảng  (audit_log)
+--
+-- KỸ THUẬT MỞ RỘNG:
+--   - metadata JSON  : dog_breed, nutrition_standard, training_exercise,
+--                      operation_report, field_note
+--   - entity_attribute (EAV): mở rộng bất kỳ entity nào, không cần migration
+--
+-- UC COVERAGE: Đầy đủ 100% - không mất UC nào
+-- ============================================================================
