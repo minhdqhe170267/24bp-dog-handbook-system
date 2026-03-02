@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
+    import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -355,7 +356,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .disadvantages(entity.getDisadvantages())
                 .instructions(entity.getInstructions())
                 .status(entity.getStatus() == null ? null : entity.getStatus().name())
-                .createdByName(createdBy == null ? null : createdBy.getFullName())
+                .createdByName(resolveUserFullName(createdBy))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -378,7 +379,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .requiredEquipment(entity.getRequiredEquipment())
                 .mediaUrls(entity.getMediaUrls())
                 .status(entity.getStatus() == null ? null : entity.getStatus().name())
-                .createdByName(createdBy == null ? null : createdBy.getFullName())
+                .createdByName(resolveUserFullName(createdBy))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -402,7 +403,7 @@ public class TrainingServiceImpl implements TrainingService {
                 .phaseObjectives(entity.getPhaseObjectives())
                 .assessmentCriteria(entity.getAssessmentCriteria())
                 .status(entity.getStatus() == null ? null : entity.getStatus().name())
-                .createdByName(createdBy == null ? null : createdBy.getFullName())
+                .createdByName(resolveUserFullName(createdBy))
                 .exercises(toRoadmapExerciseItems(exercises))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -426,6 +427,17 @@ public class TrainingServiceImpl implements TrainingService {
             throw new IllegalArgumentException(fieldName + " is required");
         }
         return normalized;
+    }
+
+    private String resolveUserFullName(User user) {
+        if (user == null) {
+            return null;
+        }
+        try {
+            return user.getFullName();
+        } catch (EntityNotFoundException ex) {
+            return null;
+        }
     }
 
     private String trimToNull(String value) {
