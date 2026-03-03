@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -205,7 +206,7 @@ public class NutritionServiceImpl implements NutritionService {
                 .metadata(entity.getMetadata())
                 .specialNotes(entity.getSpecialNotes())
                 .status(entity.getStatus())
-                .createdByName(createdBy != null ? createdBy.getFullName() : null)
+                .createdByName(resolveUserFullName(createdBy))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
@@ -217,6 +218,17 @@ public class NutritionServiceImpl implements NutritionService {
             throw new IllegalArgumentException(fieldName + " is required");
         }
         return normalized;
+    }
+
+    private String resolveUserFullName(User user) {
+        if (user == null) {
+            return null;
+        }
+        try {
+            return user.getFullName();
+        } catch (EntityNotFoundException ex) {
+            return null;
+        }
     }
 
     private String trimToNull(String value) {

@@ -1,28 +1,34 @@
-import axios from "axios";
+import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' }
 });
 
-api.interceptors.request.use(
-  (config) => {
-    console.info("[API Request]", config.method?.toUpperCase(), config.url);
-    return config;
-  },
-  (error) => {
-    console.error("[API Request Error]", error);
-    return Promise.reject(error);
+// Request interceptor — tự gắn token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
+// Response interceptor — xử lý 401
 api.interceptors.response.use(
   (response) => {
-    console.info("[API Response]", response.status, response.config.url);
-    return response;
+    console.log('API Response:', response.data); // Debug
+    return response.data;
   },
   (error) => {
-    console.error("[API Response Error]", error);
-    return Promise.reject(error);
+    console.error('API Error:', error.response); // Debug
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error.response?.data || error);
   }
 );
 
