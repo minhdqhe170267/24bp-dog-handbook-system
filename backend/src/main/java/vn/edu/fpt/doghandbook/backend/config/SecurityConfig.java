@@ -42,6 +42,18 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/breeds/compare").authenticated()
 
+                        .requestMatchers(HttpMethod.POST, "/contents/*/review")
+                        .hasAnyRole("ADMIN", "REVIEWER")
+
+                        .requestMatchers(HttpMethod.PUT, "/contents/*/publish")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/suggestions/*/respond")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
+                        .requestMatchers(HttpMethod.POST, "/suggestions/**")
+                        .hasAnyRole("TRAINER", "ADMIN", "CONTENT_EDITOR")
+
                         .requestMatchers(HttpMethod.POST,
                                 "/breeds/**", "/exercises/**", "/training-methods/**", "/roadmaps/**",
                                 "/diseases/**", "/symptoms/**", "/medications/**", "/first-aid-guides/**",

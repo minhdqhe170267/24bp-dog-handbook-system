@@ -1,11 +1,12 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
 import jakarta.validation.Valid;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,69 +15,66 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import vn.edu.fpt.doghandbook.backend.dto.request.ContentRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.ContentSuggestionRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.ContentResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.ContentSuggestionResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
-import vn.edu.fpt.doghandbook.backend.service.ContentService;
+import vn.edu.fpt.doghandbook.backend.service.ContentSuggestionService;
 
+import java.util.List;
 import java.util.Locale;
 
 @RestController
-@RequestMapping("/contents")
+@RequestMapping("/suggestions")
 @RequiredArgsConstructor
-public class ContentController {
+public class ContentSuggestionController {
 
-    private final ContentService contentService;
+    private final ContentSuggestionService contentSuggestionService;
 
     @GetMapping
-    public ApiResponse<PageResponse<ContentResponse>> getAll(
+    public ApiResponse<PageResponse<ContentSuggestionResponse>> getAll(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size,
-            @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "type", required = false) String type,
             @RequestParam(value = "status", required = false) String status
     ) {
-        return ApiResponse.success(contentService.getAll(page, size, search, type, status));
+        return ApiResponse.success(contentSuggestionService.getAll(page, size, status));
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<ContentResponse> getById(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.getById(id));
+    public ApiResponse<ContentSuggestionResponse> getById(@PathVariable("id") Integer id) {
+        return ApiResponse.success(contentSuggestionService.getById(id));
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<ContentResponse>> create(
-            @Valid @RequestBody ContentRequest request,
+    public ResponseEntity<ApiResponse<ContentSuggestionResponse>> submit(
+            @Valid @RequestBody ContentSuggestionRequest request,
             Authentication authentication
     ) {
-        ContentResponse response = contentService.create(request, extractUserId(authentication));
+        ContentSuggestionResponse response =
+                contentSuggestionService.submit(request, extractUserId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<ContentResponse> update(
-            @PathVariable("id") Integer id,
-            @Valid @RequestBody ContentRequest request
+    @PutMapping("/{id}/respond")
+    public ApiResponse<ContentSuggestionResponse> respond(
+            @PathVariable("id") Integer suggestionId,
+            @RequestBody SuggestionRespondRequest request,
+            Authentication authentication
     ) {
-        return ApiResponse.success(contentService.update(id, request));
+        Integer reviewerId = extractUserId(authentication);
+        return ApiResponse.success(contentSuggestionService.respond(
+                suggestionId,
+                request.getAdminResponse(),
+                request.getStatus(),
+                reviewerId
+        ));
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
-        contentService.delete(id);
-        return ApiResponse.success(null);
-    }
-
-    @PutMapping("/{id}/submit")
-    public ApiResponse<ContentResponse> submitForReview(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.submitForReview(id));
-    }
-
-    @PutMapping("/{id}/publish")
-    public ApiResponse<ContentResponse> publish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.publish(id));
+    @GetMapping("/my")
+    public ApiResponse<List<ContentSuggestionResponse>> getMySubmissions(Authentication authentication) {
+        Integer trainerId = extractUserId(authentication);
+        return ApiResponse.success(contentSuggestionService.getMySubmissions(trainerId));
     }
 
     private Integer extractUserId(Authentication authentication) {
@@ -109,5 +107,12 @@ public class ContentController {
         }
 
         throw new BadRequestException("Unable to resolve userId from authentication principal");
+    }
+
+    @Getter
+    @Setter
+    public static class SuggestionRespondRequest {
+        private String adminResponse;
+        private String status;
     }
 }
