@@ -74,6 +74,9 @@ public class SecurityConfig {
                         .requestMatchers("/contents/*/approve", "/contents/*/reject")
                                 .hasAnyRole("ADMIN", "REVIEWER")
 
+                        .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.PUT, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
+
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
                                 "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
