@@ -1,228 +1,105 @@
 import { useState, useEffect } from 'react';
-import {
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  Select,
-  Switch,
-  Space,
-  message,
-  Popconfirm,
-  Typography,
-  Tag,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/shared/PageHeader';
+import DataTable from '../../components/shared/DataTable';
+import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormSwitch, Button, ConfirmDialog, StatusBadge } from '../../components/ui/FormComponents';
+import { useToast } from '../../components/ui/Toast';
 import { diseaseService } from '../../services/diseaseService';
-
-const severityColors = {
-  MILD: 'green',
-  MODERATE: 'orange',
-  SEVERE: 'red',
-  CRITICAL: '#8B0000',
-};
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
 const DiseasesPage = () => {
+  const toast = useToast();
   const [diseases, setDiseases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingDisease, setEditingDisease] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [editing, setEditing] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
   const [search, setSearch] = useState('');
-  const [form] = Form.useForm();
+  const [formData, setFormData] = useState({});
 
-  const fetchDiseases = async (page = 0, size = 10) => {
+  const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try {
       const res = await diseaseService.getAll(page, size, search);
       setDiseases(res.data.content || []);
-      setPagination((prev) => ({ ...prev, total: res.data.totalElements }));
-    } catch (err) {
-      console.error('Fetch error:', err);
-      message.error('Lỗi tải danh sách bệnh');
-    } finally {
-      setLoading(false);
-    }
+      setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
+    } catch (err) { toast.error('Lỗi tải danh sách bệnh'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchDiseases(pagination.current - 1, pagination.pageSize);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(0, pagination.pageSize); }, [search]); // eslint-disable-line
 
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.diseaseName) { toast.error('Vui lòng nhập tên bệnh'); return; }
     try {
-      if (editingDisease) {
-        await diseaseService.update(editingDisease.diseaseId, values);
-        message.success('Cập nhật thành công');
-      } else {
-        await diseaseService.create(values);
-        message.success('Tạo mới thành công');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      setEditingDisease(null);
-      fetchDiseases(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.message || 'Có lỗi xảy ra');
-    }
+      if (editing) { await diseaseService.update(editing.diseaseId, formData); toast.success('Cập nhật thành công'); }
+      else { await diseaseService.create(formData); toast.success('Tạo mới thành công'); }
+      setModalOpen(false); setFormData({}); setEditing(null);
+      fetchData(pagination.page, pagination.pageSize);
+    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await diseaseService.delete(id);
-      message.success('Xóa thành công');
-      fetchDiseases(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error('Lỗi khi xóa');
-    }
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try { await diseaseService.delete(deleteId); toast.success('Xóa thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi xóa'); }
   };
 
-  const openEdit = (record) => {
-    setEditingDisease(record);
-    form.setFieldsValue(record);
-    setModalOpen(true);
-  };
-
-  const openCreate = () => {
-    setEditingDisease(null);
-    form.resetFields();
-    setModalOpen(true);
-  };
+  const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { title: 'ID', dataIndex: 'diseaseId', width: 60 },
-    { title: 'Tên bệnh', dataIndex: 'diseaseName', sorter: true },
+    { key: 'diseaseId', header: 'ID', className: 'w-16' },
+    { key: 'diseaseName', header: 'Tên bệnh', render: (r) => <span className="font-medium text-foreground">{r.diseaseName}</span> },
+    { key: 'severityLevel', header: 'Mức độ', render: (r) => r.severityLevel ? <StatusBadge status={r.severityLevel} /> : '—' },
     {
-      title: 'Mức độ nghiêm trọng',
-      dataIndex: 'severityLevel',
-      render: (v) =>
-        v && (
-          <Tag color={severityColors[v] || 'default'}>
-            {v}
-          </Tag>
-        ),
+      key: 'isContagious', header: 'Lây nhiễm', className: 'w-24', render: (r) => r.isContagious
+        ? <span className="text-xs font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">Có</span>
+        : <span className="text-xs font-medium text-success bg-success/10 px-2 py-0.5 rounded-full">Không</span>
     },
     {
-      title: 'Lây nhiễm',
-      dataIndex: 'isContagious',
-      width: 100,
-      render: (v) => (v ? <Tag color="red">Có</Tag> : <Tag color="green">Không</Tag>),
-    },
-    {
-      title: 'Hành động',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => openEdit(record)} />
-          <Popconfirm
-            title="Xác nhận xóa?"
-            onConfirm={() => handleDelete(record.diseaseId)}
-          >
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
+      key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(r.diseaseId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      )
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Typography.Title level={3}>Quản lý Bệnh</Typography.Title>
-        <Space>
-          <Input.Search
-            placeholder="Tìm kiếm..."
-            onSearch={setSearch}
-            style={{ width: 300 }}
-            allowClear
-            prefix={<SearchOutlined />}
-          />
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Thêm mới
-          </Button>
-        </Space>
+    <div className="animate-fade-in">
+      <PageHeader title="Quản lý Bệnh" description="Danh sách các bệnh thường gặp ở chó nghiệp vụ"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Bệnh' }]}
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button>} />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-card"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+      <DataTable columns={columns} data={diseases} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+        onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có bệnh nào" />
 
-      <Table
-        columns={columns}
-        dataSource={diseases}
-        loading={loading}
-        rowKey="diseaseId"
-        pagination={{
-          ...pagination,
-          onChange: (page, size) => {
-            setPagination((prev) => ({ ...prev, current: page, pageSize: size }));
-            fetchDiseases(page - 1, size);
-          },
-        }}
-      />
-
-      <Modal
-        title={editingDisease ? 'Sửa bệnh' : 'Thêm bệnh mới'}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={() => form.submit()}
-        width={700}
-        okText={editingDisease ? 'Cập nhật' : 'Tạo mới'}
-        cancelText="Hủy"
-      >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item
-            name="diseaseName"
-            label="Tên bệnh"
-            rules={[{ required: true, message: 'Vui lòng nhập tên bệnh' }]}
-          >
-            <Input placeholder="VD: Parvo" />
-          </Form.Item>
-
-          <Form.Item name="severityLevel" label="Mức độ nghiêm trọng">
-            <Select
-              placeholder="Chọn mức độ"
-              options={[
-                { value: 'MILD', label: 'Nhẹ (Mild)' },
-                { value: 'MODERATE', label: 'Trung bình (Moderate)' },
-                { value: 'SEVERE', label: 'Nặng (Severe)' },
-                { value: 'CRITICAL', label: 'Nguy kịch (Critical)' },
-              ]}
-            />
-          </Form.Item>
-
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={3} placeholder="Mô tả chi tiết về bệnh" />
-          </Form.Item>
-
-          <Form.Item name="commonSymptoms" label="Triệu chứng thường gặp">
-            <Input.TextArea rows={2} placeholder="VD: Sốt, nôn mửa, tiêu chảy" />
-          </Form.Item>
-
-          <Form.Item name="treatment" label="Phương pháp điều trị">
-            <Input.TextArea rows={2} placeholder="Phương pháp điều trị" />
-          </Form.Item>
-
-          <Form.Item name="preventionMethods" label="Phương pháp phòng ngừa">
-            <Input.TextArea rows={2} placeholder="Phương pháp phòng ngừa" />
-          </Form.Item>
-
-          <Form.Item
-            name="isContagious"
-            label="Lây nhiễm"
-            valuePropName="checked"
-          >
-            <Switch checkedChildren="Có" unCheckedChildren="Không" />
-          </Form.Item>
-
-          <Form.Item name="incubationPeriod" label="Thời gian ủ bệnh">
-            <Input placeholder="VD: 3-7 ngày" />
-          </Form.Item>
-        </Form>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bệnh' : 'Thêm bệnh mới'} width={650}
+        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Tên bệnh" required><FormInput placeholder="VD: Parvo" value={formData.diseaseName || ''} onChange={(e) => updateField('diseaseName', e.target.value)} /></FormField>
+          <FormField label="Mức độ">
+            <FormSelect value={formData.severityLevel || ''} onChange={(e) => updateField('severityLevel', e.target.value)} placeholder="Chọn mức độ"
+              options={[{ value: 'MILD', label: 'Nhẹ' }, { value: 'MODERATE', label: 'Trung bình' }, { value: 'SEVERE', label: 'Nặng' }, { value: 'CRITICAL', label: 'Nguy kịch' }]} />
+          </FormField>
+          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Triệu chứng"><FormTextarea rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>
+          <FormField label="Điều trị"><FormTextarea rows={2} value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} /></FormField>
+          <FormField label="Phòng ngừa"><FormTextarea rows={2} value={formData.preventionMethods || ''} onChange={(e) => updateField('preventionMethods', e.target.value)} /></FormField>
+          <FormField label="Lây nhiễm"><FormSwitch checked={formData.isContagious || false} onChange={(v) => updateField('isContagious', v)} /></FormField>
+        </form>
       </Modal>
+      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa bệnh" description="Bạn có chắc chắn muốn xóa bệnh này?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
