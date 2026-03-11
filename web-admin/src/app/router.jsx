@@ -1,33 +1,34 @@
 import { createBrowserRouter } from 'react-router-dom';
-import AdminLayout from '../components/AdminLayout';
-import ProtectedRoute from '../components/ProtectedRoute';
+import AppLayout from '../components/layout/AppLayout';
 import LoginPage from './LoginPage';
 import DashboardPage from '../features/dashboard/DashboardPage';
 import BreedsPage from '../features/breeds/BreedsPage';
-import DiseasesPage from '../features/diseases/DiseasesPage';
-import MedicationsPage from '../features/medications/MedicationsPage';
-import MedicalPage from '../features/medical/MedicalPage';
+import ExercisesPage from '../features/training/ExercisesPage';
+import MethodsPage from '../features/training/MethodsPage';
+import RoadmapsPage from '../features/training/RoadmapsPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
-import TrainingPage from '../features/training/TrainingPage';
+import ContentListPage from '../features/content/ContentListPage';
+import ContentCreatePage from '../features/content/ContentCreatePage';
+import ApprovalPage from '../features/approval/ApprovalPage';
+import SuggestionsPage from '../features/suggestions/SuggestionsPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
     path: '/',
-    element: (
-      <ProtectedRoute>
-        <AdminLayout />
-      </ProtectedRoute>
-    ),
+    element: <AppLayout />,
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'content', element: <ContentListPage /> },
+      { path: 'content/create', element: <ContentCreatePage /> },
       { path: 'breeds', element: <BreedsPage /> },
-      { path: 'diseases', element: <DiseasesPage /> },
-      { path: 'medications', element: <MedicationsPage /> },
-      { path: 'medical', element: <MedicalPage /> },
+      { path: 'training/exercises', element: <ExercisesPage /> },
+      { path: 'training/methods', element: <MethodsPage /> },
+      { path: 'training/roadmaps', element: <RoadmapsPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
-      { path: 'training', element: <TrainingPage /> },
+      { path: 'approval', element: <ApprovalPage /> },
+      { path: 'suggestions', element: <SuggestionsPage /> },
     ],
   },
 ]);

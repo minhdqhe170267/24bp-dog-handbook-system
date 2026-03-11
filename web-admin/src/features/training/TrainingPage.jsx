@@ -1,436 +1,270 @@
 import { useState, useEffect } from 'react';
-import {
-  Tabs,
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  Select,
-  InputNumber,
-  Space,
-  message,
-  Popconfirm,
-  Typography,
-  Tag,
-  Row,
-  Col,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/shared/PageHeader';
+import DataTable from '../../components/shared/DataTable';
+import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormNumberInput, Button, ConfirmDialog, StatusBadge } from '../../components/ui/FormComponents';
+import { useToast } from '../../components/ui/Toast';
 import { trainingService } from '../../services/trainingService';
 import { breedService } from '../../services/breedService';
-
-const difficultyColors = {
-  BASIC: 'green',
-  INTERMEDIATE: 'orange',
-  ADVANCED: 'red',
-};
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { cn } from '../../utils/utils';
 
 const TrainingPage = () => {
+  const [activeTab, setActiveTab] = useState('methods');
+  const tabs = [
+    { key: 'methods', label: 'Phương pháp' },
+    { key: 'exercises', label: 'Bài tập' },
+    { key: 'roadmaps', label: 'Lộ trình' },
+  ];
+
   return (
-    <div>
-      <Typography.Title level={3}>Quản lý Huấn luyện</Typography.Title>
-      <Tabs
-        defaultActiveKey="1"
-        items={[
-          { key: '1', label: 'Phương pháp', children: <MethodsTab /> },
-          { key: '2', label: 'Bài tập', children: <ExercisesTab /> },
-          { key: '3', label: 'Lộ trình', children: <RoadmapsTab /> },
-        ]}
-      />
+    <div className="animate-fade-in">
+      <PageHeader title="Quản lý Huấn luyện" description="Phương pháp, bài tập và lộ trình huấn luyện"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }]} />
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {tabs.map((tab) => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={cn('px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px cursor-pointer bg-transparent',
+              activeTab === tab.key ? 'border-b-accent text-accent' : 'border-b-transparent text-muted-foreground hover:text-foreground'
+            )}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {activeTab === 'methods' && <MethodsTab />}
+      {activeTab === 'exercises' && <ExercisesTab />}
+      {activeTab === 'roadmaps' && <RoadmapsTab />}
     </div>
   );
 };
 
-/* ─── Tab 1: Phương pháp huấn luyện ─── */
+// --- Methods Tab ---
 const MethodsTab = () => {
-  const [methods, setMethods] = useState([]);
+  const toast = useToast();
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
-  const [form] = Form.useForm();
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
+  const [formData, setFormData] = useState({});
 
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
-    try {
-      const res = await trainingService.getMethods(page, size);
-      setMethods(res.data.content || []);
-      setPagination((prev) => ({ ...prev, total: res.data.totalElements }));
-    } catch (err) {
-      message.error('Lỗi tải danh sách phương pháp');
-    } finally {
-      setLoading(false);
-    }
+    try { const res = await trainingService.getMethods(page, size); setData(res.data.content || []); setPagination((prev) => ({ ...prev, total: res.data.totalElements, page })); }
+    catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
   };
+  useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
-  useEffect(() => {
-    fetchData(pagination.current - 1, pagination.pageSize);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      if (editing) {
-        await trainingService.updateMethod(editing.methodId || editing.id, values);
-        message.success('Cập nhật thành công');
-      } else {
-        await trainingService.createMethod(values);
-        message.success('Tạo mới thành công');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      setEditing(null);
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.message || 'Có lỗi xảy ra');
-    }
+      if (editing) { await trainingService.updateMethod(editing.methodId || editing.id, formData); toast.success('Cập nhật thành công'); }
+      else { await trainingService.createMethod(formData); toast.success('Tạo mới thành công'); }
+      setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
+    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
   };
-
-  const handleDelete = async (record) => {
-    try {
-      await trainingService.deleteMethod(record.methodId || record.id);
-      message.success('Xóa thành công');
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error('Lỗi khi xóa');
-    }
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi xóa'); }
   };
+  const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { title: 'ID', dataIndex: 'methodId', width: 60, render: (v, r) => v || r.id },
-    { title: 'Tên phương pháp', dataIndex: 'methodName' },
+    { key: 'methodId', header: 'ID', className: 'w-16', render: (r) => r.methodId || r.id },
+    { key: 'methodName', header: 'Tên phương pháp', render: (r) => <span className="font-medium text-foreground">{r.methodName}</span> },
+    { key: 'description', header: 'Mô tả', render: (r) => r.description?.length > 100 ? r.description.substring(0, 100) + '...' : r.description },
     {
-      title: 'Mô tả',
-      dataIndex: 'description',
-      render: (v) => v && v.length > 100 ? v.substring(0, 100) + '...' : v,
-    },
-    {
-      title: 'Hành động',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => { setEditing(record); form.setFieldsValue(record); setModalOpen(true); }} />
-          <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record)}>
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
+      key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      )
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>
-          Thêm mới
-        </Button>
-      </div>
-      <Table columns={columns} dataSource={methods} loading={loading} rowKey={(r) => r.methodId || r.id}
-        pagination={{ ...pagination, onChange: (page, size) => { setPagination((prev) => ({ ...prev, current: page, pageSize: size })); fetchData(page - 1, size); } }}
-      />
-      <Modal title={editing ? 'Sửa phương pháp' : 'Thêm phương pháp'} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()} width={700} okText={editing ? 'Cập nhật' : 'Tạo mới'} cancelText="Hủy">
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="methodName" label="Tên phương pháp" rules={[{ required: true, message: 'Bắt buộc' }]}>
-            <Input placeholder="VD: Huấn luyện tích cực" />
-          </Form.Item>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="advantages" label="Ưu điểm">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="disadvantages" label="Nhược điểm">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="instructions" label="Hướng dẫn">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-        </Form>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+        onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa phương pháp' : 'Thêm phương pháp'} width={650}
+        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Tên" required><FormInput value={formData.methodName || ''} onChange={(e) => updateField('methodName', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Ưu điểm"><FormTextarea rows={2} value={formData.advantages || ''} onChange={(e) => updateField('advantages', e.target.value)} /></FormField>
+          <FormField label="Nhược điểm"><FormTextarea rows={2} value={formData.disadvantages || ''} onChange={(e) => updateField('disadvantages', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+        </form>
       </Modal>
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
 
-/* ─── Tab 2: Bài tập ─── */
+// --- Exercises Tab ---
 const ExercisesTab = () => {
-  const [exercises, setExercises] = useState([]);
+  const toast = useToast();
+  const [data, setData] = useState([]);
   const [methods, setMethods] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
-  const [form] = Form.useForm();
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
+  const [formData, setFormData] = useState({});
 
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try {
-      const [exRes, methRes] = await Promise.all([
-        trainingService.getExercises(page, size),
-        trainingService.getMethods(0, 100),
-      ]);
-      setExercises(exRes.data.content || []);
-      setPagination((prev) => ({ ...prev, total: exRes.data.totalElements }));
-      setMethods(methRes.data.content || []);
-    } catch (err) {
-      message.error('Lỗi tải dữ liệu');
-    } finally {
-      setLoading(false);
-    }
+      const [exRes, methRes] = await Promise.all([trainingService.getExercises(page, size), trainingService.getMethods(0, 100)]);
+      setData(exRes.data.content || []); setMethods(methRes.data.content || []);
+      setPagination((prev) => ({ ...prev, total: exRes.data.totalElements, page }));
+    } catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
   };
+  useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
-  useEffect(() => {
-    fetchData(pagination.current - 1, pagination.pageSize);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      if (editing) {
-        await trainingService.updateExercise(editing.exerciseId || editing.id, values);
-        message.success('Cập nhật thành công');
-      } else {
-        await trainingService.createExercise(values);
-        message.success('Tạo mới thành công');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      setEditing(null);
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.message || 'Có lỗi xảy ra');
-    }
+      if (editing) { await trainingService.updateExercise(editing.exerciseId || editing.id, formData); toast.success('Cập nhật thành công'); }
+      else { await trainingService.createExercise(formData); toast.success('Tạo mới thành công'); }
+      setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
+    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
   };
-
-  const handleDelete = async (record) => {
-    try {
-      await trainingService.deleteExercise(record.exerciseId || record.id);
-      message.success('Xóa thành công');
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error('Lỗi khi xóa');
-    }
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi xóa'); }
   };
+  const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { title: 'ID', dataIndex: 'exerciseId', width: 60, render: (v, r) => v || r.id },
-    { title: 'Tên bài tập', dataIndex: 'exerciseName' },
+    { key: 'exerciseId', header: 'ID', className: 'w-16', render: (r) => r.exerciseId || r.id },
+    { key: 'exerciseName', header: 'Tên bài tập', render: (r) => <span className="font-medium text-foreground">{r.exerciseName}</span> },
+    { key: 'difficultyLevel', header: 'Độ khó', render: (r) => r.difficultyLevel ? <StatusBadge status={r.difficultyLevel} /> : '—' },
+    { key: 'durationMinutes', header: 'Thời gian (phút)', className: 'w-32' },
     {
-      title: 'Độ khó',
-      dataIndex: 'difficultyLevel',
-      render: (v) => v && <Tag color={difficultyColors[v] || 'default'}>{v}</Tag>,
-    },
-    { title: 'Thời gian (phút)', dataIndex: 'durationMinutes', width: 130 },
-    {
-      title: 'Hành động',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => { setEditing(record); form.setFieldsValue(record); setModalOpen(true); }} />
-          <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record)}>
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
+      key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      )
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>
-          Thêm mới
-        </Button>
-      </div>
-      <Table columns={columns} dataSource={exercises} loading={loading} rowKey={(r) => r.exerciseId || r.id}
-        pagination={{ ...pagination, onChange: (page, size) => { setPagination((prev) => ({ ...prev, current: page, pageSize: size })); fetchData(page - 1, size); } }}
-      />
-      <Modal title={editing ? 'Sửa bài tập' : 'Thêm bài tập'} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()} width={700} okText={editing ? 'Cập nhật' : 'Tạo mới'} cancelText="Hủy">
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="exerciseName" label="Tên bài tập" rules={[{ required: true, message: 'Bắt buộc' }]}>
-            <Input placeholder="VD: Ngồi theo lệnh" />
-          </Form.Item>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="difficultyLevel" label="Độ khó">
-                <Select placeholder="Chọn" options={[
-                  { value: 'BASIC', label: 'Cơ bản' },
-                  { value: 'INTERMEDIATE', label: 'Trung bình' },
-                  { value: 'ADVANCED', label: 'Nâng cao' },
-                ]} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="methodId" label="Phương pháp">
-                <Select placeholder="Chọn phương pháp" allowClear
-                  options={methods.map((m) => ({ value: m.methodId || m.id, label: m.methodName }))}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="durationMinutes" label="Thời gian (phút)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="instructions" label="Hướng dẫn">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="safetyPrecautions" label="Lưu ý an toàn">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="requiredEquipment" label="Thiết bị cần thiết">
-            <Input placeholder="VD: Dây xích, bánh thưởng" />
-          </Form.Item>
-        </Form>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+        onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bài tập' : 'Thêm bài tập'} width={650}
+        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Tên bài tập" required><FormInput value={formData.exerciseName || ''} onChange={(e) => updateField('exerciseName', e.target.value)} /></FormField>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="Độ khó">
+              <FormSelect value={formData.difficultyLevel || ''} onChange={(e) => updateField('difficultyLevel', e.target.value)} placeholder="Chọn"
+                options={[{ value: 'BASIC', label: 'Cơ bản' }, { value: 'INTERMEDIATE', label: 'TB' }, { value: 'ADVANCED', label: 'Nâng cao' }]} />
+            </FormField>
+            <FormField label="Phương pháp">
+              <FormSelect value={formData.methodId || ''} onChange={(e) => updateField('methodId', e.target.value)} placeholder="Chọn"
+                options={methods.map((m) => ({ value: m.methodId || m.id, label: m.methodName }))} />
+            </FormField>
+            <FormField label="Thời gian (phút)"><FormNumberInput value={formData.durationMinutes || ''} onChange={(e) => updateField('durationMinutes', e.target.value)} min={1} /></FormField>
+          </div>
+          <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+        </form>
       </Modal>
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
 
-/* ─── Tab 3: Lộ trình ─── */
+// --- Roadmaps Tab ---
 const RoadmapsTab = () => {
-  const [roadmaps, setRoadmaps] = useState([]);
+  const toast = useToast();
+  const [data, setData] = useState([]);
   const [breeds, setBreeds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
-  const [form] = Form.useForm();
+  const [deleteItem, setDeleteItem] = useState(null);
+  const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
+  const [formData, setFormData] = useState({});
 
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try {
-      const [rmRes, brRes] = await Promise.all([
-        trainingService.getRoadmaps(page, size),
-        breedService.getAll(0, 100),
-      ]);
-      setRoadmaps(rmRes.data.content || []);
-      setPagination((prev) => ({ ...prev, total: rmRes.data.totalElements }));
-      setBreeds(brRes.data?.content || []);
-    } catch (err) {
-      message.error('Lỗi tải dữ liệu');
-    } finally {
-      setLoading(false);
-    }
+      const [rmRes, brRes] = await Promise.all([trainingService.getRoadmaps(page, size), breedService.getAll(0, 100)]);
+      setData(rmRes.data.content || []); setBreeds(brRes.data?.content || []);
+      setPagination((prev) => ({ ...prev, total: rmRes.data.totalElements, page }));
+    } catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
   };
+  useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
-  useEffect(() => {
-    fetchData(pagination.current - 1, pagination.pageSize);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      if (editing) {
-        await trainingService.updateRoadmap(editing.roadmapId || editing.id, values);
-        message.success('Cập nhật thành công');
-      } else {
-        await trainingService.createRoadmap(values);
-        message.success('Tạo mới thành công');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      setEditing(null);
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.message || 'Có lỗi xảy ra');
-    }
+      if (editing) { await trainingService.updateRoadmap(editing.roadmapId || editing.id, formData); toast.success('Cập nhật thành công'); }
+      else { await trainingService.createRoadmap(formData); toast.success('Tạo mới thành công'); }
+      setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
+    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
   };
-
-  const handleDelete = async (record) => {
-    try {
-      await trainingService.deleteRoadmap(record.roadmapId || record.id);
-      message.success('Xóa thành công');
-      fetchData(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error('Lỗi khi xóa');
-    }
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi xóa'); }
   };
+  const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { title: 'ID', dataIndex: 'roadmapId', width: 60, render: (v, r) => v || r.id },
-    { title: 'Tên lộ trình', dataIndex: 'roadmapName' },
-    { title: 'Giống chó', dataIndex: 'breedName', render: (v) => v || '—' },
-    { title: 'Vai trò mục tiêu', dataIndex: 'targetRole' },
-    { title: 'Tổng tuần', dataIndex: 'totalDurationWeeks', width: 100 },
+    { key: 'roadmapId', header: 'ID', className: 'w-16', render: (r) => r.roadmapId || r.id },
+    { key: 'roadmapName', header: 'Tên lộ trình', render: (r) => <span className="font-medium text-foreground">{r.roadmapName}</span> },
+    { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || '—' },
+    { key: 'targetRole', header: 'Vai trò mục tiêu' },
+    { key: 'totalDurationWeeks', header: 'Tổng tuần', className: 'w-24' },
     {
-      title: 'Hành động',
-      width: 150,
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => { setEditing(record); form.setFieldsValue(record); setModalOpen(true); }} />
-          <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record)}>
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
+      key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      )
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>
-          Thêm mới
-        </Button>
-      </div>
-      <Table columns={columns} dataSource={roadmaps} loading={loading} rowKey={(r) => r.roadmapId || r.id}
-        pagination={{ ...pagination, onChange: (page, size) => { setPagination((prev) => ({ ...prev, current: page, pageSize: size })); fetchData(page - 1, size); } }}
-      />
-      <Modal title={editing ? 'Sửa lộ trình' : 'Thêm lộ trình'} open={modalOpen} onCancel={() => setModalOpen(false)} onOk={() => form.submit()} width={700} okText={editing ? 'Cập nhật' : 'Tạo mới'} cancelText="Hủy">
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="roadmapName" label="Tên lộ trình" rules={[{ required: true, message: 'Bắt buộc' }]}>
-            <Input placeholder="VD: Lộ trình tuần tra cơ bản" />
-          </Form.Item>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="breedId" label="Giống chó">
-                <Select placeholder="Chọn giống chó" allowClear showSearch optionFilterProp="label"
-                  options={breeds.map((b) => ({ value: b.breedId, label: b.breedName }))}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="targetRole" label="Vai trò mục tiêu">
-                <Input placeholder="VD: Tuần tra, Cứu hộ" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="totalDurationWeeks" label="Tổng thời gian (tuần)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Typography.Title level={5}>Thông tin giai đoạn</Typography.Title>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="phaseName" label="Tên giai đoạn">
-                <Input placeholder="VD: Giai đoạn 1" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="phaseOrder" label="Thứ tự">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="phaseDurationWeeks" label="Thời gian (tuần)">
-                <InputNumber style={{ width: '100%' }} min={1} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="phaseObjectives" label="Mục tiêu giai đoạn">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="assessmentCriteria" label="Tiêu chí đánh giá">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-        </Form>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+        onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa lộ trình' : 'Thêm lộ trình'} width={650}
+        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Tên lộ trình" required><FormInput value={formData.roadmapName || ''} onChange={(e) => updateField('roadmapName', e.target.value)} /></FormField>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="Giống chó">
+              <FormSelect value={formData.breedId || ''} onChange={(e) => updateField('breedId', e.target.value)} placeholder="Chọn"
+                options={breeds.map((b) => ({ value: b.breedId, label: b.breedName }))} />
+            </FormField>
+            <FormField label="Vai trò mục tiêu"><FormInput value={formData.targetRole || ''} onChange={(e) => updateField('targetRole', e.target.value)} /></FormField>
+            <FormField label="Tổng tuần"><FormNumberInput value={formData.totalDurationWeeks || ''} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} min={1} /></FormField>
+          </div>
+          <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+        </form>
       </Modal>
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };

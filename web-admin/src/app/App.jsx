@@ -1,10 +1,13 @@
 import { RouterProvider } from 'react-router-dom';
 import { AuthProvider } from '../hooks/useAuth';
+import { ToastProvider } from '../components/ui/Toast';
 import router from './router';
 
 const App = () => (
   <AuthProvider>
-    <RouterProvider router={router} />
+    <ToastProvider>
+      <RouterProvider router={router} />
+    </ToastProvider>
   </AuthProvider>
 );
 
