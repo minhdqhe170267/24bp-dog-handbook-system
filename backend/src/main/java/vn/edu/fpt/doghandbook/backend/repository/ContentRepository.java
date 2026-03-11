@@ -19,7 +19,44 @@ public interface ContentRepository extends JpaRepository<Content, Integer> {
 
     Page<Content> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
 
+    Page<Content> findByContentTypeAndStatusAndIsDeletedFalse(
+            ContentType type,
+            ContentStatus status,
+            Pageable pageable
+    );
+
+    Page<Content> findByTitleContainingIgnoreCaseAndStatusAndIsDeletedFalse(
+            String keyword,
+            ContentStatus status,
+            Pageable pageable
+    );
+
+    Page<Content> findByTitleContainingIgnoreCaseAndContentTypeAndIsDeletedFalse(
+            String keyword,
+            ContentType type,
+            Pageable pageable
+    );
+
+    Page<Content> findByTitleContainingIgnoreCaseAndContentTypeAndStatusAndIsDeletedFalse(
+            String keyword,
+            ContentType type,
+            ContentStatus status,
+            Pageable pageable
+    );
+
     List<Content> findByAuthorUserIdAndIsDeletedFalse(Integer authorId);
 
     long countByStatusAndIsDeletedFalse(ContentStatus status);
+
+    long countByStatusAndPublishedAtBetweenAndIsDeletedFalse(
+            ContentStatus status,
+            java.time.LocalDateTime start,
+            java.time.LocalDateTime end
+    );
+
+    Page<Content> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
+            ContentStatus status,
+            java.time.LocalDateTime updatedAt,
+            Pageable pageable
+    );
 }

@@ -35,10 +35,12 @@ public class ContentController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size,
             @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "contentType", required = false) String contentType,
+            @RequestParam(value = "type", required = false) String legacyType,
             @RequestParam(value = "status", required = false) String status
     ) {
-        return ApiResponse.success(contentService.getAll(page, size, search, type, status));
+        String effectiveType = contentType != null ? contentType : legacyType;
+        return ApiResponse.success(contentService.getAll(page, size, search, effectiveType, status));
     }
 
     @GetMapping("/{id}")

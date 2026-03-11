@@ -47,12 +47,41 @@ public class ContentServiceImpl implements ContentService {
         Pageable pageable = buildPageable(page, size);
         Page<Content> contentPage;
 
-        if (search != null && !search.isBlank()) {
-            contentPage = contentRepository.findByTitleContainingIgnoreCaseAndIsDeletedFalse(search.trim(), pageable);
-        } else if (type != null && !type.isBlank()) {
-            contentPage = contentRepository.findByContentTypeAndIsDeletedFalse(parseContentType(type), pageable);
-        } else if (status != null && !status.isBlank()) {
-            contentPage = contentRepository.findByStatusAndIsDeletedFalse(parseContentStatus(status), pageable);
+        String normalizedSearch = trimToNull(search);
+        ContentType contentType = type == null || type.isBlank() ? null : parseContentType(type);
+        ContentStatus contentStatus = status == null || status.isBlank() ? null : parseContentStatus(status);
+
+        if (normalizedSearch != null && contentType != null && contentStatus != null) {
+            contentPage = contentRepository.findByTitleContainingIgnoreCaseAndContentTypeAndStatusAndIsDeletedFalse(
+                    normalizedSearch,
+                    contentType,
+                    contentStatus,
+                    pageable
+            );
+        } else if (normalizedSearch != null && contentType != null) {
+            contentPage = contentRepository.findByTitleContainingIgnoreCaseAndContentTypeAndIsDeletedFalse(
+                    normalizedSearch,
+                    contentType,
+                    pageable
+            );
+        } else if (normalizedSearch != null && contentStatus != null) {
+            contentPage = contentRepository.findByTitleContainingIgnoreCaseAndStatusAndIsDeletedFalse(
+                    normalizedSearch,
+                    contentStatus,
+                    pageable
+            );
+        } else if (contentType != null && contentStatus != null) {
+            contentPage = contentRepository.findByContentTypeAndStatusAndIsDeletedFalse(
+                    contentType,
+                    contentStatus,
+                    pageable
+            );
+        } else if (normalizedSearch != null) {
+            contentPage = contentRepository.findByTitleContainingIgnoreCaseAndIsDeletedFalse(normalizedSearch, pageable);
+        } else if (contentType != null) {
+            contentPage = contentRepository.findByContentTypeAndIsDeletedFalse(contentType, pageable);
+        } else if (contentStatus != null) {
+            contentPage = contentRepository.findByStatusAndIsDeletedFalse(contentStatus, pageable);
         } else {
             contentPage = contentRepository.findByIsDeletedFalse(pageable);
         }
