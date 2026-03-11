@@ -77,6 +77,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.PUT, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
 
+                        .requestMatchers(HttpMethod.POST, "/health-records").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.GET, "/health-records", "/health-records/**").authenticated()
+
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
                                 "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
