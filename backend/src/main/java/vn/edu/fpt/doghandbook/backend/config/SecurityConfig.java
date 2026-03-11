@@ -62,7 +62,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/breeds/**", "/exercises/**", "/training-methods/**", "/roadmaps/**",
                                 "/diseases/**", "/symptoms/**", "/medications/**", "/first-aid-guides/**",
-                                "/nutrition-standards/**", "/contents/**"
+                                "/nutrition-standards/**", "/contents/**", "/media/**"
                         ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT,

@@ -1,6 +1,5 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -9,62 +8,52 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import vn.edu.fpt.doghandbook.backend.dto.request.MedicationRequest;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.MedicationResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.MediaResponse;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
-import vn.edu.fpt.doghandbook.backend.service.MedicationService;
+import vn.edu.fpt.doghandbook.backend.service.MediaService;
 
+import java.util.List;
 import java.util.Locale;
 
 @RestController
-@RequestMapping("/medications")
+@RequestMapping("/media")
 @RequiredArgsConstructor
-public class MedicationController {
+public class MediaController {
 
-    private final MedicationService medicationService;
+    private final MediaService mediaService;
 
-    @GetMapping
-    public ApiResponse<PageResponse<MedicationResponse>> getAll(
-            @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "10") int size,
-            @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "status", required = false) String status
-    ) {
-        return ApiResponse.success(medicationService.getAll(page, size, search, status));
-    }
-
-    @GetMapping("/{id}")
-    public ApiResponse<MedicationResponse> getById(@PathVariable("id") Integer id) {
-        return ApiResponse.success(medicationService.getById(id));
-    }
-
-    @PostMapping
-    public ResponseEntity<ApiResponse<MedicationResponse>> create(
-            @Valid @RequestBody MedicationRequest request,
+    @PostMapping("/upload")
+    public ResponseEntity<ApiResponse<MediaResponse>> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("entityType") String entityType,
+            @RequestParam("entityId") Integer entityId,
             Authentication authentication
     ) {
-        MedicationResponse response = medicationService.create(request, extractUserId(authentication));
+        MediaResponse response = mediaService.upload(file, entityType, entityId, extractUserId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<MedicationResponse> update(
-            @PathVariable("id") Integer id,
-            @Valid @RequestBody MedicationRequest request
+    @GetMapping("/{id}")
+    public ApiResponse<MediaResponse> getById(@PathVariable("id") Integer id) {
+        return ApiResponse.success(mediaService.getById(id));
+    }
+
+    @GetMapping("/entity/{entityType}/{entityId}")
+    public ApiResponse<List<MediaResponse>> getByEntity(
+            @PathVariable("entityType") String entityType,
+            @PathVariable("entityId") Integer entityId
     ) {
-        return ApiResponse.success(medicationService.update(id, request));
+        return ApiResponse.success(mediaService.getByEntity(entityType, entityId));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
-        medicationService.delete(id);
+        mediaService.delete(id);
         return ApiResponse.success(null, "Deleted successfully");
     }
 
