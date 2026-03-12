@@ -38,14 +38,31 @@ public class SecurityConfig {
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
 
+                        .requestMatchers(HttpMethod.GET, "/dogs", "/dogs/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/dogs").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/dogs/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasRole("ADMIN")
+
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.POST, "/breeds/compare").authenticated()
 
+                        .requestMatchers(HttpMethod.POST, "/contents/*/review")
+                        .hasAnyRole("ADMIN", "REVIEWER")
+
+                        .requestMatchers(HttpMethod.PUT, "/contents/*/publish")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/suggestions/*/respond")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
+                        .requestMatchers(HttpMethod.POST, "/suggestions/**")
+                        .hasAnyRole("TRAINER", "ADMIN", "CONTENT_EDITOR")
+
                         .requestMatchers(HttpMethod.POST,
                                 "/breeds/**", "/exercises/**", "/training-methods/**", "/roadmaps/**",
                                 "/diseases/**", "/symptoms/**", "/medications/**", "/first-aid-guides/**",
-                                "/nutrition-standards/**", "/contents/**"
+                                "/nutrition-standards/**", "/contents/**", "/media/**"
                         ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT,
@@ -56,6 +73,12 @@ public class SecurityConfig {
 
                         .requestMatchers("/contents/*/approve", "/contents/*/reject")
                                 .hasAnyRole("ADMIN", "REVIEWER")
+
+                        .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.PUT, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
+
+                        .requestMatchers(HttpMethod.POST, "/health-records").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.GET, "/health-records", "/health-records/**").authenticated()
 
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
