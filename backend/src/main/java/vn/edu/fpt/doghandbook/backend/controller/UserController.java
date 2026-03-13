@@ -1,32 +1,52 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.fpt.doghandbook.backend.dto.request.UserRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
-import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
-
-import java.util.List;
-import java.util.Map;
+import vn.edu.fpt.doghandbook.backend.service.UserManagementService;
 
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
 
+    private final UserManagementService userManagementService;
+
     @GetMapping
-    public ApiResponse<?> getAllUsers() {
-        List<Map<String, Object>> users = List.of(
-                Map.of("userId", 1, "username", "admin01",
-                        "fullName", "Nguyễn Văn Admin", "role", "ADMIN",
-                        "isActive", true),
-                Map.of("userId", 2, "username", "editor01",
-                        "fullName", "Trần Thị Biên Tập", "role", "CONTENT_EDITOR",
-                        "isActive", true),
-                Map.of("userId", 3, "username", "trainer01",
-                        "fullName", "Nguyễn Văn Kiên", "role", "TRAINER",
-                        "militaryRank", "Trung úy", "unit", "Tiểu đoàn 24", "isActive", true)
-        );
-        return ApiResponse.success(PageResponse.builder()
-                .content(users)
-                .page(0).size(10).totalElements(3).totalPages(1)
-                .build());
+    public ApiResponse<?> getAllUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search) {
+        return ApiResponse.success(userManagementService.getAll(page, size, search));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<?> getUserById(@PathVariable Integer id) {
+        return ApiResponse.success(userManagementService.getById(id));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<?> createUser(@Valid @RequestBody UserRequest request) {
+        return ApiResponse.success(userManagementService.create(request));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<?> updateUser(@PathVariable Integer id, @Valid @RequestBody UserRequest request) {
+        return ApiResponse.success(userManagementService.update(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<?> deleteUser(@PathVariable Integer id) {
+        userManagementService.delete(id);
+        return ApiResponse.success("Xóa người dùng thành công");
+    }
+
+    @PutMapping("/{id}/toggle-lock")
+    public ApiResponse<?> toggleLock(@PathVariable Integer id) {
+        return ApiResponse.success(userManagementService.toggleLock(id));
     }
 }
