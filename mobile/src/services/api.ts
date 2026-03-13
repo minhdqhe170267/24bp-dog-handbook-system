@@ -1,6 +1,23 @@
 import axios from 'axios';
 import { API_CONFIG } from '../constants/api';
 
+export interface ApiResponse<T> {
+    success: boolean;
+    data: T;
+    message: string;
+    timestamp: string;
+}
+
+export interface PageResponse<T> {
+    content: T[];
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+}
+
+export const unwrapApiData = <T>(response: ApiResponse<T>): T => response.data;
+
 const apiClient = axios.create({
     baseURL: API_CONFIG.BASE_URL,
     timeout: API_CONFIG.TIMEOUT,
@@ -31,17 +48,25 @@ apiClient.interceptors.request.use(
     }
 );
 
-// Response interceptor: unwrap data & handle 401
+// Response interceptor: keep the ApiResponse envelope and normalize errors.
 apiClient.interceptors.response.use(
     (response) => {
-        // Server wraps response in ApiResponse { success, message, data }
+        // Server wraps response in ApiResponse { success, message, data }.
         return response.data;
     },
     (error) => {
         if (error.response?.status === 401) {
             setToken(null);
         }
-        return Promise.reject(error.response?.data || error.message);
+        return Promise.reject({
+            status: error.response?.status,
+            data: error.response?.data,
+            message:
+                (typeof error.response?.data === 'string' && error.response.data) ||
+                error.response?.data?.message ||
+                error.message ||
+                'Request failed',
+        });
     }
 );
 
