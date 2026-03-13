@@ -31,10 +31,10 @@ const router = createBrowserRouter([
       { path: 'training/methods', element: <MethodsPage /> },
       { path: 'training/roadmaps', element: <RoadmapsPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
-      { path: 'approval', element: <ApprovalPage /> },
-      { path: 'suggestions', element: <SuggestionsPage /> },
       { path: 'medications', element: <MedicationsPage /> },
       { path: 'medical', element: <FirstAidGuidesPage /> },
+      { path: 'approval', element: <ApprovalPage /> },
+      { path: 'suggestions', element: <SuggestionsPage /> },
     ],
   },
 ]);
