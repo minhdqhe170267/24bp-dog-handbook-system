@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import { FilePenLine, Eye, Pencil, Trash2, Search } from 'lucide-react';
-import { motion } from 'framer-motion';
 import api from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -28,6 +27,7 @@ const statusOptions = [
 ];
 
 const ContentListPage = () => {
+    const navigate = useNavigate();
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -36,7 +36,6 @@ const ContentListPage = () => {
     const [contents, setContents] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [deleteId, setDeleteId] = useState(null);
     const { user } = useAuth();
     const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
@@ -77,6 +76,18 @@ const ContentListPage = () => {
         }
     };
 
+    const getContentId = (row) => row.contentId || row.id;
+    const openView = (row) => {
+        const id = getContentId(row);
+        if (!id) return;
+        navigate(`/content/${id}`);
+    };
+    const openEdit = (row) => {
+        const id = getContentId(row);
+        if (!id) return;
+        navigate(`/content/${id}/edit`);
+    };
+
     const formatDate = (dateStr) => {
         if (!dateStr) return '-';
         try {
@@ -96,16 +107,24 @@ const ContentListPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem">
-                        <Eye className="h-4 w-4 text-muted-foreground" />
+                    <button
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Xem"
+                        onClick={() => openView(r)}
+                    >
+                        <Eye className="h-4 w-4" />
                     </button>
                     {canEdit && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa">
-                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                        <button
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Sửa"
+                            onClick={() => openEdit(r)}
+                        >
+                            <Pencil className="h-4 w-4" />
                         </button>
                     )}
                     {canDelete && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.contentId || r.id)}>
+                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(getContentId(r))}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                         </button>
                     )}

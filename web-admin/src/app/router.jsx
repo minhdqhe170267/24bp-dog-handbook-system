@@ -24,6 +24,8 @@ const router = createBrowserRouter([
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'content', element: <ContentListPage /> },
       { path: 'content/create', element: <ContentCreatePage /> },
+      { path: 'content/:id', element: <ContentCreatePage /> },
+      { path: 'content/:id/edit', element: <ContentCreatePage /> },
       { path: 'breeds', element: <BreedsPage /> },
       { path: 'training/exercises', element: <ExercisesPage /> },
       { path: 'training/methods', element: <MethodsPage /> },
