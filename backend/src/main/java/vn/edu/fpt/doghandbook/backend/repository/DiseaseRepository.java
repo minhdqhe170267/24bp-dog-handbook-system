@@ -12,6 +12,8 @@ public interface DiseaseRepository extends JpaRepository<Disease, Integer> {
 
     long countByIsDeletedFalse();
 
+    Page<Disease> findByDiseaseNameContainingIgnoreCase(String diseaseName, Pageable pageable);
+
     Page<Disease> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
             ContentStatus status,
             LocalDateTime updatedAt,
