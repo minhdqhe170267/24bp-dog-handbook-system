@@ -52,6 +52,7 @@ export default function TabLayout() {
         name="health"
         options={{
           title: 'Sức khỏe',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'medkit' : 'medkit-outline'} size={24} color={color} />
           ),
