@@ -13,15 +13,15 @@ public interface MedicationRepository extends JpaRepository<Medication, Integer>
 
     Page<Medication> findByIsDeletedFalse(Pageable pageable);
 
-    Page<Medication> findByMedicationNameContainingIgnoreCaseAndIsDeletedFalse(String medicationName,
-            Pageable pageable);
+    Page<Medication> findByMedicationNameContainingIgnoreCaseAndIsDeletedFalse(String medicationName, Pageable pageable);
 
     Page<Medication> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
 
     Page<Medication> findByMedicationNameContainingIgnoreCaseAndStatusAndIsDeletedFalse(
             String medicationName,
             ContentStatus status,
-            Pageable pageable);
+            Pageable pageable
+    );
 
     Optional<Medication> findByMedicationIdAndIsDeletedFalse(Integer medicationId);
 
@@ -32,10 +32,12 @@ public interface MedicationRepository extends JpaRepository<Medication, Integer>
     long countByStatusAndCreatedAtBetweenAndIsDeletedFalse(
             ContentStatus status,
             LocalDateTime start,
-            LocalDateTime end);
+            LocalDateTime end
+    );
 
     Page<Medication> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
             ContentStatus status,
             LocalDateTime updatedAt,
-            Pageable pageable);
+            Pageable pageable
+    );
 }

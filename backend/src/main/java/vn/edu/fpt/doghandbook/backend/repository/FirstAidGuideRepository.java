@@ -20,7 +20,8 @@ public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, In
     Page<FirstAidGuide> findByGuideTitleContainingIgnoreCaseAndStatusAndIsDeletedFalse(
             String guideTitle,
             ContentStatus status,
-            Pageable pageable);
+            Pageable pageable
+    );
 
     Optional<FirstAidGuide> findByGuideIdAndIsDeletedFalse(Integer guideId);
 
@@ -29,5 +30,6 @@ public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, In
     Page<FirstAidGuide> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
             ContentStatus status,
             LocalDateTime updatedAt,
-            Pageable pageable);
+            Pageable pageable
+    );
 }

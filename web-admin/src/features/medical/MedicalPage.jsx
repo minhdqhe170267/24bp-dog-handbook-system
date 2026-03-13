@@ -1,142 +1,102 @@
 import { useState, useEffect } from 'react';
-import {
-  Tabs,
-  Table,
-  Tag,
-  Select,
-  Checkbox,
-  Button,
-  InputNumber,
-  Alert,
-  Progress,
-  Card,
-  Row,
-  Col,
-  Space,
-  Typography,
-  Spin,
-  message,
-  Divider,
-} from 'antd';
-import { SearchOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/shared/PageHeader';
+import DataTable from '../../components/shared/DataTable';
+import { Button, FormField, FormSelect, FormNumberInput, StatusBadge } from '../../components/ui/FormComponents';
+import { useToast } from '../../components/ui/Toast';
 import { symptomService } from '../../services/symptomService';
 import { breedService } from '../../services/breedService';
+import { CheckCircle, Loader2, AlertTriangle, AlertCircle, Info, ShieldCheck } from 'lucide-react';
+import { cn } from '../../utils/utils';
+import { motion } from 'framer-motion';
 
 const categories = ['EATING', 'BEHAVIOR', 'PHYSICAL', 'RESPIRATORY', 'SKIN', 'OTHER'];
-
 const categoryLabels = {
-  EATING: 'Ăn uống',
-  BEHAVIOR: 'Hành vi',
-  PHYSICAL: 'Thể chất',
-  RESPIRATORY: 'Hô hấp',
-  SKIN: 'Da',
-  OTHER: 'Khác',
+  EATING: 'Ăn uống', BEHAVIOR: 'Hành vi', PHYSICAL: 'Thể chất', RESPIRATORY: 'Hô hấp', SKIN: 'Da', OTHER: 'Khác',
 };
 
 const urgencyConfig = {
-  EMERGENCY: { type: 'error', label: '🚨 KHẨN CẤP' },
-  HIGH: { type: 'warning', label: '⚠️ CAO' },
-  MEDIUM: { type: 'info', label: 'ℹ️ TRUNG BÌNH' },
-  LOW: { type: 'success', label: '✅ THẤP' },
+  EMERGENCY: { icon: AlertCircle, bg: 'bg-destructive/10 border-destructive/30', text: 'text-destructive', label: '🚨 KHẨN CẤP' },
+  HIGH: { icon: AlertTriangle, bg: 'bg-warning/10 border-warning/30', text: 'text-warning', label: '⚠️ CAO' },
+  MEDIUM: { icon: Info, bg: 'bg-info/10 border-info/30', text: 'text-info', label: 'ℹ️ TRUNG BÌNH' },
+  LOW: { icon: ShieldCheck, bg: 'bg-success/10 border-success/30', text: 'text-success', label: '✅ THẤP' },
 };
 
 const MedicalPage = () => {
+  const [activeTab, setActiveTab] = useState('list');
+  const tabs = [
+    { key: 'list', label: 'Danh sách triệu chứng' },
+    { key: 'checker', label: '⭐ Kiểm tra triệu chứng' },
+  ];
+
   return (
-    <div>
-      <Typography.Title level={3}>Quản lý Y tế</Typography.Title>
-      <Tabs
-        defaultActiveKey="1"
-        items={[
-          {
-            key: '1',
-            label: 'Danh sách triệu chứng',
-            children: <SymptomListTab />,
-          },
-          {
-            key: '2',
-            label: '⭐ Kiểm tra triệu chứng',
-            children: <SymptomCheckerTab />,
-          },
-        ]}
-      />
+    <div className="animate-fade-in">
+      <PageHeader title="Quản lý Y tế" description="Danh sách triệu chứng và kiểm tra chẩn đoán"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Y tế' }]} />
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {tabs.map((tab) => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={cn('px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px cursor-pointer bg-transparent',
+              activeTab === tab.key ? 'border-b-accent text-accent' : 'border-b-transparent text-muted-foreground hover:text-foreground'
+            )}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {activeTab === 'list' && <SymptomListTab />}
+      {activeTab === 'checker' && <SymptomCheckerTab />}
     </div>
   );
 };
 
-/* ─── Tab 1: Danh sách triệu chứng ─── */
 const SymptomListTab = () => {
+  const toast = useToast();
   const [symptoms, setSymptoms] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filterCategory, setFilterCategory] = useState(null);
-
-  const fetchSymptoms = async () => {
-    setLoading(true);
-    try {
-      const res = await symptomService.getAll();
-      const data = Array.isArray(res.data) ? res.data : res.data?.content || [];
-      setSymptoms(data);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      message.error('Lỗi tải danh sách triệu chứng');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [filterCategory, setFilterCategory] = useState('');
 
   useEffect(() => {
-    fetchSymptoms();
-  }, []);
+    const fetchData = async () => {
+      setLoading(true);
+      try { const res = await symptomService.getAll(); setSymptoms(Array.isArray(res.data) ? res.data : res.data?.content || []); }
+      catch (err) { toast.error('Lỗi tải dữ liệu'); }
+      finally { setLoading(false); }
+    };
+    fetchData();
+  }, []); // eslint-disable-line
 
-  const filteredSymptoms = filterCategory
-    ? symptoms.filter((s) => s.category === filterCategory)
-    : symptoms;
+  const filtered = filterCategory ? symptoms.filter((s) => s.category === filterCategory) : symptoms;
 
   const columns = [
-    { title: 'ID', dataIndex: 'symptomId', width: 60 },
-    { title: 'Mã', dataIndex: 'symptomCode', width: 100 },
-    { title: 'Tên triệu chứng', dataIndex: 'symptomName' },
+    { key: 'symptomId', header: 'ID', className: 'w-16' },
+    { key: 'symptomCode', header: 'Mã', className: 'w-24' },
+    { key: 'symptomName', header: 'Tên triệu chứng', render: (r) => <span className="font-medium text-foreground">{r.symptomName}</span> },
     {
-      title: 'Danh mục',
-      dataIndex: 'category',
-      render: (v) => v && <Tag color="blue">{categoryLabels[v] || v}</Tag>,
+      key: 'category', header: 'Danh mục', render: (r) => r.category ? (
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-info/10 text-info">{categoryLabels[r.category] || r.category}</span>
+      ) : '—'
     },
-    {
-      title: 'Mức độ',
-      dataIndex: 'severityIndicator',
-      render: (v) => v && <Tag color={v === 'HIGH' ? 'red' : v === 'MEDIUM' ? 'orange' : 'green'}>{v}</Tag>,
-    },
+    { key: 'severityIndicator', header: 'Mức độ', render: (r) => r.severityIndicator ? <StatusBadge status={r.severityIndicator} /> : '—' },
   ];
 
   return (
     <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Typography.Text strong>Lọc theo danh mục:</Typography.Text>
-        <Select
-          placeholder="Tất cả"
-          allowClear
-          style={{ width: 200 }}
-          onChange={(val) => setFilterCategory(val)}
-          options={categories.map((c) => ({ value: c, label: categoryLabels[c] || c }))}
-        />
-      </Space>
-      <Table
-        columns={columns}
-        dataSource={filteredSymptoms}
-        loading={loading}
-        rowKey="symptomId"
-        pagination={{ pageSize: 15 }}
-      />
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm font-medium text-muted-foreground">Lọc:</span>
+        <FormSelect value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} placeholder="Tất cả"
+          options={categories.map((c) => ({ value: c, label: categoryLabels[c] || c }))} className="w-48" />
+      </div>
+      <DataTable columns={columns} data={filtered} loading={loading} />
     </div>
   );
 };
 
-/* ─── Tab 2: Kiểm tra triệu chứng ⭐ ─── */
 const SymptomCheckerTab = () => {
+  const toast = useToast();
   const [symptoms, setSymptoms] = useState([]);
   const [breeds, setBreeds] = useState([]);
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
-  const [breedId, setBreedId] = useState(null);
-  const [ageMonths, setAgeMonths] = useState(null);
+  const [breedId, setBreedId] = useState('');
+  const [ageMonths, setAgeMonths] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkLoading, setCheckLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -145,178 +105,130 @@ const SymptomCheckerTab = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [symptomRes, breedRes] = await Promise.all([
-          symptomService.getAll(),
-          breedService.getAll(0, 100),
-        ]);
-        const symptomData = Array.isArray(symptomRes.data) ? symptomRes.data : symptomRes.data?.content || [];
-        setSymptoms(symptomData);
-        setBreeds(breedRes.data?.content || []);
-      } catch (err) {
-        message.error('Lỗi tải dữ liệu');
-      } finally {
-        setLoading(false);
-      }
+        const [sRes, bRes] = await Promise.all([symptomService.getAll(), breedService.getAll(0, 100)]);
+        setSymptoms(Array.isArray(sRes.data) ? sRes.data : sRes.data?.content || []);
+        setBreeds(bRes.data?.content || []);
+      } catch (err) { toast.error('Lỗi tải dữ liệu'); }
+      finally { setLoading(false); }
     };
     loadData();
-  }, []);
+  }, []); // eslint-disable-line
 
-  // Group symptoms by category
   const groupedSymptoms = categories.reduce((acc, cat) => {
     const items = symptoms.filter((s) => s.category === cat);
     if (items.length > 0) acc[cat] = items;
     return acc;
   }, {});
 
-  const handleCheck = async () => {
-    if (selectedSymptoms.length === 0) {
-      message.warning('Vui lòng chọn ít nhất 1 triệu chứng');
-      return;
-    }
-    setCheckLoading(true);
-    setResult(null);
-    try {
-      const payload = {
-        symptomIds: selectedSymptoms,
-        ...(breedId && { breedId }),
-        ...(ageMonths && { ageMonths }),
-      };
-      const res = await symptomService.check(payload);
-      setResult(res.data);
-    } catch (err) {
-      message.error('Lỗi kiểm tra triệu chứng');
-    } finally {
-      setCheckLoading(false);
-    }
+  const toggleSymptom = (id) => {
+    setSelectedSymptoms((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
   };
 
-  const resultColumns = [
-    { title: 'Tên bệnh', dataIndex: 'diseaseName', width: 180 },
-    {
-      title: '% Khớp',
-      dataIndex: 'matchPercentage',
-      width: 150,
-      render: (v) => (
-        <Progress
-          percent={Math.round(v)}
-          size="small"
-          status={v >= 70 ? 'exception' : 'active'}
-          strokeColor={v >= 70 ? '#ff4d4f' : undefined}
-        />
-      ),
-    },
-    {
-      title: 'Triệu chứng khớp',
-      dataIndex: 'matchedSymptoms',
-      render: (v) =>
-        v && v.length > 0
-          ? v.map((s, i) => <Tag key={i} color="green">{s}</Tag>)
-          : '—',
-    },
-    {
-      title: 'Triệu chứng thiếu',
-      dataIndex: 'missingSymptomNames',
-      render: (v) =>
-        v && v.length > 0
-          ? v.map((s, i) => <Tag key={i} color="orange">{s}</Tag>)
-          : '—',
-    },
-  ];
+  const handleCheck = async () => {
+    if (selectedSymptoms.length === 0) { toast.warning('Vui lòng chọn ít nhất 1 triệu chứng'); return; }
+    setCheckLoading(true); setResult(null);
+    try {
+      const payload = { symptomIds: selectedSymptoms, ...(breedId && { breedId: Number(breedId) }), ...(ageMonths && { ageMonths: Number(ageMonths) }) };
+      const res = await symptomService.check(payload);
+      setResult(res.data);
+    } catch (err) { toast.error('Lỗi kiểm tra'); }
+    finally { setCheckLoading(false); }
+  };
 
-  if (loading) return <Spin size="large" style={{ display: 'block', margin: '50px auto' }} />;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-accent" /></div>;
 
   return (
     <div>
-      <Card title="Chọn triệu chứng" style={{ marginBottom: 16 }}>
+      <div className="bg-card rounded-xl border border-border/60 p-6 mb-6">
+        <h3 className="text-base font-semibold mb-4 text-foreground">Chọn triệu chứng</h3>
         {Object.entries(groupedSymptoms).map(([cat, items]) => (
-          <div key={cat} style={{ marginBottom: 16 }}>
-            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-              {categoryLabels[cat] || cat}
-            </Typography.Text>
-            <Checkbox.Group
-              value={selectedSymptoms}
-              onChange={(checkedValues) => {
-                // Merge with other categories
-                const otherCatIds = selectedSymptoms.filter(
-                  (id) => !items.some((item) => item.symptomId === id)
-                );
-                setSelectedSymptoms([...otherCatIds, ...checkedValues]);
-              }}
-              options={items.map((s) => ({ label: s.symptomName, value: s.symptomId }))}
-            />
-            <Divider style={{ margin: '8px 0' }} />
+          <div key={cat} className="mb-4">
+            <p className="text-sm font-semibold mb-2 text-foreground">{categoryLabels[cat] || cat}</p>
+            <div className="flex flex-wrap gap-2">
+              {items.map((s) => (
+                <button key={s.symptomId} onClick={() => toggleSymptom(s.symptomId)}
+                  className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-all border cursor-pointer',
+                    selectedSymptoms.includes(s.symptomId)
+                      ? 'bg-accent text-accent-foreground border-accent'
+                      : 'bg-muted/50 text-foreground border-border hover:bg-muted'
+                  )}>
+                  {s.symptomName}
+                </button>
+              ))}
+            </div>
+            <div className="h-px bg-border/40 mt-4" />
           </div>
         ))}
-
-        <Row gutter={16} style={{ marginTop: 16 }}>
-          <Col span={8}>
-            <Typography.Text>Giống chó (tùy chọn):</Typography.Text>
-            <Select
-              placeholder="Chọn giống chó"
-              allowClear
-              style={{ width: '100%', marginTop: 4 }}
-              onChange={setBreedId}
-              showSearch
-              optionFilterProp="label"
-              options={breeds.map((b) => ({ value: b.breedId, label: b.breedName }))}
-            />
-          </Col>
-          <Col span={8}>
-            <Typography.Text>Tuổi (tháng, tùy chọn):</Typography.Text>
-            <InputNumber
-              placeholder="VD: 24"
-              style={{ width: '100%', marginTop: 4 }}
-              min={0}
-              onChange={setAgeMonths}
-            />
-          </Col>
-          <Col span={8} style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              size="large"
-              loading={checkLoading}
-              onClick={handleCheck}
-              style={{ width: '100%' }}
-            >
-              Kiểm tra
-            </Button>
-          </Col>
-        </Row>
-      </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <FormField label="Giống chó (tùy chọn)">
+            <FormSelect value={breedId} onChange={(e) => setBreedId(e.target.value)} placeholder="Chọn"
+              options={breeds.map((b) => ({ value: b.breedId, label: b.breedName }))} />
+          </FormField>
+          <FormField label="Tuổi (tháng, tùy chọn)"><FormNumberInput value={ageMonths} onChange={(e) => setAgeMonths(e.target.value)} min={0} /></FormField>
+          <div className="flex items-end"><Button className="w-full" loading={checkLoading} onClick={handleCheck}><CheckCircle className="h-4 w-4" />Kiểm tra</Button></div>
+        </div>
+      </div>
 
       {result && (
-        <div>
-          <Alert
-            type={urgencyConfig[result.urgencyLevel]?.type || 'info'}
-            message={`Mức độ khẩn cấp: ${urgencyConfig[result.urgencyLevel]?.label || result.urgencyLevel}`}
-            description={result.recommendation}
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          {(() => {
+            const cfg = urgencyConfig[result.urgencyLevel] || urgencyConfig.MEDIUM;
+            const Icon = cfg.icon;
+            return (
+              <div className={cn('flex items-start gap-3 p-4 rounded-xl border mb-4', cfg.bg)}>
+                <Icon className={cn('h-5 w-5 mt-0.5 flex-shrink-0', cfg.text)} />
+                <div>
+                  <p className={cn('text-sm font-semibold', cfg.text)}>Mức độ khẩn cấp: {cfg.label}</p>
+                  {result.recommendation && <p className={cn('text-sm mt-1', cfg.text)}>{result.recommendation}</p>}
+                </div>
+              </div>
+            );
+          })()}
 
-          <Typography.Text type="secondary" style={{ marginBottom: 8, display: 'block' }}>
-            Tổng triệu chứng kiểm tra: {result.totalSymptomsChecked}
-          </Typography.Text>
-
-          <Table
-            columns={resultColumns}
-            dataSource={result.possibleDiseases || []}
-            rowKey="diseaseId"
-            pagination={false}
-            rowClassName={(record) =>
-              record.matchPercentage >= 70 ? 'highlight-row-danger' : ''
-            }
-          />
-          <style>{`
-            .highlight-row-danger {
-              background-color: #fff1f0 !important;
-            }
-            .highlight-row-danger:hover > td {
-              background-color: #ffccc7 !important;
-            }
-          `}</style>
-        </div>
+          <div className="rounded-lg border border-border/60 overflow-hidden bg-card">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Tên bệnh</th>
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3 w-36">% Khớp</th>
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Triệu chứng khớp</th>
+                  <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3">Triệu chứng thiếu</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(result.possibleDiseases || []).map((d, i) => (
+                  <tr key={d.diseaseId || i} className={cn('border-t border-border/40 transition-colors',
+                    d.matchPercentage >= 70 ? 'bg-destructive/5' : 'hover:bg-muted/30')}>
+                    <td className="px-4 py-3 text-sm font-medium text-foreground">{d.diseaseName}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.round(d.matchPercentage)}%`, backgroundColor: d.matchPercentage >= 70 ? 'hsl(var(--destructive))' : 'hsl(var(--accent))' }} />
+                        </div>
+                        <span className="text-xs font-medium w-10">{Math.round(d.matchPercentage)}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {d.matchedSymptoms?.map((s, j) => (
+                          <span key={j} className="text-[11px] px-1.5 py-0.5 rounded bg-success/10 text-success">{s}</span>
+                        )) || '—'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {d.missingSymptomNames?.map((s, j) => (
+                          <span key={j} className="text-[11px] px-1.5 py-0.5 rounded bg-warning/10 text-warning">{s}</span>
+                        )) || '—'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
       )}
     </div>
   );

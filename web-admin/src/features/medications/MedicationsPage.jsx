@@ -1,232 +1,118 @@
 import { useState, useEffect } from 'react';
-import {
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  Space,
-  message,
-  Popconfirm,
-  Typography,
-  Descriptions,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/shared/PageHeader';
+import DataTable from '../../components/shared/DataTable';
+import { Modal, FormField, FormInput, FormTextarea, Button, ConfirmDialog } from '../../components/ui/FormComponents';
+import { useToast } from '../../components/ui/Toast';
 import { medicationService } from '../../services/medicationService';
+import { Plus, Pencil, Trash2, Eye, Search } from 'lucide-react';
 
 const MedicationsPage = () => {
+  const toast = useToast();
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailData, setDetailData] = useState(null);
-  const [editingMedication, setEditingMedication] = useState(null);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [editing, setEditing] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
   const [search, setSearch] = useState('');
-  const [form] = Form.useForm();
+  const [formData, setFormData] = useState({});
 
-  const fetchMedications = async (page = 0, size = 10) => {
+  const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try {
       const res = await medicationService.getAll(page, size, search);
       setMedications(res.data.content || []);
-      setPagination((prev) => ({ ...prev, total: res.data.totalElements }));
-    } catch (err) {
-      console.error('Fetch error:', err);
-      message.error('Lỗi tải danh sách thuốc');
-    } finally {
-      setLoading(false);
-    }
+      setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
+    } catch (err) { toast.error('Lỗi tải danh sách thuốc'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchMedications(pagination.current - 1, pagination.pageSize);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchData(0, pagination.pageSize); }, [search]); // eslint-disable-line
 
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.medicationName) { toast.error('Vui lòng nhập tên thuốc'); return; }
     try {
-      if (editingMedication) {
-        await medicationService.update(editingMedication.medicationId, values);
-        message.success('Cập nhật thành công');
-      } else {
-        await medicationService.create(values);
-        message.success('Tạo mới thành công');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      setEditingMedication(null);
-      fetchMedications(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error(err?.message || 'Có lỗi xảy ra');
-    }
+      if (editing) { await medicationService.update(editing.medicationId, formData); toast.success('Cập nhật thành công'); }
+      else { await medicationService.create(formData); toast.success('Tạo mới thành công'); }
+      setModalOpen(false); setFormData({}); setEditing(null);
+      fetchData(pagination.page, pagination.pageSize);
+    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await medicationService.delete(id);
-      message.success('Xóa thành công');
-      fetchMedications(pagination.current - 1, pagination.pageSize);
-    } catch (err) {
-      message.error('Lỗi khi xóa');
-    }
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try { await medicationService.delete(deleteId); toast.success('Xóa thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi xóa'); }
   };
 
-  const openEdit = (record) => {
-    setEditingMedication(record);
-    form.setFieldsValue(record);
-    setModalOpen(true);
+  const openDetail = async (r) => {
+    try { const res = await medicationService.getById(r.medicationId); setDetailData(res.data); setDetailOpen(true); }
+    catch (err) { toast.error('Lỗi tải chi tiết thuốc'); }
   };
 
-  const openCreate = () => {
-    setEditingMedication(null);
-    form.resetFields();
-    setModalOpen(true);
-  };
-
-  const openDetail = async (record) => {
-    try {
-      const res = await medicationService.getById(record.medicationId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (err) {
-      message.error('Lỗi tải chi tiết thuốc');
-    }
-  };
+  const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { title: 'ID', dataIndex: 'medicationId', width: 60 },
-    { title: 'Tên thuốc', dataIndex: 'medicationName', sorter: true },
-    { title: 'Phương pháp dùng', dataIndex: 'administrationMethod' },
+    { key: 'medicationId', header: 'ID', className: 'w-16' },
+    { key: 'medicationName', header: 'Tên thuốc', render: (r) => <span className="font-medium text-foreground">{r.medicationName}</span> },
+    { key: 'administrationMethod', header: 'Phương pháp dùng' },
     {
-      title: 'Hành động',
-      width: 180,
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EyeOutlined />} onClick={() => openDetail(record)} />
-          <Button icon={<EditOutlined />} onClick={() => openEdit(record)} />
-          <Popconfirm
-            title="Xác nhận xóa?"
-            onConfirm={() => handleDelete(record.medicationId)}
-          >
-            <Button icon={<DeleteOutlined />} danger />
-          </Popconfirm>
-        </Space>
-      ),
+      key: 'actions', header: 'Thao tác', className: 'w-36', render: (r) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(r.medicationId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      )
     },
   ];
 
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
-        <Typography.Title level={3}>Quản lý Thuốc</Typography.Title>
-        <Space>
-          <Input.Search
-            placeholder="Tìm kiếm..."
-            onSearch={setSearch}
-            style={{ width: 300 }}
-            allowClear
-            prefix={<SearchOutlined />}
-          />
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Thêm mới
-          </Button>
-        </Space>
+    <div className="animate-fade-in">
+      <PageHeader title="Quản lý Thuốc" description="Danh sách thuốc sử dụng cho chó nghiệp vụ"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Thuốc' }]}
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button>} />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-card"
+            value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
+      <DataTable columns={columns} data={medications} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+        onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có thuốc nào" />
 
-      <Table
-        columns={columns}
-        dataSource={medications}
-        loading={loading}
-        rowKey="medicationId"
-        pagination={{
-          ...pagination,
-          onChange: (page, size) => {
-            setPagination((prev) => ({ ...prev, current: page, pageSize: size }));
-            fetchMedications(page - 1, size);
-          },
-        }}
-      />
-
-      {/* Modal Chi tiết thuốc */}
-      <Modal
-        title="Chi tiết thuốc"
-        open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
-        footer={null}
-        width={700}
-      >
+      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Chi tiết thuốc" width={650}>
         {detailData && (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Tên thuốc">{detailData.medicationName}</Descriptions.Item>
-            <Descriptions.Item label="Mô tả">{detailData.description || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Hướng dẫn liều dùng">{detailData.dosageInstructions || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Phương pháp dùng">{detailData.administrationMethod || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Tác dụng phụ">{detailData.sideEffects || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Chống chỉ định">{detailData.contraindications || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Yêu cầu bảo quản">{detailData.storageRequirements || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Hình ảnh">
-              {detailData.imageUrl ? (
-                <img src={detailData.imageUrl} alt={detailData.medicationName} style={{ maxWidth: 200 }} />
-              ) : '—'}
-            </Descriptions.Item>
-          </Descriptions>
+          <div className="space-y-3">
+            {[['Tên thuốc', detailData.medicationName], ['Mô tả', detailData.description], ['Liều dùng', detailData.dosageInstructions],
+            ['Phương pháp', detailData.administrationMethod], ['Tác dụng phụ', detailData.sideEffects], ['Chống chỉ định', detailData.contraindications],
+            ['Bảo quản', detailData.storageRequirements]].map(([label, value]) => (
+              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
+                <span className="text-sm font-medium text-muted-foreground w-36 flex-shrink-0">{label}</span>
+                <span className="text-sm text-foreground">{value || '—'}</span>
+              </div>
+            ))}
+          </div>
         )}
       </Modal>
 
-      {/* Modal Thêm/Sửa thuốc */}
-      <Modal
-        title={editingMedication ? 'Sửa thuốc' : 'Thêm thuốc mới'}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={() => form.submit()}
-        width={700}
-        okText={editingMedication ? 'Cập nhật' : 'Tạo mới'}
-        cancelText="Hủy"
-      >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item
-            name="medicationName"
-            label="Tên thuốc"
-            rules={[{ required: true, message: 'Vui lòng nhập tên thuốc' }]}
-          >
-            <Input placeholder="VD: Amoxicillin" />
-          </Form.Item>
-
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={3} placeholder="Mô tả chi tiết về thuốc" />
-          </Form.Item>
-
-          <Form.Item name="dosageInstructions" label="Hướng dẫn liều dùng">
-            <Input.TextArea rows={2} placeholder="VD: 10mg/kg, 2 lần/ngày" />
-          </Form.Item>
-
-          <Form.Item name="administrationMethod" label="Phương pháp dùng">
-            <Input placeholder="VD: Uống, Tiêm, Bôi ngoài da" />
-          </Form.Item>
-
-          <Form.Item name="sideEffects" label="Tác dụng phụ">
-            <Input.TextArea rows={2} placeholder="Các tác dụng phụ có thể xảy ra" />
-          </Form.Item>
-
-          <Form.Item name="contraindications" label="Chống chỉ định">
-            <Input.TextArea rows={2} placeholder="Các trường hợp chống chỉ định" />
-          </Form.Item>
-
-          <Form.Item name="storageRequirements" label="Yêu cầu bảo quản">
-            <Input placeholder="VD: Bảo quản ở nhiệt độ phòng" />
-          </Form.Item>
-
-          <Form.Item name="imageUrl" label="URL hình ảnh">
-            <Input placeholder="https://..." />
-          </Form.Item>
-        </Form>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa thuốc' : 'Thêm thuốc mới'} width={650}
+        footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
+        <form onSubmit={handleSubmit}>
+          <FormField label="Tên thuốc" required><FormInput placeholder="VD: Amoxicillin" value={formData.medicationName || ''} onChange={(e) => updateField('medicationName', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Liều dùng"><FormTextarea rows={2} value={formData.dosageInstructions || ''} onChange={(e) => updateField('dosageInstructions', e.target.value)} /></FormField>
+          <FormField label="Phương pháp dùng"><FormInput value={formData.administrationMethod || ''} onChange={(e) => updateField('administrationMethod', e.target.value)} /></FormField>
+          <FormField label="Tác dụng phụ"><FormTextarea rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
+        </form>
       </Modal>
+      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa thuốc" description="Bạn có chắc chắn muốn xóa thuốc này?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };

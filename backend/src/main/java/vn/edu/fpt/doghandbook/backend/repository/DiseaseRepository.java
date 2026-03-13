@@ -17,5 +17,6 @@ public interface DiseaseRepository extends JpaRepository<Disease, Integer> {
     Page<Disease> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
             ContentStatus status,
             LocalDateTime updatedAt,
-            Pageable pageable);
+            Pageable pageable
+    );
 }
