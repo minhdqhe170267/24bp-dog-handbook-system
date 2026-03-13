@@ -59,7 +59,7 @@ const ApprovalPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-green-100 transition-colors" title="Duyệt" onClick={() => handleReview(r.contentId || r.id, 'APPROVED')}>
                         <CheckCircle className="h-4 w-4 text-green-600" />
                     </button>

@@ -73,7 +73,7 @@ const SuggestionsPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
                     {(r.status === 'PENDING' || r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW') && (
                         <button className="p-1.5 rounded-md hover:bg-accent/10 transition-colors" title="Phản hồi" onClick={() => handleRespond(r.suggestionId || r.id)}>
                             <MessageSquare className="h-4 w-4 text-accent" />
