@@ -96,23 +96,6 @@ const AppSidebar = () => {
                 </AnimatePresence>
             </div>
 
-            {/* Search bar */}
-            <AnimatePresence>
-                {!collapsed && (
-                    <motion.div
-                        className="px-3 py-2 relative"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent/50 text-sidebar-foreground/40 text-xs">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            <span>Tìm kiếm nhanh...</span>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* Nav */}
             <nav className="flex-1 overflow-y-auto scrollbar-thin py-2 px-2.5 relative">
                 {navItems.map((item) => {

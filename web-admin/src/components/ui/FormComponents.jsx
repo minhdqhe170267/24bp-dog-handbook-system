@@ -182,12 +182,33 @@ const StatusBadge = ({ status }) => {
         GIANT: 'bg-destructive/10 text-destructive',
     };
 
+    const labels = {
+        DRAFT: 'Nháp',
+        PUBLISHED: 'Đã xuất bản',
+        ACTIVE: 'Hoạt động',
+        INACTIVE: 'Ngừng hoạt động',
+        MILD: 'Nhẹ',
+        MODERATE: 'Trung bình',
+        SEVERE: 'Nặng',
+        CRITICAL: 'Nguy hiểm',
+        BASIC: 'Cơ bản',
+        INTERMEDIATE: 'Trung cấp',
+        ADVANCED: 'Nâng cao',
+        LOW: 'Thấp',
+        MEDIUM: 'Trung bình',
+        HIGH: 'Cao',
+        VERY_HIGH: 'Rất cao',
+        SMALL: 'Nhỏ',
+        LARGE: 'Lớn',
+        GIANT: 'Khổng lồ',
+    };
+
     return (
         <span className={cn(
             'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
             styles[status] || 'bg-muted text-muted-foreground'
         )}>
-            {status}
+            {labels[status] || status}
         </span>
     );
 };
