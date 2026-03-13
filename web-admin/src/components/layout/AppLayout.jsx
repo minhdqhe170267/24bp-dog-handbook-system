@@ -12,6 +12,7 @@ const ROLE_ROUTES = {
         '/breeds',
         '/training/exercises', '/training/methods', '/training/roadmaps',
         '/nutrition',
+        '/medications', '/medical',
         '/suggestions',
     ],
     REVIEWER: [

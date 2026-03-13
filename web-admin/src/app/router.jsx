@@ -7,6 +7,8 @@ import ExercisesPage from '../features/training/ExercisesPage';
 import MethodsPage from '../features/training/MethodsPage';
 import RoadmapsPage from '../features/training/RoadmapsPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
+import MedicationsPage from '../features/medications/MedicationsPage';
+import FirstAidGuidesPage from '../features/medical/FirstAidGuidesPage';
 import ContentListPage from '../features/content/ContentListPage';
 import ContentCreatePage from '../features/content/ContentCreatePage';
 import ApprovalPage from '../features/approval/ApprovalPage';
@@ -29,6 +31,8 @@ const router = createBrowserRouter([
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'approval', element: <ApprovalPage /> },
       { path: 'suggestions', element: <SuggestionsPage /> },
+      { path: 'medications', element: <MedicationsPage /> },
+      { path: 'medical', element: <FirstAidGuidesPage /> },
     ],
   },
 ]);
