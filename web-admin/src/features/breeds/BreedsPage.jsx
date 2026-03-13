@@ -43,7 +43,6 @@ const editFields = [
   { key: 'lifespanYears', label: 'Tuổi thọ' },
   { key: 'description', label: 'Mô tả', type: 'textarea' },
   { key: 'operationalCapabilities', label: 'Khả năng tác chiến', type: 'textarea' },
-  { key: 'status', label: 'Trạng thái', type: 'select', options: [{ value: 'DRAFT', label: 'Nháp' }, { value: 'PUBLISHED', label: 'Xuất bản' }] },
 ];
 
 const BreedsPage = () => {
@@ -57,7 +56,18 @@ const BreedsPage = () => {
   const [loading, setLoading] = useState(true);
   const [detailItem, setDetailItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const toBreedPayload = (formData) => ({
+    breedName: formData.breedName?.trim() || '',
+    origin: formData.origin?.trim() || '',
+    sizeClassification: formData.sizeClassification || '',
+    trainabilityLevel: formData.trainabilityLevel || '',
+    lifespanYears: formData.lifespanYears?.trim() || '',
+    description: formData.description?.trim() || '',
+    operationalCapabilities: formData.operationalCapabilities?.trim() || '',
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -91,12 +101,26 @@ const BreedsPage = () => {
   const handleEdit = async (formData) => {
     setSaving(true);
     try {
-      await api.put(`/breeds/${editItem.breedId}`, formData);
+      await api.put(`/breeds/${editItem.breedId}`, toBreedPayload(formData));
       setEditItem(null);
       fetchData();
     } catch (err) {
       console.error('Update error:', err);
       alert('Có lỗi xảy ra khi cập nhật');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreate = async (formData) => {
+    setSaving(true);
+    try {
+      await api.post('/breeds', toBreedPayload(formData));
+      setCreateOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Create error:', err);
+      alert('Có lỗi xảy ra khi tạo mới');
     } finally {
       setSaving(false);
     }
@@ -117,8 +141,8 @@ const BreedsPage = () => {
     {
       key: 'actions', header: 'Thao tác', render: (r) => (
         <div className="flex items-center gap-1">
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4" /></button>
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.breedId)}><Trash2 className="h-4 w-4 text-destructive" /></button>
         </div>
       )
@@ -129,7 +153,7 @@ const BreedsPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Dữ liệu Giống chó" description="Quản lý thông tin các giống chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Giống chó' }]}
-        actions={<button className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm giống chó</button>} />
+        actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm giống chó</button>} />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative">
@@ -155,6 +179,10 @@ const BreedsPage = () => {
       {/* Edit Modal */}
       <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa giống chó" size="lg">
         <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
+      </DetailModal>
+
+      <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm giống chó" size="lg">
+        <EditForm fields={editFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
       </DetailModal>
     </div>
   );
