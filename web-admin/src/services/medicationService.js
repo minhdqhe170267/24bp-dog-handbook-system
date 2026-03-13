@@ -1,8 +1,19 @@
 import api from './api';
 
+const buildQuery = (page = 0, size = 10, search = '', status = '') => {
+  const params = new URLSearchParams();
+  params.append('page', String(page));
+  params.append('size', String(size));
+
+  if (search?.trim()) params.append('search', search.trim());
+  if (status?.trim()) params.append('status', status.trim());
+
+  return params.toString();
+};
+
 export const medicationService = {
-  getAll: (page = 0, size = 10, search = '') =>
-    api.get(`/medications?page=${page}&size=${size}&search=${search}`),
+  getAll: (page = 0, size = 10, search = '', status = '') =>
+    api.get(`/medications?${buildQuery(page, size, search, status)}`),
   getById: (id) => api.get(`/medications/${id}`),
   create: (data) => api.post('/medications', data),
   update: (id, data) => api.put(`/medications/${id}`, data),
