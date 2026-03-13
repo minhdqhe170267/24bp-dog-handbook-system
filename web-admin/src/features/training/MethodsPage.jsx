@@ -29,7 +29,6 @@ const editFields = [
     { key: 'instructions', label: 'Hướng dẫn', type: 'textarea' },
     { key: 'advantages', label: 'Ưu điểm', type: 'textarea' },
     { key: 'disadvantages', label: 'Nhược điểm', type: 'textarea' },
-    { key: 'status', label: 'Trạng thái', type: 'select', options: [{ value: 'DRAFT', label: 'Nháp' }, { value: 'PUBLISHED', label: 'Xuất bản' }] },
 ];
 
 const MethodsPage = () => {
@@ -42,7 +41,16 @@ const MethodsPage = () => {
     const [loading, setLoading] = useState(true);
     const [detailItem, setDetailItem] = useState(null);
     const [editItem, setEditItem] = useState(null);
+    const [createOpen, setCreateOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    const toMethodPayload = (formData) => ({
+        methodName: formData.methodName?.trim() || '',
+        description: formData.description?.trim() || '',
+        instructions: formData.instructions?.trim() || '',
+        advantages: formData.advantages?.trim() || '',
+        disadvantages: formData.disadvantages?.trim() || '',
+    });
 
     const fetchData = async () => {
         setLoading(true);
@@ -70,8 +78,15 @@ const MethodsPage = () => {
 
     const handleEdit = async (formData) => {
         setSaving(true);
-        try { await api.put(`/training-methods/${editItem.methodId}`, formData); setEditItem(null); fetchData(); }
+        try { await api.put(`/training-methods/${editItem.methodId}`, toMethodPayload(formData)); setEditItem(null); fetchData(); }
         catch (err) { console.error('Update error:', err); alert('Có lỗi xảy ra khi cập nhật'); }
+        finally { setSaving(false); }
+    };
+
+    const handleCreate = async (formData) => {
+        setSaving(true);
+        try { await api.post('/training-methods', toMethodPayload(formData)); setCreateOpen(false); fetchData(); }
+        catch (err) { console.error('Create error:', err); alert('Có lỗi xảy ra khi tạo mới'); }
         finally { setSaving(false); }
     };
 
@@ -82,8 +97,8 @@ const MethodsPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.methodId)}><Trash2 className="h-4 w-4 text-destructive" /></button>
                 </div>
             )
@@ -94,7 +109,7 @@ const MethodsPage = () => {
         <div className="animate-fade-in">
             <PageHeader title="Phương pháp huấn luyện" description="Quản lý các phương pháp huấn luyện chó nghiệp vụ"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }, { label: 'Phương pháp' }]}
-                actions={<button className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm phương pháp</button>} />
+                actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm phương pháp</button>} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -113,6 +128,9 @@ const MethodsPage = () => {
             </DetailModal>
             <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa phương pháp" size="lg">
                 <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
+            </DetailModal>
+            <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm phương pháp" size="lg">
+                <EditForm fields={editFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
             </DetailModal>
         </div>
     );
