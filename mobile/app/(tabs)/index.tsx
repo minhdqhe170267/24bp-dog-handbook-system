@@ -17,7 +17,7 @@ import { useThemeStore } from '../../src/stores/themeStore';
 
 const modules = [
   { id: '1', icon: 'paw', label: 'Giống chó', bgColor: '#E8F5E9', iconColor: '#1B4332', route: '/(tabs)/breeds' },
-  { id: '2', icon: 'restaurant', label: 'Dinh dưỡng', bgColor: '#FFF3E0', iconColor: '#E67E22', route: null },
+  { id: '2', icon: 'restaurant', label: 'Dinh dưỡng', bgColor: '#FFF3E0', iconColor: '#E67E22', route: '/nutrition' },
   { id: '3', icon: 'fitness', label: 'Huấn luyện', bgColor: '#E3F2FD', iconColor: '#2980B9', route: '/(tabs)/training' },
   { id: '4', icon: 'medkit', label: 'Sức khỏe', bgColor: '#FFEBEE', iconColor: '#E74C3C', route: '/(tabs)/health' },
   { id: '5', icon: 'document-text', label: 'Ghi chú', bgColor: '#F3E5F5', iconColor: '#8E44AD', route: null },
