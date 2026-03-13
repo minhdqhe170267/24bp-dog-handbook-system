@@ -130,7 +130,7 @@ export default function BreedsScreen() {
                 renderItem={({ item: breed }) => (
                     <TouchableOpacity
                         activeOpacity={0.8}
-                        onPress={() => router.push('/breeds/' + breed.breedId)}
+                        onPress={() => router.push((`/breeds/${breed.breedId}`) as any)}
                         style={[styles.card, { backgroundColor: colors.surface }]}
                     >
                         <View style={[styles.cardImage, { backgroundColor: isDark ? colors.primaryLight : colors.accentLight }]}>
