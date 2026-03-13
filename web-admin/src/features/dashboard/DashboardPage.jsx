@@ -41,32 +41,62 @@ const DashboardPage = () => {
   const [pendingContent, setPendingContent] = useState([]);
   const [activityLimit, setActivityLimit] = useState(5);
 
+  const fetchAllContents = async (pageSize = 100) => {
+    const firstRes = await api.get(`/contents?page=0&size=${pageSize}`);
+    const firstPage = firstRes.data || firstRes || {};
+    const firstItems = Array.isArray(firstPage.content) ? firstPage.content : [];
+    const totalPages = Number(firstPage.totalPages || 1);
+    const allContents = [...firstItems];
+
+    for (let currentPage = 1; currentPage < totalPages; currentPage += 1) {
+      const pageRes = await api.get(`/contents?page=${currentPage}&size=${pageSize}`);
+      const pageData = pageRes.data || pageRes || {};
+      if (Array.isArray(pageData.content)) {
+        allContents.push(...pageData.content);
+      }
+    }
+
+    return {
+      allContents,
+      totalElements: Number(firstPage.totalElements ?? allContents.length),
+    };
+  };
+
   useEffect(() => {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        // 1. Fetch stats từ API thật
+        let statsFromApi = null;
+
+        // 1. Fetch stats tổng quan từ backend dashboard
         try {
           const statsRes = await api.get('/dashboard/stats');
-          const d = statsRes.data || statsRes;
-          setStats({
-            totalContent: d.totalContent ?? d.totalBreeds ?? 0,
-            pendingReviews: d.pendingReviews ?? 0,
+          const d = statsRes.data || statsRes || {};
+          statsFromApi = {
+            totalContent: d.totalContent ?? d.totalContents ?? null,
+            pendingReviews: d.pendingReviews ?? d.pendingReviewsCount ?? null,
             totalUsers: d.totalUsers ?? 0,
-            newSuggestions: d.newSuggestions ?? 0,
-          });
+            newSuggestions: d.newSuggestions ?? d.newSuggestionsCount ?? null,
+          };
+
+          setStats((prev) => ({
+            ...prev,
+            totalContent: statsFromApi.totalContent ?? prev.totalContent,
+            pendingReviews: statsFromApi.pendingReviews ?? prev.pendingReviews,
+            totalUsers: statsFromApi.totalUsers,
+            newSuggestions: statsFromApi.newSuggestions ?? prev.newSuggestions,
+          }));
         } catch {
-          // API chưa sẵn sàng → giữ giá trị 0
+          // API chưa sẵn sàng, sẽ fallback bằng các API list bên dưới
         }
 
-        // 2. Fetch content list từ API thật → dùng để tạo chart data
+        // 2. Lấy toàn bộ contents theo page để chart + fallback tổng số nội dung
         try {
-          const contentRes = await api.get('/contents?page=0&size=100');
-          const contents = contentRes.data?.content || contentRes.content || [];
+          const { allContents, totalElements } = await fetchAllContents(100);
 
           // Group by type cho Bar Chart
           const typeMap = {};
-          contents.forEach(c => {
+          allContents.forEach((c) => {
             const type = c.contentType || c.content_type || 'OTHER';
             typeMap[type] = (typeMap[type] || 0) + 1;
           });
@@ -74,7 +104,7 @@ const DashboardPage = () => {
 
           // Group by status cho Pie Chart
           const statusMap = {};
-          contents.forEach(c => {
+          allContents.forEach((c) => {
             const status = c.status || 'DRAFT';
             statusMap[status] = (statusMap[status] || 0) + 1;
           });
@@ -83,27 +113,51 @@ const DashboardPage = () => {
             value,
             color: statusColors[name] || 'hsl(215, 16%, 47%)',
           })));
+
+          // Fallback tổng nội dung nếu dashboard stats chưa có field này
+          setStats((prev) => ({
+            ...prev,
+            totalContent: statsFromApi?.totalContent ?? totalElements ?? prev.totalContent,
+          }));
         } catch {
-          // API chưa sẵn sàng → charts trống
+          // API lỗi → charts để trống
         }
 
-        // 3. Fetch pending content từ API thật
+        // 3. Lấy danh sách chờ duyệt + fallback số chờ duyệt
         try {
           const pendingRes = await api.get('/contents/pending-reviews?page=0&size=10');
-          const pendingData = pendingRes.data?.content || pendingRes.content || [];
+          const pendingPage = pendingRes.data || pendingRes || {};
+          const pendingData = Array.isArray(pendingPage.content) ? pendingPage.content : [];
+          const pendingTotal = Number(pendingPage.totalElements ?? pendingData.length);
           setPendingContent(pendingData);
+
+          setStats((prev) => ({
+            ...prev,
+            pendingReviews: statsFromApi?.pendingReviews ?? pendingTotal,
+          }));
         } catch {
-          // API chưa sẵn sàng → table trống
+          // API lỗi → table trống
         }
 
-        // 4. Fetch recent activity từ API thật (nếu có)
-        // Backend chưa có API audit log → để trống, khi backend team làm xong sẽ tự hiện data
+        // 4. Fallback số đề xuất mới nếu dashboard stats chưa trả về
+        if (statsFromApi?.newSuggestions == null) {
+          try {
+            const suggestionRes = await api.get('/suggestions?page=0&size=1&status=SUBMITTED');
+            const suggestionPage = suggestionRes.data || suggestionRes || {};
+            const suggestionCount = Number(suggestionPage.totalElements ?? 0);
+            setStats((prev) => ({ ...prev, newSuggestions: suggestionCount }));
+          } catch {
+            // giữ nguyên
+          }
+        }
+
+        // 5. Fetch recent activity từ API thật (nếu có)
         try {
           const activityRes = await api.get('/audit-logs?page=0&size=20');
           const activityData = activityRes.data?.content || activityRes.content || [];
           setRecentActivity(activityData);
         } catch {
-          // API chưa sẵn sàng → table trống
+          // Backend chưa có audit logs → để trống
         }
 
       } catch (err) {
