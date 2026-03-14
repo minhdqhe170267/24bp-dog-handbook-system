@@ -4,7 +4,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import { FilePenLine, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -88,14 +88,26 @@ const ContentListPage = () => {
         navigate(`/content/${id}/edit`);
     };
 
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '-';
-        try {
-            const d = new Date(dateStr);
-            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-        } catch {
-            return dateStr;
-        }
+    const getDateTimeParts = (value) => {
+        if (!value) return null;
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return { time: value, date: '' };
+        const twoDigits = (num) => String(num).padStart(2, '0');
+        return {
+            time: `${twoDigits(d.getHours())}:${twoDigits(d.getMinutes())}:${twoDigits(d.getSeconds())}`,
+            date: `${twoDigits(d.getDate())}/${twoDigits(d.getMonth() + 1)}/${d.getFullYear()}`,
+        };
+    };
+
+    const renderDateTimeCell = (value) => {
+        const parts = getDateTimeParts(value);
+        if (!parts) return '—';
+        return (
+            <div className="leading-tight">
+                <div className="text-sm font-medium text-foreground">{parts.time}</div>
+                <div className="text-xs text-muted-foreground">{parts.date}</div>
+            </div>
+        );
     };
 
     const columns = [
@@ -103,7 +115,7 @@ const ContentListPage = () => {
         { key: 'contentType', header: 'Loại', render: (r) => r.contentType || r.content_type || '-' },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'author', header: 'Tác giả', render: (r) => r.authorName || r.author?.fullName || r.author?.full_name || '-' },
-        { key: 'updatedAt', header: 'Cập nhật', render: (r) => formatDate(r.updatedAt || r.updated_at) },
+        { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt || r.updated_at) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
@@ -144,7 +156,7 @@ const ContentListPage = () => {
                         to="/content/create"
                         className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors no-underline"
                     >
-                        <FilePenLine className="h-4 w-4" />
+                        <Plus className="h-4 w-4" />
                         Tạo nội dung mới
                     </Link>
                 ) : null}

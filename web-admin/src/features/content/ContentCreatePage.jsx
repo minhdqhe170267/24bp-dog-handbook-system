@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
 
 const contentTypeLabels = {
     BREED_INFO: 'Giống chó',
@@ -47,11 +48,14 @@ const MAX_MEDIA_FILES = 10;
 const ContentCreatePage = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
     const { id } = useParams();
     const parsedRouteId = Number(id);
     const contentIdFromRoute = Number.isInteger(parsedRouteId) ? parsedRouteId : null;
     const isEditMode = Boolean(contentIdFromRoute) && location.pathname.endsWith('/edit');
     const isViewMode = Boolean(contentIdFromRoute) && !isEditMode;
+    const canEditContent = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+    const isReadonlyMode = isViewMode || !canEditContent;
     const fileInputRef = useRef(null);
     const [contentType, setContentType] = useState('');
     const [category, setCategory] = useState('');
@@ -66,6 +70,7 @@ const ContentCreatePage = () => {
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [loadingContent, setLoadingContent] = useState(false);
+    const canPublish = canEditContent && user?.role !== 'CONTENT_EDITOR';
 
     const getErrorMessage = (err, fallback) => {
         if (typeof err === 'string') return err;
@@ -96,6 +101,12 @@ const ContentCreatePage = () => {
         setMediaFiles(mediaList);
         setFailedPreviews({});
     };
+
+    useEffect(() => {
+        if (isEditMode && !canEditContent && contentIdFromRoute) {
+            navigate(`/content/${contentIdFromRoute}`, { replace: true });
+        }
+    }, [isEditMode, canEditContent, contentIdFromRoute, navigate]);
 
     useEffect(() => {
         let active = true;
@@ -158,7 +169,7 @@ const ContentCreatePage = () => {
         file?.type?.startsWith('image/') || file?.type?.startsWith('video/');
 
     const handleUploadFiles = async (fileList) => {
-        if (isViewMode) return;
+        if (isReadonlyMode) return;
         const picked = Array.from(fileList || []);
         if (!picked.length) return;
 
@@ -215,7 +226,7 @@ const ContentCreatePage = () => {
     };
 
     const handleDeleteMedia = async (mediaId) => {
-        if (isViewMode) return;
+        if (isReadonlyMode) return;
         try {
             await api.delete(`/media/${mediaId}`);
             setMediaFiles((prev) => prev.filter((m) => m.mediaId !== mediaId));
@@ -225,7 +236,11 @@ const ContentCreatePage = () => {
     };
 
     const handleSave = async (status) => {
-        if (isViewMode) return;
+        if (isReadonlyMode) return;
+        if (status === 'PUBLISHED' && !canPublish) {
+            alert('Bạn không có quyền xuất bản nội dung');
+            return;
+        }
         setSaving(true);
         try {
             const id = await saveOrUpdateContent();
@@ -312,8 +327,8 @@ const ContentCreatePage = () => {
         return `/${rawUrl}`;
     };
 
-    const pageTitle = isViewMode ? 'Chi tiết nội dung' : isEditMode ? 'Chỉnh sửa nội dung' : 'Tạo nội dung mới';
-    const pageLastCrumb = isViewMode ? 'Chi tiết' : isEditMode ? 'Chỉnh sửa' : 'Tạo mới';
+    const pageTitle = isReadonlyMode ? 'Chi tiết nội dung' : isEditMode ? 'Chỉnh sửa nội dung' : 'Tạo nội dung mới';
+    const pageLastCrumb = isReadonlyMode ? 'Chi tiết' : isEditMode ? 'Chỉnh sửa' : 'Tạo mới';
 
     return (
         <div className="animate-fade-in">
@@ -337,12 +352,12 @@ const ContentCreatePage = () => {
                             {/* Type + Category */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-foreground">Loại nội dung *</label>
+                                    <label className="text-sm font-medium text-foreground">Loại nội dung <span className="text-destructive">*</span></label>
                                     <select
                                         value={contentType}
                                         onChange={(e) => { setContentType(e.target.value); setCategory(''); }}
                                         className="w-full h-10 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors cursor-pointer text-foreground"
-                                        disabled={isViewMode}
+                                        disabled={isReadonlyMode}
                                     >
                                         <option value="">Chọn loại</option>
                                         {Object.entries(contentTypeLabels).map(([k, v]) => (
@@ -356,7 +371,7 @@ const ContentCreatePage = () => {
                                         value={category}
                                         onChange={(e) => setCategory(e.target.value)}
                                         className="w-full h-10 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors cursor-pointer text-foreground"
-                                        disabled={!contentType || isViewMode}
+                                        disabled={!contentType || isReadonlyMode}
                                     >
                                         <option value="">Chọn danh mục</option>
                                         {(categories[contentType] || []).map((c) => (
@@ -368,7 +383,7 @@ const ContentCreatePage = () => {
 
                             {/* Title */}
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Tiêu đề *</label>
+                                <label className="text-sm font-medium text-foreground">Tiêu đề <span className="text-destructive">*</span></label>
                                 <input
                                     type="text"
                                     value={title}
@@ -376,7 +391,7 @@ const ContentCreatePage = () => {
                                     placeholder="Nhập tiêu đề nội dung"
                                     maxLength={200}
                                     className="w-full h-10 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors text-foreground"
-                                    disabled={isViewMode}
+                                    disabled={isReadonlyMode}
                                 />
                                 <p className="text-xs text-muted-foreground text-right">{title.length}/200</p>
                             </div>
@@ -421,7 +436,7 @@ const ContentCreatePage = () => {
                                         placeholder="Nhập nội dung bài viết..."
                                         rows={10}
                                         className="w-full px-4 py-3 text-sm bg-card outline-none resize-none text-foreground placeholder:text-muted-foreground"
-                                        disabled={isViewMode}
+                                        disabled={isReadonlyMode}
                                     />
                                 </div>
                             </div>
@@ -435,7 +450,7 @@ const ContentCreatePage = () => {
                                     onChange={(e) => setTags(e.target.value)}
                                     placeholder="Nhập tags, phân cách bằng dấu phẩy"
                                     className="w-full h-10 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors text-foreground"
-                                    disabled={isViewMode}
+                                    disabled={isReadonlyMode}
                                 />
                             </div>
                         </div>
@@ -446,13 +461,13 @@ const ContentCreatePage = () => {
                         <div className="bg-card rounded-xl border border-border/60 p-6">
                             <label className="text-sm font-medium text-foreground block mb-3">Media</label>
                             <div
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isViewMode ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'} ${dragging ? 'border-accent bg-accent/5' : 'border-border'}`}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isReadonlyMode ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'} ${dragging ? 'border-accent bg-accent/5' : 'border-border'}`}
                                 onClick={() => {
-                                    if (!isViewMode) fileInputRef.current?.click();
+                                    if (!isReadonlyMode) fileInputRef.current?.click();
                                 }}
                                 onDragOver={(e) => {
                                     e.preventDefault();
-                                    if (isViewMode) return;
+                                    if (isReadonlyMode) return;
                                     setDragging(true);
                                 }}
                                 onDragLeave={() => setDragging(false)}
@@ -475,7 +490,7 @@ const ContentCreatePage = () => {
                                     accept="image/*,video/*"
                                     className="hidden"
                                     onChange={handleFileInputChange}
-                                    disabled={isViewMode}
+                                    disabled={isReadonlyMode}
                                 />
                             </div>
 
@@ -528,7 +543,7 @@ const ContentCreatePage = () => {
                                                 onClick={() => handleDeleteMedia(media.mediaId)}
                                                 className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
                                                 title="Xóa media"
-                                                disabled={isViewMode}
+                                                disabled={isReadonlyMode}
                                             >
                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                             </button>
@@ -545,15 +560,17 @@ const ContentCreatePage = () => {
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }}>
                         <div className="bg-card rounded-xl border border-border/60 p-6 space-y-3">
                             <h3 className="font-semibold text-sm text-foreground">Hành động</h3>
-                            {isViewMode ? (
+                            {isReadonlyMode ? (
                                 <>
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate(`/content/${contentIdFromRoute}/edit`)}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
-                                    >
-                                        <Pencil className="h-4 w-4" /> Chỉnh sửa
-                                    </button>
+                                    {canEditContent && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/content/${contentIdFromRoute}/edit`)}
+                                            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
+                                        >
+                                            <Pencil className="h-4 w-4" /> Chỉnh sửa
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => navigate('/content')}
@@ -572,25 +589,21 @@ const ContentCreatePage = () => {
                                         <Save className="h-4 w-4" /> Lưu nháp
                                     </button>
                                     <button
-                                        type="button"
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
-                                    >
-                                        <Eye className="h-4 w-4" /> Xem trước
-                                    </button>
-                                    <button
                                         onClick={() => handleSave('PENDING')}
                                         disabled={saving || uploading}
                                         className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
                                     >
                                         <Send className="h-4 w-4" /> Gửi duyệt
                                     </button>
-                                    <button
-                                        onClick={() => handleSave('PUBLISHED')}
-                                        disabled={saving || uploading}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
-                                    >
-                                        <Globe className="h-4 w-4" /> Xuất bản
-                                    </button>
+                                    {canPublish && (
+                                        <button
+                                            onClick={() => handleSave('PUBLISHED')}
+                                            disabled={saving || uploading}
+                                            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
+                                        >
+                                            <Globe className="h-4 w-4" /> Xuất bản
+                                        </button>
+                                    )}
                                 </>
                             )}
                         </div>
