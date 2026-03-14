@@ -4,12 +4,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import vn.edu.fpt.doghandbook.backend.entity.OperationReport;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 
 import java.util.Optional;
 
 public interface OperationReportRepository extends JpaRepository<OperationReport, Integer> {
 
     Page<OperationReport> findByIsDeletedFalseOrderByReportDateDesc(Pageable pageable);
+
+    Page<OperationReport> findByReportTypeAndIsDeletedFalseOrderByReportDateDesc(ReportType reportType, Pageable pageable);
 
     Page<OperationReport> findByTrainerUserIdAndIsDeletedFalseOrderByReportDateDesc(Integer trainerId, Pageable pageable);
 
