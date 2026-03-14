@@ -45,9 +45,26 @@ const ApprovalPage = () => {
         catch (err) { console.error('Review error:', err); alert('Có lỗi xảy ra khi duyệt nội dung'); }
     };
 
-    const formatDate = (d) => {
-        if (!d) return '-';
-        try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`; } catch { return d; }
+    const getDateTimeParts = (value) => {
+        if (!value) return null;
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+        const twoDigits = (num) => String(num).padStart(2, '0');
+        return {
+            time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+            date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+        };
+    };
+
+    const renderDateTimeCell = (value) => {
+        const parts = getDateTimeParts(value);
+        if (!parts) return '—';
+        return (
+            <div className="leading-tight">
+                <div className="text-sm font-medium text-foreground">{parts.time}</div>
+                <div className="text-xs text-muted-foreground">{parts.date}</div>
+            </div>
+        );
     };
 
     const columns = [
@@ -55,7 +72,7 @@ const ApprovalPage = () => {
         { key: 'contentType', header: 'Loại', render: (r) => r.contentType || '-' },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'authorName', header: 'Tác giả', render: (r) => r.authorName || '-' },
-        { key: 'updatedAt', header: 'Ngày gửi', render: (r) => formatDate(r.updatedAt || r.createdAt) },
+        { key: 'updatedAt', header: 'Ngày gửi', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
