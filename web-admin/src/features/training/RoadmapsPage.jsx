@@ -4,7 +4,7 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { FilePenLine, Eye, Trash2 } from 'lucide-react';
+import { Plus, Eye, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 
 const statusOptions = [
@@ -93,6 +93,28 @@ const RoadmapsPage = () => {
         finally { setSaving(false); }
     };
 
+    const getDateTimeParts = (value) => {
+        if (!value) return null;
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+        const twoDigits = (num) => String(num).padStart(2, '0');
+        return {
+            time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+            date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+        };
+    };
+
+    const renderDateTimeCell = (value) => {
+        const parts = getDateTimeParts(value);
+        if (!parts) return '—';
+        return (
+            <div className="leading-tight">
+                <div className="text-sm font-medium text-foreground">{parts.time}</div>
+                <div className="text-xs text-muted-foreground">{parts.date}</div>
+            </div>
+        );
+    };
+
     const columns = [
         { key: 'roadmapName', header: 'Tên lộ trình', render: (r) => <span className="font-medium">{r.roadmapName || '-'}</span> },
         { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || '-' },
@@ -100,6 +122,7 @@ const RoadmapsPage = () => {
         { key: 'totalDurationWeeks', header: 'Thời gian', render: (r) => r.totalDurationWeeks ? `${r.totalDurationWeeks} tuần` : '-' },
         { key: 'phaseName', header: 'Giai đoạn', render: (r) => r.phaseName || '-' },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
+        { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
@@ -114,7 +137,7 @@ const RoadmapsPage = () => {
         <div className="animate-fade-in">
             <PageHeader title="Lộ trình huấn luyện" description="Quản lý các lộ trình huấn luyện chó nghiệp vụ"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }, { label: 'Lộ trình' }]}
-                actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm lộ trình</button>} />
+                actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo lộ trình</button>} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
             </div>
