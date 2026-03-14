@@ -117,7 +117,7 @@ const FormSwitch = ({ checked, onChange, label }) => (
 
 const Button = ({ children, variant = 'primary', size = 'md', loading, className = '', ...props }) => {
     const variants = {
-        primary: 'gradient-primary text-accent-foreground shadow-glow hover:opacity-90',
+        primary: 'bg-accent text-accent-foreground hover:bg-accent/90 shadow-none',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         outline: 'border border-border bg-card text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
