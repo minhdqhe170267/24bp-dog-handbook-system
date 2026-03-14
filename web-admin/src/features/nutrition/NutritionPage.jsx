@@ -4,7 +4,7 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { FilePenLine, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../../services/api';
 
 const statusOptions = [
@@ -94,12 +94,35 @@ const NutritionPage = () => {
     finally { setSaving(false); }
   };
 
+  const getDateTimeParts = (value) => {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+    const twoDigits = (num) => String(num).padStart(2, '0');
+    return {
+      time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+      date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+    };
+  };
+
+  const renderDateTimeCell = (value) => {
+    const parts = getDateTimeParts(value);
+    if (!parts) return '—';
+    return (
+      <div className="leading-tight">
+        <div className="text-sm font-medium text-foreground">{parts.time}</div>
+        <div className="text-xs text-muted-foreground">{parts.date}</div>
+      </div>
+    );
+  };
+
   const columns = [
     { key: 'rationCode', header: 'Mã', render: (r) => r.rationCode || '-' },
     { key: 'rationName', header: 'Tên khẩu phần', render: (r) => <span className="font-medium">{r.rationName || '-'}</span> },
     { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || 'Chung' },
     { key: 'activityLevel', header: 'Mức hoạt động', render: (r) => <StatusBadge status={r.activityLevel || 'MEDIUM'} /> },
     { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
     {
       key: 'actions', header: 'Thao tác', render: (r) => (
         <div className="flex items-center gap-1">
@@ -115,7 +138,7 @@ const NutritionPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Tiêu chuẩn Dinh dưỡng" description="Quản lý khẩu phần dinh dưỡng cho chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Dinh dưỡng' }]}
-        actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm khẩu phần</button>} />
+        actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo khẩu phần</button>} />
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
