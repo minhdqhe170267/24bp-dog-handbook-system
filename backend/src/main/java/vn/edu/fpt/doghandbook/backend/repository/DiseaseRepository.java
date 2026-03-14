@@ -7,12 +7,15 @@ import vn.edu.fpt.doghandbook.backend.entity.Disease;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface DiseaseRepository extends JpaRepository<Disease, Integer> {
 
     long countByIsDeletedFalse();
 
     Page<Disease> findByDiseaseNameContainingIgnoreCase(String diseaseName, Pageable pageable);
+
+    List<Disease> findByDiseaseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
 
     Page<Disease> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
             ContentStatus status,

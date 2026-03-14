@@ -20,6 +20,8 @@ public interface NutritionStandardRepository extends JpaRepository<NutritionStan
             Pageable pageable
     );
 
+    List<NutritionStandard> findByRationNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
+
     @Query("SELECT ns FROM NutritionStandard ns WHERE ns.isDeleted = false AND ns.dogBreed.breedId = :breedId")
     List<NutritionStandard> findByBreedBreedIdAndIsDeletedFalse(@Param("breedId") Integer breedId);
 
