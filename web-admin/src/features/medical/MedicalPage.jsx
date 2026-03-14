@@ -67,7 +67,6 @@ const SymptomListTab = () => {
   const filtered = filterCategory ? symptoms.filter((s) => s.category === filterCategory) : symptoms;
 
   const columns = [
-    { key: 'symptomId', header: 'ID', className: 'w-16' },
     { key: 'symptomCode', header: 'Mã', className: 'w-24' },
     { key: 'symptomName', header: 'Tên triệu chứng', render: (r) => <span className="font-medium text-foreground">{r.symptomName}</span> },
     {
