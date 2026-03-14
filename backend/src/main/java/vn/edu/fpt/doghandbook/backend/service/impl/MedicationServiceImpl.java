@@ -14,7 +14,9 @@ import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.Medication;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.MedicationRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -79,8 +81,12 @@ public class MedicationServiceImpl implements MedicationService {
     @Override
     @Transactional
     public MedicationResponse create(MedicationRequest request, Integer createdByUserId) {
+        User actor = getUserById(createdByUserId);
+        String medicationName = normalizeRequired(request.getMedicationName(), "medicationName");
+        ensureUniqueMedicationName(medicationName, null);
+
         Medication medication = Medication.builder()
-                .medicationName(normalizeRequired(request.getMedicationName(), "medicationName"))
+                .medicationName(medicationName)
                 .description(trimToNull(request.getDescription()))
                 .dosageInstructions(trimToNull(request.getDosageInstructions()))
                 .administrationMethod(trimToNull(request.getAdministrationMethod()))
@@ -88,8 +94,8 @@ public class MedicationServiceImpl implements MedicationService {
                 .contraindications(trimToNull(request.getContraindications()))
                 .storageRequirements(trimToNull(request.getStorageRequirements()))
                 .imageUrl(trimToNull(request.getImageUrl()))
-                .status(ContentStatus.DRAFT)
-                .createdBy(getUserById(createdByUserId))
+                .status(resolveWritableStatus(request.getStatus(), actor, ContentStatus.DRAFT))
+                .createdBy(actor)
                 .isDeleted(false)
                 .deletedAt(null)
                 .build();
@@ -99,10 +105,13 @@ public class MedicationServiceImpl implements MedicationService {
 
     @Override
     @Transactional
-    public MedicationResponse update(Integer id, MedicationRequest request) {
+    public MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId) {
         Medication medication = getActiveMedicationById(id);
+        User actor = getUserById(actorUserId);
+        String medicationName = normalizeRequired(request.getMedicationName(), "medicationName");
+        ensureUniqueMedicationName(medicationName, id);
 
-        medication.setMedicationName(normalizeRequired(request.getMedicationName(), "medicationName"));
+        medication.setMedicationName(medicationName);
         medication.setDescription(trimToNull(request.getDescription()));
         medication.setDosageInstructions(trimToNull(request.getDosageInstructions()));
         medication.setAdministrationMethod(trimToNull(request.getAdministrationMethod()));
@@ -110,7 +119,24 @@ public class MedicationServiceImpl implements MedicationService {
         medication.setContraindications(trimToNull(request.getContraindications()));
         medication.setStorageRequirements(trimToNull(request.getStorageRequirements()));
         medication.setImageUrl(trimToNull(request.getImageUrl()));
+        medication.setStatus(resolveWritableStatus(request.getStatus(), actor, medication.getStatus()));
 
+        return toResponse(medicationRepository.save(medication));
+    }
+
+    @Override
+    @Transactional
+    public MedicationResponse publish(Integer id) {
+        Medication medication = getActiveMedicationById(id);
+        medication.setStatus(ContentStatus.PUBLISHED);
+        return toResponse(medicationRepository.save(medication));
+    }
+
+    @Override
+    @Transactional
+    public MedicationResponse unpublish(Integer id) {
+        Medication medication = getActiveMedicationById(id);
+        medication.setStatus(ContentStatus.DRAFT);
         return toResponse(medicationRepository.save(medication));
     }
 
@@ -149,6 +175,35 @@ public class MedicationServiceImpl implements MedicationService {
             throw new BadRequestException("size must be greater than 0");
         }
         return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private void ensureUniqueMedicationName(String medicationName, Integer medicationId) {
+        boolean exists = medicationId == null
+                ? medicationRepository.existsByMedicationNameIgnoreCaseAndIsDeletedFalse(medicationName)
+                : medicationRepository.existsByMedicationNameIgnoreCaseAndMedicationIdNotAndIsDeletedFalse(
+                        medicationName,
+                        medicationId
+                );
+
+        if (exists) {
+            throw new ConflictException("Medication with the same name already exists");
+        }
+    }
+
+    private ContentStatus resolveWritableStatus(String value, User actor, ContentStatus defaultStatus) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return defaultStatus;
+        }
+
+        ContentStatus requestedStatus = parseStatus(normalized);
+        if (requestedStatus != ContentStatus.DRAFT && requestedStatus != ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Only DRAFT or PUBLISHED are supported for medications");
+        }
+        if (requestedStatus == ContentStatus.PUBLISHED && (actor == null || actor.getRole() != UserRole.ADMIN)) {
+            throw new BadRequestException("Only ADMIN can publish medication directly");
+        }
+        return requestedStatus;
     }
 
     private ContentStatus parseStatus(String value) {
