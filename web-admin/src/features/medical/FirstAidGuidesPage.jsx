@@ -39,6 +39,17 @@ const formatDateTime = (value) => {
   return date.toLocaleString('vi-VN');
 };
 
+const getDateTimeParts = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { time: value, date: '' };
+  const twoDigits = (num) => String(num).padStart(2, '0');
+  return {
+    time: `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}:${twoDigits(date.getSeconds())}`,
+    date: `${twoDigits(date.getDate())}/${twoDigits(date.getMonth() + 1)}/${date.getFullYear()}`,
+  };
+};
+
 const FirstAidGuidesPage = () => {
   const toast = useToast();
   const [guides, setGuides] = useState([]);
@@ -169,7 +180,6 @@ const FirstAidGuidesPage = () => {
   };
 
   const columns = [
-    { key: 'guideId', header: 'ID', className: 'w-16' },
     {
       key: 'guideTitle',
       header: 'Tiêu đề',
@@ -186,7 +196,16 @@ const FirstAidGuidesPage = () => {
       key: 'updatedAt',
       header: 'Cập nhật',
       className: 'w-44',
-      render: (row) => formatDateTime(row.updatedAt),
+      render: (row) => {
+        const parts = getDateTimeParts(row.updatedAt);
+        if (!parts) return '—';
+        return (
+          <div className="leading-tight">
+            <div className="text-sm font-medium text-foreground">{parts.time}</div>
+            <div className="text-xs text-muted-foreground">{parts.date}</div>
+          </div>
+        );
+      },
     },
     {
       key: 'actions',
@@ -208,7 +227,7 @@ const FirstAidGuidesPage = () => {
         title="Quản lý Sơ cứu"
         description="Danh sách hướng dẫn sơ cứu cho các tình huống khẩn cấp"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Sơ cứu' }]}
-        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button>}
+        actions={<Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo hướng dẫn sơ cứu</Button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
