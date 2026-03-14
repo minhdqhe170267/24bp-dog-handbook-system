@@ -14,7 +14,9 @@ import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.FirstAidGuide;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.FirstAidGuideRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -79,8 +81,12 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
     @Override
     @Transactional
     public FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId) {
+        User actor = getUserById(createdByUserId);
+        String guideTitle = normalizeRequired(request.getGuideTitle(), "guideTitle");
+        ensureUniqueGuideTitle(guideTitle, null);
+
         FirstAidGuide guide = FirstAidGuide.builder()
-                .guideTitle(normalizeRequired(request.getGuideTitle(), "guideTitle"))
+                .guideTitle(guideTitle)
                 .emergencyType(normalizeRequired(request.getEmergencyType(), "emergencyType"))
                 .description(trimToNull(request.getDescription()))
                 .immediateSteps(normalizeRequired(request.getImmediateSteps(), "immediateSteps"))
@@ -88,8 +94,8 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
                 .doNotActions(trimToNull(request.getDoNotActions()))
                 .whenToSeekVet(trimToNull(request.getWhenToSeekVet()))
                 .imageUrl(trimToNull(request.getImageUrl()))
-                .status(ContentStatus.DRAFT)
-                .createdBy(getUserById(createdByUserId))
+                .status(resolveWritableStatus(request.getStatus(), actor, ContentStatus.DRAFT))
+                .createdBy(actor)
                 .isDeleted(false)
                 .deletedAt(null)
                 .build();
@@ -99,10 +105,13 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
 
     @Override
     @Transactional
-    public FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request) {
+    public FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId) {
         FirstAidGuide guide = getActiveGuideById(id);
+        User actor = getUserById(actorUserId);
+        String guideTitle = normalizeRequired(request.getGuideTitle(), "guideTitle");
+        ensureUniqueGuideTitle(guideTitle, id);
 
-        guide.setGuideTitle(normalizeRequired(request.getGuideTitle(), "guideTitle"));
+        guide.setGuideTitle(guideTitle);
         guide.setEmergencyType(normalizeRequired(request.getEmergencyType(), "emergencyType"));
         guide.setDescription(trimToNull(request.getDescription()));
         guide.setImmediateSteps(normalizeRequired(request.getImmediateSteps(), "immediateSteps"));
@@ -110,7 +119,24 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
         guide.setDoNotActions(trimToNull(request.getDoNotActions()));
         guide.setWhenToSeekVet(trimToNull(request.getWhenToSeekVet()));
         guide.setImageUrl(trimToNull(request.getImageUrl()));
+        guide.setStatus(resolveWritableStatus(request.getStatus(), actor, guide.getStatus()));
 
+        return toResponse(firstAidGuideRepository.save(guide));
+    }
+
+    @Override
+    @Transactional
+    public FirstAidGuideResponse publish(Integer id) {
+        FirstAidGuide guide = getActiveGuideById(id);
+        guide.setStatus(ContentStatus.PUBLISHED);
+        return toResponse(firstAidGuideRepository.save(guide));
+    }
+
+    @Override
+    @Transactional
+    public FirstAidGuideResponse unpublish(Integer id) {
+        FirstAidGuide guide = getActiveGuideById(id);
+        guide.setStatus(ContentStatus.DRAFT);
         return toResponse(firstAidGuideRepository.save(guide));
     }
 
@@ -149,6 +175,35 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
             throw new BadRequestException("size must be greater than 0");
         }
         return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private void ensureUniqueGuideTitle(String guideTitle, Integer guideId) {
+        boolean exists = guideId == null
+                ? firstAidGuideRepository.existsByGuideTitleIgnoreCaseAndIsDeletedFalse(guideTitle)
+                : firstAidGuideRepository.existsByGuideTitleIgnoreCaseAndGuideIdNotAndIsDeletedFalse(
+                        guideTitle,
+                        guideId
+                );
+
+        if (exists) {
+            throw new ConflictException("First aid guide with the same title already exists");
+        }
+    }
+
+    private ContentStatus resolveWritableStatus(String value, User actor, ContentStatus defaultStatus) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return defaultStatus;
+        }
+
+        ContentStatus requestedStatus = parseStatus(normalized);
+        if (requestedStatus != ContentStatus.DRAFT && requestedStatus != ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Only DRAFT or PUBLISHED are supported for first-aid guides");
+        }
+        if (requestedStatus == ContentStatus.PUBLISHED && (actor == null || actor.getRole() != UserRole.ADMIN)) {
+            throw new BadRequestException("Only ADMIN can publish first-aid guide directly");
+        }
+        return requestedStatus;
     }
 
     private ContentStatus parseStatus(String value) {

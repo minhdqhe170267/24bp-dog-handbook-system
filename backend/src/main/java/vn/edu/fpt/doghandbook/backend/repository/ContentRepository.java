@@ -44,6 +44,14 @@ public interface ContentRepository extends JpaRepository<Content, Integer> {
             Pageable pageable
     );
 
+    boolean existsByTitleIgnoreCaseAndContentTypeAndIsDeletedFalse(String title, ContentType contentType);
+
+    boolean existsByTitleIgnoreCaseAndContentTypeAndContentIdNotAndIsDeletedFalse(
+            String title,
+            ContentType contentType,
+            Integer contentId
+    );
+
     List<Content> findByAuthorUserIdAndIsDeletedFalse(Integer authorId);
 
     long countByStatusAndIsDeletedFalse(ContentStatus status);

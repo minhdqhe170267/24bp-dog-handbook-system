@@ -16,6 +16,8 @@ public interface DogBreedRepository extends JpaRepository<DogBreed, Integer> {
 
     Page<DogBreed> findByBreedNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
 
+    List<DogBreed> findByBreedNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
+
     Optional<DogBreed> findByBreedIdAndIsDeletedFalse(Integer breedId);
 
     Optional<DogBreed> findByBreedNameAndIsDeletedFalse(String breedName);

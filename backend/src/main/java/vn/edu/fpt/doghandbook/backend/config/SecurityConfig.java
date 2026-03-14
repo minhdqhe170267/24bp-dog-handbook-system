@@ -34,7 +34,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/error").permitAll()
+                        .requestMatchers("/auth/login", "/error", "/uploads/**").permitAll()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
 
@@ -42,6 +42,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/dogs").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/dogs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
 
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
@@ -51,6 +53,15 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "REVIEWER")
 
                         .requestMatchers(HttpMethod.PUT, "/contents/*/publish")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/contents/*/unpublish")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/medications/*/publish", "/medications/*/unpublish")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.PUT, "/first-aid-guides/*/publish", "/first-aid-guides/*/unpublish")
                         .hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.PUT, "/suggestions/*/respond")
@@ -68,7 +79,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,
                                 "/breeds/**", "/exercises/**", "/training-methods/**", "/roadmaps/**",
                                 "/diseases/**", "/symptoms/**", "/medications/**", "/first-aid-guides/**",
-                                "/nutrition-standards/**", "/contents/**"
+                                "/nutrition-standards/**", "/contents/**", "/media/**"
                         ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers("/contents/*/approve", "/contents/*/reject")
@@ -79,6 +90,8 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/health-records").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.GET, "/health-records", "/health-records/**").authenticated()
+
+                        .requestMatchers("/health-sessions/**").hasAnyRole("ADMIN", "TRAINER")
 
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",

@@ -7,6 +7,7 @@ import vn.edu.fpt.doghandbook.backend.entity.Medication;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface MedicationRepository extends JpaRepository<Medication, Integer> {
@@ -14,6 +15,8 @@ public interface MedicationRepository extends JpaRepository<Medication, Integer>
     Page<Medication> findByIsDeletedFalse(Pageable pageable);
 
     Page<Medication> findByMedicationNameContainingIgnoreCaseAndIsDeletedFalse(String medicationName, Pageable pageable);
+
+    List<Medication> findByMedicationNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
 
     Page<Medication> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
 
@@ -24,6 +27,13 @@ public interface MedicationRepository extends JpaRepository<Medication, Integer>
     );
 
     Optional<Medication> findByMedicationIdAndIsDeletedFalse(Integer medicationId);
+
+    boolean existsByMedicationNameIgnoreCaseAndIsDeletedFalse(String medicationName);
+
+    boolean existsByMedicationNameIgnoreCaseAndMedicationIdNotAndIsDeletedFalse(
+            String medicationName,
+            Integer medicationId
+    );
 
     long countByIsDeletedFalse();
 

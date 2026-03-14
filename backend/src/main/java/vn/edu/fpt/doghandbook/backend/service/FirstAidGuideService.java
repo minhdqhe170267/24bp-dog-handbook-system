@@ -12,7 +12,11 @@ public interface FirstAidGuideService {
 
     FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId);
 
-    FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request);
+    FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId);
+
+    FirstAidGuideResponse publish(Integer id);
+
+    FirstAidGuideResponse unpublish(Integer id);
 
     void delete(Integer id);
 }

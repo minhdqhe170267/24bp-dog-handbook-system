@@ -20,6 +20,8 @@ public interface TrainingExerciseRepository extends JpaRepository<TrainingExerci
 
     Page<TrainingExercise> findByExerciseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
 
+    List<TrainingExercise> findByExerciseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
+
     @Query("SELECT te FROM TrainingExercise te WHERE te.isDeleted = false "
             + "AND te.trainingMethod.methodId = :methodId")
     List<TrainingExercise> findByMethodMethodIdAndIsDeletedFalse(@Param("methodId") Integer methodId);
