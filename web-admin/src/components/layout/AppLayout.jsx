@@ -8,8 +8,9 @@ const ROLE_ROUTES = {
     ADMIN: null, // null = all routes allowed
     CONTENT_EDITOR: [
         '/dashboard', '/',
-        '/content', '/content/create', '/content/history',
+        '/content', '/content/create',
         '/breeds',
+        '/diseases',
         '/training/exercises', '/training/methods', '/training/roadmaps',
         '/nutrition',
         '/medications', '/medical',
@@ -20,6 +21,27 @@ const ROLE_ROUTES = {
         '/content',
         '/approval',
     ],
+};
+
+const isReviewerContentDetailPath = (pathname) => {
+    if (pathname === '/content/create' || pathname === '/content/history') {
+        return false;
+    }
+    return /^\/content\/[^/]+$/.test(pathname);
+};
+
+const isPathAllowedByRole = (role, pathname, allowedRoutes) => {
+    if (allowedRoutes === null || allowedRoutes === undefined) return true;
+
+    return allowedRoutes.some((route) => {
+        if (route === '/') return pathname === '/';
+
+        if (role === 'REVIEWER' && route === '/content') {
+            return pathname === '/content' || isReviewerContentDetailPath(pathname);
+        }
+
+        return pathname === route || pathname.startsWith(`${route}/`);
+    });
 };
 
 const AppLayout = () => {
@@ -37,7 +59,7 @@ const AppLayout = () => {
     // Check if current route is allowed for user's role
     const allowedRoutes = ROLE_ROUTES[user.role];
     if (allowedRoutes !== null && allowedRoutes !== undefined) {
-        const isAllowed = allowedRoutes.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
+        const isAllowed = isPathAllowedByRole(user.role, location.pathname, allowedRoutes);
         if (!isAllowed) {
             // Redirect to first allowed route
             return <Navigate to={allowedRoutes[0] || '/dashboard'} replace />;
