@@ -28,6 +28,13 @@ public interface MedicationRepository extends JpaRepository<Medication, Integer>
 
     Optional<Medication> findByMedicationIdAndIsDeletedFalse(Integer medicationId);
 
+    boolean existsByMedicationNameIgnoreCaseAndIsDeletedFalse(String medicationName);
+
+    boolean existsByMedicationNameIgnoreCaseAndMedicationIdNotAndIsDeletedFalse(
+            String medicationName,
+            Integer medicationId
+    );
+
     long countByIsDeletedFalse();
 
     long countByStatusAndIsDeletedFalse(ContentStatus status);

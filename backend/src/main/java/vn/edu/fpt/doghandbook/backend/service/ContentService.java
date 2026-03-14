@@ -17,13 +17,15 @@ public interface ContentService {
 
     ContentResponse create(ContentRequest request, Integer authorId);
 
-    ContentResponse update(Integer id, ContentRequest request);
+    ContentResponse update(Integer id, ContentRequest request, Integer actorId);
 
     void delete(Integer id);
 
     ContentResponse submitForReview(Integer contentId);
 
     ContentResponse publish(Integer contentId);
+
+    ContentResponse unpublish(Integer contentId);
 
     // Approval
     ApprovalRecordResponse reviewContent(Integer contentId, ApprovalRequest request, Integer reviewerId);

@@ -28,6 +28,13 @@ public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, In
 
     Optional<FirstAidGuide> findByGuideIdAndIsDeletedFalse(Integer guideId);
 
+    boolean existsByGuideTitleIgnoreCaseAndIsDeletedFalse(String guideTitle);
+
+    boolean existsByGuideTitleIgnoreCaseAndGuideIdNotAndIsDeletedFalse(
+            String guideTitle,
+            Integer guideId
+    );
+
     long countByIsDeletedFalse();
 
     Page<FirstAidGuide> findByStatusAndUpdatedAtAfterAndIsDeletedFalse(
