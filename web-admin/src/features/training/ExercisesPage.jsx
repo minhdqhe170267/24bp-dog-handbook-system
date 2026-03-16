@@ -4,7 +4,7 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { FilePenLine, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../../services/api';
 
 const difficultyOptions = [
@@ -40,7 +40,6 @@ const editFields = [
     { key: 'instructions', label: 'Hướng dẫn', type: 'textarea' },
     { key: 'requiredEquipment', label: 'Thiết bị cần thiết' },
     { key: 'safetyPrecautions', label: 'Lưu ý an toàn', type: 'textarea' },
-    { key: 'status', label: 'Trạng thái', type: 'select', options: [{ value: 'DRAFT', label: 'Nháp' }, { value: 'PUBLISHED', label: 'Xuất bản' }] },
 ];
 
 const ExercisesPage = () => {
@@ -54,7 +53,18 @@ const ExercisesPage = () => {
     const [loading, setLoading] = useState(true);
     const [detailItem, setDetailItem] = useState(null);
     const [editItem, setEditItem] = useState(null);
+    const [createOpen, setCreateOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    const toExercisePayload = (formData) => ({
+        exerciseName: formData.exerciseName?.trim() || '',
+        difficultyLevel: formData.difficultyLevel || '',
+        durationMinutes: formData.durationMinutes ? Number(formData.durationMinutes) : null,
+        description: formData.description?.trim() || '',
+        instructions: formData.instructions?.trim() || '',
+        requiredEquipment: formData.requiredEquipment?.trim() || '',
+        safetyPrecautions: formData.safetyPrecautions?.trim() || '',
+    });
 
     const fetchData = async () => {
         setLoading(true);
@@ -83,14 +93,38 @@ const ExercisesPage = () => {
 
     const handleEdit = async (formData) => {
         setSaving(true);
-        try { await api.put(`/exercises/${editItem.exerciseId}`, formData); setEditItem(null); fetchData(); }
+        try { await api.put(`/exercises/${editItem.exerciseId}`, toExercisePayload(formData)); setEditItem(null); fetchData(); }
         catch (err) { console.error('Update error:', err); alert('Có lỗi xảy ra khi cập nhật'); }
         finally { setSaving(false); }
     };
 
-    const formatDate = (d) => {
-        if (!d) return '-';
-        try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`; } catch { return d; }
+    const handleCreate = async (formData) => {
+        setSaving(true);
+        try { await api.post('/exercises', toExercisePayload(formData)); setCreateOpen(false); fetchData(); }
+        catch (err) { console.error('Create error:', err); alert('Có lỗi xảy ra khi tạo mới'); }
+        finally { setSaving(false); }
+    };
+
+    const getDateTimeParts = (value) => {
+        if (!value) return null;
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+        const twoDigits = (num) => String(num).padStart(2, '0');
+        return {
+            time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+            date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+        };
+    };
+
+    const renderDateTimeCell = (value) => {
+        const parts = getDateTimeParts(value);
+        if (!parts) return '—';
+        return (
+            <div className="leading-tight">
+                <div className="text-sm font-medium text-foreground">{parts.time}</div>
+                <div className="text-xs text-muted-foreground">{parts.date}</div>
+            </div>
+        );
     };
 
     const columns = [
@@ -98,12 +132,12 @@ const ExercisesPage = () => {
         { key: 'difficultyLevel', header: 'Độ khó', render: (r) => <StatusBadge status={r.difficultyLevel} /> },
         { key: 'durationMinutes', header: 'Thời gian', render: (r) => r.durationMinutes ? `${r.durationMinutes} phút` : '-' },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
-        { key: 'updatedAt', header: 'Cập nhật', render: (r) => formatDate(r.updatedAt) },
+        { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.exerciseId)}><Trash2 className="h-4 w-4 text-destructive" /></button>
                 </div>
             )
@@ -114,7 +148,7 @@ const ExercisesPage = () => {
         <div className="animate-fade-in">
             <PageHeader title="Bài tập huấn luyện" description="Quản lý các bài tập cho chó nghiệp vụ"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }, { label: 'Bài tập' }]}
-                actions={<button className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm bài tập</button>} />
+                actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo bài tập</button>} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -134,6 +168,9 @@ const ExercisesPage = () => {
             </DetailModal>
             <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa bài tập" size="lg">
                 <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
+            </DetailModal>
+            <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm bài tập" size="lg">
+                <EditForm fields={editFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
             </DetailModal>
         </div>
     );

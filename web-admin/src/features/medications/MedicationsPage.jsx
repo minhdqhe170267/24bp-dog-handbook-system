@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
+import FilterSelect from '../../components/shared/FilterSelect';
+import StatusBadge from '../../components/shared/StatusBadge';
 import { Modal, FormField, FormInput, FormTextarea, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { medicationService } from '../../services/medicationService';
 import { Plus, Pencil, Trash2, Eye, Search } from 'lucide-react';
+
+const statusOptions = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'DRAFT', label: 'Nháp' },
+  { value: 'PUBLISHED', label: 'Đã xuất bản' },
+];
 
 const MedicationsPage = () => {
   const toast = useToast();
@@ -17,19 +25,21 @@ const MedicationsPage = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
   const [formData, setFormData] = useState({});
 
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try {
-      const res = await medicationService.getAll(page, size, search);
+      const statusQuery = status === 'all' ? '' : status;
+      const res = await medicationService.getAll(page, size, search, statusQuery);
       setMedications(res.data.content || []);
       setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
     } catch (err) { toast.error('Lỗi tải danh sách thuốc'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(0, pagination.pageSize); }, [search]); // eslint-disable-line
+  useEffect(() => { fetchData(0, pagination.pageSize); }, [search, status]); // eslint-disable-line
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,10 +67,38 @@ const MedicationsPage = () => {
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const getDateTimeParts = (value) => {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+    const twoDigits = (num) => String(num).padStart(2, '0');
+    return {
+      time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+      date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+    };
+  };
+
+  const renderDateTimeCell = (value) => {
+    const parts = getDateTimeParts(value);
+    if (!parts) return '—';
+    return (
+      <div className="leading-tight">
+        <div className="text-sm font-medium text-foreground">{parts.time}</div>
+        <div className="text-xs text-muted-foreground">{parts.date}</div>
+      </div>
+    );
+  };
+
   const columns = [
-    { key: 'medicationId', header: 'ID', className: 'w-16' },
     { key: 'medicationName', header: 'Tên thuốc', render: (r) => <span className="font-medium text-foreground">{r.medicationName}</span> },
     { key: 'administrationMethod', header: 'Phương pháp dùng' },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      className: 'w-40',
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
     {
       key: 'actions', header: 'Thao tác', className: 'w-36', render: (r) => (
         <div className="flex items-center gap-1">
@@ -76,13 +114,14 @@ const MedicationsPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Quản lý Thuốc" description="Danh sách thuốc sử dụng cho chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Thuốc' }]}
-        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button>} />
+        actions={<Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo thuốc</Button>} />
       <div className="flex items-center gap-3 mb-4">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-card"
+          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <FilterSelect value={status} onChange={(value) => setStatus(value)} options={statusOptions} className="w-48" />
       </div>
       <DataTable columns={columns} data={medications} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có thuốc nào" />
