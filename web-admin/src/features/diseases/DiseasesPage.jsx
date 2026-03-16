@@ -2,10 +2,40 @@ import { useState, useEffect } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
+import FilterSelect from '../../components/shared/FilterSelect';
 import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormSwitch, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { diseaseService } from '../../services/diseaseService';
 import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
+
+const severityFilterOptions = [
+  { value: 'all', label: 'Tất cả mức độ' },
+  { value: 'CRITICAL', label: 'Nguy hiểm' },
+  { value: 'HIGH', label: 'Nặng' },
+  { value: 'MEDIUM', label: 'Trung bình' },
+  { value: 'LOW', label: 'Nhẹ' },
+];
+
+const contagiousFilterOptions = [
+  { value: 'all', label: 'Tất cả lây nhiễm' },
+  { value: 'true', label: 'Có' },
+  { value: 'false', label: 'Không' },
+];
+
+const statusFilterOptions = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'PUBLISHED', label: 'Đã xuất bản' },
+  { value: 'DRAFT', label: 'Nháp' },
+];
+
+const normalizeSeverity = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim().toUpperCase();
+  if (raw === 'SEVERE') return 'HIGH';
+  if (raw === 'MODERATE') return 'MEDIUM';
+  if (raw === 'MILD') return 'LOW';
+  return raw;
+};
 
 const DiseasesPage = () => {
   const toast = useToast();
@@ -18,6 +48,9 @@ const DiseasesPage = () => {
   const [deleteId, setDeleteId] = useState(null);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
   const [search, setSearch] = useState('');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [contagiousFilter, setContagiousFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [formData, setFormData] = useState({});
 
   const fetchData = async (page = 0, size = 10) => {
@@ -86,7 +119,7 @@ const DiseasesPage = () => {
     { key: 'diseaseName', header: 'Tên bệnh', render: (r) => <span className="font-medium text-foreground">{r.diseaseName}</span> },
     { key: 'severityLevel', header: 'Mức độ', render: (r) => r.severityLevel ? <StatusBadge status={r.severityLevel} /> : '—' },
     {
-      key: 'isContagious', header: 'Lây nhiễm', className: 'w-24', render: (r) => r.isContagious
+      key: 'isContagious', header: 'Lây nhiễm', className: 'w-28 whitespace-nowrap', render: (r) => r.isContagious
         ? <span className="text-xs font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">Có</span>
         : <span className="text-xs font-medium text-success bg-success/10 px-2 py-0.5 rounded-full">Không</span>
     },
@@ -103,19 +136,30 @@ const DiseasesPage = () => {
     },
   ];
 
+  const filteredDiseases = diseases.filter((item) => {
+    const matchSeverity = severityFilter === 'all' || normalizeSeverity(item.severityLevel) === severityFilter;
+    const matchContagious = contagiousFilter === 'all' || String(Boolean(item.isContagious)) === contagiousFilter;
+    const matchStatus = statusFilter === 'all' || item.status === statusFilter;
+    return matchSeverity && matchContagious && matchStatus;
+  });
+  const hasClientFilter = severityFilter !== 'all' || contagiousFilter !== 'all' || statusFilter !== 'all';
+
   return (
     <div className="animate-fade-in">
       <PageHeader title="Quản lý Bệnh" description="Danh sách các bệnh thường gặp ở chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Bệnh' }]}
         actions={<Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo bệnh</Button>} />
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <FilterSelect value={severityFilter} onChange={(value) => { setSeverityFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={severityFilterOptions} className="min-w-[170px]" />
+        <FilterSelect value={contagiousFilter} onChange={(value) => { setContagiousFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={contagiousFilterOptions} className="min-w-[170px]" />
+        <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={statusFilterOptions} className="min-w-[180px]" />
       </div>
-      <DataTable columns={columns} data={diseases} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
+      <DataTable columns={columns} data={filteredDiseases} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={hasClientFilter ? filteredDiseases.length : pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có bệnh nào" />
 
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Chi tiết bệnh" width={650}>
@@ -139,7 +183,7 @@ const DiseasesPage = () => {
           <FormField label="Tên bệnh" required><FormInput placeholder="VD: Parvo" value={formData.diseaseName || ''} onChange={(e) => updateField('diseaseName', e.target.value)} /></FormField>
           <FormField label="Mức độ">
             <FormSelect value={formData.severityLevel || ''} onChange={(e) => updateField('severityLevel', e.target.value)} placeholder="Chọn mức độ"
-              options={[{ value: 'MILD', label: 'Nhẹ' }, { value: 'MODERATE', label: 'Trung bình' }, { value: 'SEVERE', label: 'Nặng' }, { value: 'CRITICAL', label: 'Nguy kịch' }]} />
+              options={[{ value: 'LOW', label: 'Nhẹ' }, { value: 'MEDIUM', label: 'Trung bình' }, { value: 'HIGH', label: 'Nặng' }, { value: 'CRITICAL', label: 'Nguy kịch' }]} />
           </FormField>
           <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
           <FormField label="Triệu chứng"><FormTextarea rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>

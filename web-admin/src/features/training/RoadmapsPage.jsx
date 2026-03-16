@@ -4,7 +4,7 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { Plus, Eye, Trash2 } from 'lucide-react';
+import { Plus, Eye, Trash2, Search } from 'lucide-react';
 import api from '../../services/api';
 
 const statusOptions = [
@@ -43,6 +43,7 @@ const createFields = [
 const RoadmapsPage = () => {
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(10);
+    const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
@@ -71,15 +72,14 @@ const RoadmapsPage = () => {
             params.append('size', String(pageSize));
             const res = await api.get(`/roadmaps?${params.toString()}`);
             const data = res.data || res;
-            let list = data.content || [];
-            if (statusFilter !== 'all') list = list.filter(r => r.status === statusFilter);
+            const list = data.content || [];
             setItems(list);
             setTotalItems(data.totalElements || list.length);
         } catch (err) { console.error('Fetch roadmaps error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [page, pageSize, statusFilter]);
+    useEffect(() => { fetchData(); }, [page, pageSize]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('Bạn có chắc chắn muốn xóa lộ trình này?')) return;
@@ -133,16 +133,34 @@ const RoadmapsPage = () => {
         },
     ];
 
+    const normalizedSearch = search.trim().toLowerCase();
+    const filteredItems = items.filter((item) => {
+        const matchName = !normalizedSearch || (item.roadmapName || '').toLowerCase().includes(normalizedSearch);
+        const matchStatus = statusFilter === 'all' || item.status === statusFilter;
+        return matchName && matchStatus;
+    });
+    const hasClientFilter = Boolean(normalizedSearch) || statusFilter !== 'all';
+
     return (
         <div className="animate-fade-in">
             <PageHeader title="Lộ trình huấn luyện" description="Quản lý các lộ trình huấn luyện chó nghiệp vụ"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }, { label: 'Lộ trình' }]}
                 actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo lộ trình</button>} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <div className="relative w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+                        placeholder="Tìm theo tên lộ trình..."
+                        className="h-9 w-full pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                    />
+                </div>
                 <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-                <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
+                <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có lộ trình nào" />
             )}
             <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết lộ trình" size="lg">

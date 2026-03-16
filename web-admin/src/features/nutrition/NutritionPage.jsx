@@ -13,6 +13,13 @@ const statusOptions = [
   { value: 'PUBLISHED', label: 'Đã xuất bản' },
 ];
 
+const activityOptions = [
+  { value: 'all', label: 'Tất cả mức hoạt động' },
+  { value: 'LOW', label: 'Nhẹ' },
+  { value: 'MEDIUM', label: 'Trung bình' },
+  { value: 'HIGH', label: 'Nặng' },
+];
+
 const detailFields = [
   { key: 'rationCode', label: 'Mã khẩu phần' },
   { key: 'rationName', label: 'Tên khẩu phần' },
@@ -38,6 +45,7 @@ const editFields = [
 const NutritionPage = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activityFilter, setActivityFilter] = useState('all');
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [items, setItems] = useState([]);
@@ -65,15 +73,14 @@ const NutritionPage = () => {
       if (search) params.append('search', search);
       const res = await api.get(`/nutrition-standards?${params.toString()}`);
       const data = res.data || res;
-      let list = data.content || [];
-      if (statusFilter !== 'all') list = list.filter(n => n.status === statusFilter);
+      const list = data.content || [];
       setItems(list);
       setTotalItems(data.totalElements || list.length);
     } catch (err) { console.error('Fetch nutrition error:', err); setItems([]); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, search, statusFilter]);
+  useEffect(() => { fetchData(); }, [page, pageSize, search]);
 
   const handleDelete = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa khẩu phần này?')) return;
@@ -134,6 +141,13 @@ const NutritionPage = () => {
     },
   ];
 
+  const filteredItems = items.filter((item) => {
+    const matchStatus = statusFilter === 'all' || item.status === statusFilter;
+    const matchActivity = activityFilter === 'all' || (item.activityLevel || 'MEDIUM') === activityFilter;
+    return matchStatus && matchActivity;
+  });
+  const hasClientFilter = statusFilter !== 'all' || activityFilter !== 'all';
+
   return (
     <div className="animate-fade-in">
       <PageHeader title="Tiêu chuẩn Dinh dưỡng" description="Quản lý khẩu phần dinh dưỡng cho chó nghiệp vụ"
@@ -147,9 +161,10 @@ const NutritionPage = () => {
             className="h-9 pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors w-64" />
         </div>
         <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
+        <FilterSelect value={activityFilter} onChange={(v) => { setActivityFilter(v); setPage(0); }} options={activityOptions} placeholder="Tất cả mức hoạt động" className="min-w-[190px]" />
       </div>
       {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-        <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
+        <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
           onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có khẩu phần nào" />
       )}
       <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết khẩu phần" size="lg">

@@ -3,6 +3,7 @@ import { Eye, Lock, LockOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
+import FilterSelect from '../../components/shared/FilterSelect';
 import { Modal, FormField, FormInput, FormSelect, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { userService } from '../../services/userService';
@@ -21,6 +22,17 @@ const roleLabelMap = {
   REVIEWER: 'Người duyệt',
   TRAINER: 'Huấn luyện viên',
 };
+
+const roleFilterOptions = [
+  { value: 'all', label: 'Tất cả vai trò' },
+  ...roleOptions,
+];
+
+const userStatusFilterOptions = [
+  { value: 'all', label: 'Tất cả trạng thái' },
+  { value: 'ACTIVE', label: 'Hoạt động' },
+  { value: 'LOCKED', label: 'Đã khóa' },
+];
 
 const defaultForm = {
   username: '',
@@ -70,6 +82,8 @@ const UserManagementPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [pagination, setPagination] = useState({ page: 0, pageSize: 20, total: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -251,6 +265,14 @@ const UserManagementPage = () => {
     },
   ];
 
+  const filteredUsers = users.filter((user) => {
+    const matchRole = roleFilter === 'all' || user.role === roleFilter;
+    const normalizedStatus = user.isLocked ? 'LOCKED' : 'ACTIVE';
+    const matchStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
+    return matchRole && matchStatus;
+  });
+  const hasClientFilter = roleFilter !== 'all' || statusFilter !== 'all';
+
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -269,7 +291,7 @@ const UserManagementPage = () => {
         }
       />
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -280,15 +302,33 @@ const UserManagementPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
+        <FilterSelect
+          value={roleFilter}
+          onChange={(value) => {
+            setRoleFilter(value);
+            setPagination((prev) => ({ ...prev, page: 0 }));
+          }}
+          options={roleFilterOptions}
+          className="min-w-[170px]"
+        />
+        <FilterSelect
+          value={statusFilter}
+          onChange={(value) => {
+            setStatusFilter(value);
+            setPagination((prev) => ({ ...prev, page: 0 }));
+          }}
+          options={userStatusFilterOptions}
+          className="min-w-[180px]"
+        />
       </div>
 
       <DataTable
         columns={columns}
-        data={users}
+        data={filteredUsers}
         loading={loading}
         page={pagination.page}
         pageSize={pagination.pageSize}
-        totalItems={pagination.total}
+        totalItems={hasClientFilter ? filteredUsers.length : pagination.total}
         onPageChange={(page) => fetchData(page, pagination.pageSize)}
         onPageSizeChange={(size) => {
           setPagination((prev) => ({ ...prev, pageSize: size }));

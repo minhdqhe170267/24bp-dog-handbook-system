@@ -81,6 +81,27 @@ const DataTable = ({
         );
     }
 
+    const resolveRowKey = (row, index) => {
+        const candidates = [
+            row?.id,
+            row?.userId,
+            row?.dogId,
+            row?.assignmentId,
+            row?.contentId,
+            row?.suggestionId,
+            row?.breedId,
+            row?.diseaseId,
+            row?.medicationId,
+            row?.standardId,
+            row?.methodId,
+            row?.exerciseId,
+            row?.roadmapId,
+            row?.symptomId,
+        ];
+        const firstValid = candidates.find((value) => value !== undefined && value !== null && value !== '');
+        return firstValid ?? index;
+    };
+
     return (
         <div className="space-y-4">
             <div className="rounded-lg border border-border/60 overflow-hidden">
@@ -100,7 +121,7 @@ const DataTable = ({
                     <tbody>
                         {data.map((row, i) => (
                             <motion.tr
-                                key={row.id || row.breedId || row.diseaseId || row.medicationId || row.rationId || row.methodId || row.exerciseId || row.roadmapId || row.symptomId || i}
+                                key={resolveRowKey(row, i)}
                                 className="border-t border-border/40 hover:bg-muted/30 transition-colors duration-150"
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}
