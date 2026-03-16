@@ -96,6 +96,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/sync/**").hasAnyRole("ADMIN", "TRAINER")
 
+                        .requestMatchers("/import/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
                                 "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
