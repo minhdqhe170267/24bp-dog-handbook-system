@@ -15,6 +15,25 @@ export const colors = {
   white: '#FFFFFF',
 };
 
+export const Colors = {
+  light: {
+    text: colors.text,
+    background: colors.background,
+    tint: colors.primary,
+    icon: colors.textLight,
+    tabIconDefault: colors.textLight,
+    tabIconSelected: colors.primary,
+  },
+  dark: {
+    text: '#ECEDEE',
+    background: '#151718',
+    tint: colors.accent,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: colors.accent,
+  },
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,

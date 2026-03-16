@@ -80,18 +80,18 @@ export const EditForm = ({ fields, data, onSubmit, onCancel, loading }) => {
                     <label className="block text-sm font-medium text-foreground mb-1">{f.label} {f.required && <span className="text-destructive">*</span>}</label>
                     {f.type === 'select' ? (
                         <select name={f.key} defaultValue={data?.[f.key] || f.defaultValue || ''} required={f.required}
-                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent">
+                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent">
                             {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                     ) : f.type === 'textarea' ? (
                         <textarea name={f.key} defaultValue={data?.[f.key] || ''} rows={3} required={f.required}
-                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none" />
+                            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none" />
                     ) : f.type === 'number' ? (
                         <input type="number" name={f.key} defaultValue={data?.[f.key] || ''} required={f.required}
-                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
                     ) : (
                         <input type="text" name={f.key} defaultValue={data?.[f.key] || ''} required={f.required} placeholder={f.placeholder || ''}
-                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+                            className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
                     )}
                 </div>
             ))}

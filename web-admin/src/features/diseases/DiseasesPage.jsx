@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
-import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormSwitch, Button, ConfirmDialog, StatusBadge } from '../../components/ui/FormComponents';
+import StatusBadge from '../../components/shared/StatusBadge';
+import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormSwitch, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { diseaseService } from '../../services/diseaseService';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
 
 const DiseasesPage = () => {
   const toast = useToast();
   const [diseases, setDiseases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
@@ -48,10 +51,38 @@ const DiseasesPage = () => {
 
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
+  const openDetail = async (r) => {
+    try {
+      const res = await diseaseService.getById(r.diseaseId);
+      setDetailData(res.data);
+      setDetailOpen(true);
+    } catch (err) { toast.error('Lỗi tải chi tiết bệnh'); }
+  };
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const getDateTimeParts = (value) => {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+    const twoDigits = (num) => String(num).padStart(2, '0');
+    return {
+      time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+      date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+    };
+  };
+
+  const renderDateTimeCell = (value) => {
+    const parts = getDateTimeParts(value);
+    if (!parts) return '—';
+    return (
+      <div className="leading-tight">
+        <div className="text-sm font-medium text-foreground">{parts.time}</div>
+        <div className="text-xs text-muted-foreground">{parts.date}</div>
+      </div>
+    );
+  };
+
   const columns = [
-    { key: 'diseaseId', header: 'ID', className: 'w-16' },
     { key: 'diseaseName', header: 'Tên bệnh', render: (r) => <span className="font-medium text-foreground">{r.diseaseName}</span> },
     { key: 'severityLevel', header: 'Mức độ', render: (r) => r.severityLevel ? <StatusBadge status={r.severityLevel} /> : '—' },
     {
@@ -59,9 +90,12 @@ const DiseasesPage = () => {
         ? <span className="text-xs font-medium text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">Có</span>
         : <span className="text-xs font-medium text-success bg-success/10 px-2 py-0.5 rounded-full">Không</span>
     },
+    { key: 'status', header: 'Trạng thái', className: 'w-36', render: (r) => r.status ? <StatusBadge status={r.status} /> : '—' },
+    { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
     {
-      key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
+      key: 'actions', header: 'Thao tác', className: 'w-36', render: (r) => (
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => setDeleteId(r.diseaseId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
@@ -73,16 +107,31 @@ const DiseasesPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Quản lý Bệnh" description="Danh sách các bệnh thường gặp ở chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Bệnh' }]}
-        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button>} />
+        actions={<Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo bệnh</Button>} />
       <div className="flex items-center gap-3 mb-4">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-card"
+          <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
       <DataTable columns={columns} data={diseases} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có bệnh nào" />
+
+      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Chi tiết bệnh" width={650}>
+        {detailData && (
+          <div className="space-y-3">
+            {[['Tên bệnh', detailData.diseaseName], ['Mức độ', detailData.severityLevel], ['Trạng thái', detailData.status], ['Lây nhiễm', detailData.isContagious ? 'Có' : 'Không'],
+            ['Mô tả', detailData.description], ['Triệu chứng', detailData.commonSymptoms], ['Điều trị', detailData.treatment],
+            ['Phòng ngừa', detailData.preventionMethods]].map(([label, value]) => (
+              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
+                <span className="text-sm font-medium text-muted-foreground w-36 flex-shrink-0">{label}</span>
+                <span className="text-sm text-foreground">{value || '—'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bệnh' : 'Thêm bệnh mới'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>

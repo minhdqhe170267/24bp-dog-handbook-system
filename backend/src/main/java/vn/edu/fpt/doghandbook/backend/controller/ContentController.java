@@ -18,10 +18,11 @@ import vn.edu.fpt.doghandbook.backend.dto.request.ContentRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ContentResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
-import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
+import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.service.ContentService;
-
-import java.util.Locale;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 @RestController
 @RequestMapping("/contents")
@@ -37,15 +38,24 @@ public class ContentController {
             @RequestParam(value = "search", required = false) String search,
             @RequestParam(value = "contentType", required = false) String contentType,
             @RequestParam(value = "type", required = false) String legacyType,
-            @RequestParam(value = "status", required = false) String status
+            @RequestParam(value = "status", required = false) String status,
+            Authentication authentication
     ) {
         String effectiveType = contentType != null ? contentType : legacyType;
-        return ApiResponse.success(contentService.getAll(page, size, search, effectiveType, status));
+        String effectiveStatus = AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
+                ? ContentStatus.PUBLISHED.name()
+                : status;
+        return ApiResponse.success(contentService.getAll(page, size, search, effectiveType, effectiveStatus));
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<ContentResponse> getById(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.getById(id));
+    public ApiResponse<ContentResponse> getById(@PathVariable("id") Integer id, Authentication authentication) {
+        ContentResponse response = contentService.getById(id);
+        if (AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
+                && !ContentStatus.PUBLISHED.name().equalsIgnoreCase(response.getStatus())) {
+            throw new ResourceNotFoundException("Content", "id", id);
+        }
+        return ApiResponse.success(response);
     }
 
     @PostMapping
@@ -53,16 +63,17 @@ public class ContentController {
             @Valid @RequestBody ContentRequest request,
             Authentication authentication
     ) {
-        ContentResponse response = contentService.create(request, extractUserId(authentication));
+        ContentResponse response = contentService.create(request, AuthenticationUtils.extractUserId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<ContentResponse> update(
             @PathVariable("id") Integer id,
-            @Valid @RequestBody ContentRequest request
+            @Valid @RequestBody ContentRequest request,
+            Authentication authentication
     ) {
-        return ApiResponse.success(contentService.update(id, request));
+        return ApiResponse.success(contentService.update(id, request, AuthenticationUtils.extractUserId(authentication)));
     }
 
     @DeleteMapping("/{id}")
@@ -81,35 +92,8 @@ public class ContentController {
         return ApiResponse.success(contentService.publish(id));
     }
 
-    private Integer extractUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BadRequestException("Unable to resolve authenticated user");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        try {
-            Object value = principal.getClass().getMethod("getUserId").invoke(principal);
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-        } catch (ReflectiveOperationException ignored) {
-        }
-
-        if (principal instanceof Number number) {
-            return number.intValue();
-        }
-
-        if (principal instanceof String text) {
-            try {
-                return Integer.valueOf(text.trim());
-            } catch (NumberFormatException ignored) {
-                if ("anonymousUser".equals(text.toLowerCase(Locale.ROOT))) {
-                    throw new BadRequestException("Unable to resolve authenticated user");
-                }
-            }
-        }
-
-        throw new BadRequestException("Unable to resolve userId from authentication principal");
+    @PutMapping("/{id}/unpublish")
+    public ApiResponse<ContentResponse> unpublish(@PathVariable("id") Integer id) {
+        return ApiResponse.success(contentService.unpublish(id));
     }
 }

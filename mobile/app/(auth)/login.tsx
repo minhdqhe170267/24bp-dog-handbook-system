@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
@@ -13,20 +13,32 @@ import { useThemeStore } from '../../src/stores/themeStore';
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const { login, isLoading, error, clearError, devLogin } = useAuthStore();
+    const { login, isLoading, error, clearError } = useAuthStore();
     const { colors } = useThemeStore();
 
     useEffect(() => {
         clearError();
-    }, []);
+    }, [clearError]);
 
-    const handleLogin = async () => {
-        if (!username.trim() || !password.trim()) return;
+    const handleLogin = async (nextUsername = username, nextPassword = password) => {
+        if (!nextUsername.trim() || !nextPassword.trim()) {
+            return;
+        }
+
         const success = await login({
-            username: username.trim(),
-            password: password.trim(),
+            username: nextUsername.trim(),
+            password: nextPassword.trim(),
         });
-        if (success) router.replace('/(tabs)');
+
+        if (success) {
+            router.replace('/(tabs)');
+        }
+    };
+
+    const handleQuickLogin = async () => {
+        setUsername('trainer01');
+        setPassword('trainer123');
+        await handleLogin('trainer01', 'trainer123');
     };
 
     return (
@@ -41,50 +53,47 @@ export default function LoginScreen() {
                         <Text style={[styles.appName, { color: colors.primary }]}>DHS</Text>
                         <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Dog Handbook System</Text>
                         <Text style={[styles.appSubtitle, { color: colors.textLight }]}>
-                            Hệ thống Sổ tay Chó nghiệp vụ
+                            He thong So tay Cho nghiep vu
                         </Text>
                     </View>
 
                     <Card style={styles.formCard}>
                         <Input
-                            label="Tên đăng nhập"
-                            placeholder="Nhập tên đăng nhập"
+                            label="Ten dang nhap"
+                            placeholder="Nhap ten dang nhap"
                             value={username}
                             onChangeText={setUsername}
                             leftIcon="person-outline"
                         />
                         <View style={{ height: spacing.md }} />
                         <Input
-                            label="Mật khẩu"
-                            placeholder="Nhập mật khẩu"
+                            label="Mat khau"
+                            placeholder="Nhap mat khau"
                             value={password}
                             onChangeText={setPassword}
                             leftIcon="lock-closed-outline"
                             secureTextEntry
                         />
-                        {error && (
+                        {error ? (
                             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-                        )}
+                        ) : null}
                         <View style={{ height: spacing.lg }} />
                         <Button
-                            title="ĐĂNG NHẬP"
+                            title="DANG NHAP"
                             variant="primary"
-                            onPress={handleLogin}
+                            onPress={() => handleLogin()}
                             loading={isLoading}
                         />
                     </Card>
 
                     <Button
-                        title="Bỏ qua đăng nhập (Dev)"
+                        title="Dang nhap nhanh trainer01"
                         variant="outline"
-                        onPress={() => {
-                            devLogin();
-                            router.replace('/(tabs)');
-                        }}
+                        onPress={handleQuickLogin}
                         style={{ marginTop: spacing.md }}
                     />
 
-                    <Text style={[styles.version, { color: colors.textLight }]}>Phiên bản 1.0.0</Text>
+                    <Text style={[styles.version, { color: colors.textLight }]}>Phien ban 1.0.0</Text>
                 </View>
             </KeyboardAvoidingView>
         </ScreenWrapper>

@@ -1,7 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,15 +9,20 @@ import lombok.Setter;
 @Setter
 public class ContentRequest {
 
-    @NotBlank
+    @NotBlank(message = "title is required")
+    @Size(max = 200, message = "title must not exceed 200 characters")
     private String title;
 
-    @NotNull
+    @NotBlank(message = "contentType is required")
     private String contentType;
 
-    @NotBlank
+    @NotBlank(message = "body is required")
     private String body;
 
+    @Size(max = 500, message = "summary must not exceed 500 characters")
     private String summary;
+
+    @Size(max = 255, message = "tags must not exceed 255 characters")
     private String tags;
+    private String status;
 }

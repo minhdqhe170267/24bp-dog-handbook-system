@@ -73,7 +73,6 @@ const MethodsTab = () => {
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { key: 'methodId', header: 'ID', className: 'w-16', render: (r) => r.methodId || r.id },
     { key: 'methodName', header: 'Tên phương pháp', render: (r) => <span className="font-medium text-foreground">{r.methodName}</span> },
     { key: 'description', header: 'Mô tả', render: (r) => r.description?.length > 100 ? r.description.substring(0, 100) + '...' : r.description },
     {
@@ -88,7 +87,7 @@ const MethodsTab = () => {
 
   return (
     <div>
-      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo phương pháp</Button></div>
       <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa phương pháp' : 'Thêm phương pháp'} width={650}
@@ -146,7 +145,6 @@ const ExercisesTab = () => {
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { key: 'exerciseId', header: 'ID', className: 'w-16', render: (r) => r.exerciseId || r.id },
     { key: 'exerciseName', header: 'Tên bài tập', render: (r) => <span className="font-medium text-foreground">{r.exerciseName}</span> },
     { key: 'difficultyLevel', header: 'Độ khó', render: (r) => r.difficultyLevel ? <StatusBadge status={r.difficultyLevel} /> : '—' },
     { key: 'durationMinutes', header: 'Thời gian (phút)', className: 'w-32' },
@@ -162,7 +160,7 @@ const ExercisesTab = () => {
 
   return (
     <div>
-      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo bài tập</Button></div>
       <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bài tập' : 'Thêm bài tập'} width={650}
@@ -229,7 +227,6 @@ const RoadmapsTab = () => {
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
   const columns = [
-    { key: 'roadmapId', header: 'ID', className: 'w-16', render: (r) => r.roadmapId || r.id },
     { key: 'roadmapName', header: 'Tên lộ trình', render: (r) => <span className="font-medium text-foreground">{r.roadmapName}</span> },
     { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || '—' },
     { key: 'targetRole', header: 'Vai trò mục tiêu' },
@@ -246,7 +243,7 @@ const RoadmapsTab = () => {
 
   return (
     <div>
-      <div className="flex justify-end mb-4"><Button onClick={openCreate}><Plus className="h-4 w-4" />Thêm mới</Button></div>
+      <div className="flex justify-end mb-4"><Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo lộ trình</Button></div>
       <DataTable columns={columns} data={data} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} />
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa lộ trình' : 'Thêm lộ trình'} width={650}

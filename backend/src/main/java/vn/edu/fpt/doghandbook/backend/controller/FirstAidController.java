@@ -18,10 +18,11 @@ import vn.edu.fpt.doghandbook.backend.dto.request.FirstAidGuideRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.FirstAidGuideResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
-import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
+import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.service.FirstAidGuideService;
-
-import java.util.Locale;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 @RestController
 @RequestMapping("/first-aid-guides")
@@ -35,14 +36,23 @@ public class FirstAidController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size,
             @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "status", required = false) String status
+            @RequestParam(value = "status", required = false) String status,
+            Authentication authentication
     ) {
-        return ApiResponse.success(firstAidGuideService.getAll(page, size, search, status));
+        String effectiveStatus = AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
+                ? ContentStatus.PUBLISHED.name()
+                : status;
+        return ApiResponse.success(firstAidGuideService.getAll(page, size, search, effectiveStatus));
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<FirstAidGuideResponse> getById(@PathVariable("id") Integer id) {
-        return ApiResponse.success(firstAidGuideService.getById(id));
+    public ApiResponse<FirstAidGuideResponse> getById(@PathVariable("id") Integer id, Authentication authentication) {
+        FirstAidGuideResponse response = firstAidGuideService.getById(id);
+        if (AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
+                && !ContentStatus.PUBLISHED.name().equalsIgnoreCase(response.getStatus())) {
+            throw new ResourceNotFoundException("FirstAidGuide", "id", id);
+        }
+        return ApiResponse.success(response);
     }
 
     @PostMapping
@@ -50,53 +60,37 @@ public class FirstAidController {
             @Valid @RequestBody FirstAidGuideRequest request,
             Authentication authentication
     ) {
-        FirstAidGuideResponse response = firstAidGuideService.create(request, extractUserId(authentication));
+        FirstAidGuideResponse response = firstAidGuideService.create(
+                request,
+                AuthenticationUtils.extractUserId(authentication)
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<FirstAidGuideResponse> update(
             @PathVariable("id") Integer id,
-            @Valid @RequestBody FirstAidGuideRequest request
+            @Valid @RequestBody FirstAidGuideRequest request,
+            Authentication authentication
     ) {
-        return ApiResponse.success(firstAidGuideService.update(id, request));
+        return ApiResponse.success(
+                firstAidGuideService.update(id, request, AuthenticationUtils.extractUserId(authentication))
+        );
+    }
+
+    @PutMapping("/{id}/publish")
+    public ApiResponse<FirstAidGuideResponse> publish(@PathVariable("id") Integer id) {
+        return ApiResponse.success(firstAidGuideService.publish(id));
+    }
+
+    @PutMapping("/{id}/unpublish")
+    public ApiResponse<FirstAidGuideResponse> unpublish(@PathVariable("id") Integer id) {
+        return ApiResponse.success(firstAidGuideService.unpublish(id));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
         firstAidGuideService.delete(id);
         return ApiResponse.success(null, "Deleted successfully");
-    }
-
-    private Integer extractUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BadRequestException("Unable to resolve authenticated user");
-        }
-
-        Object principal = authentication.getPrincipal();
-
-        try {
-            Object value = principal.getClass().getMethod("getUserId").invoke(principal);
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-        } catch (ReflectiveOperationException ignored) {
-        }
-
-        if (principal instanceof Number number) {
-            return number.intValue();
-        }
-
-        if (principal instanceof String text) {
-            try {
-                return Integer.valueOf(text.trim());
-            } catch (NumberFormatException ignored) {
-                if ("anonymoususer".equals(text.toLowerCase(Locale.ROOT))) {
-                    throw new BadRequestException("Unable to resolve authenticated user");
-                }
-            }
-        }
-
-        throw new BadRequestException("Unable to resolve userId from authentication principal");
     }
 }

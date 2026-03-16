@@ -12,7 +12,11 @@ public interface MedicationService {
 
     MedicationResponse create(MedicationRequest request, Integer createdByUserId);
 
-    MedicationResponse update(Integer id, MedicationRequest request);
+    MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId);
+
+    MedicationResponse publish(Integer id);
+
+    MedicationResponse unpublish(Integer id);
 
     void delete(Integer id);
 }

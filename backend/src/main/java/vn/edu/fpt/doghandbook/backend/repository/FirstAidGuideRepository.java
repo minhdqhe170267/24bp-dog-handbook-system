@@ -7,6 +7,7 @@ import vn.edu.fpt.doghandbook.backend.entity.FirstAidGuide;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, Integer> {
@@ -14,6 +15,8 @@ public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, In
     Page<FirstAidGuide> findByIsDeletedFalse(Pageable pageable);
 
     Page<FirstAidGuide> findByGuideTitleContainingIgnoreCaseAndIsDeletedFalse(String guideTitle, Pageable pageable);
+
+    List<FirstAidGuide> findByGuideTitleContainingIgnoreCaseAndIsDeletedFalse(String keyword);
 
     Page<FirstAidGuide> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
 
@@ -24,6 +27,13 @@ public interface FirstAidGuideRepository extends JpaRepository<FirstAidGuide, In
     );
 
     Optional<FirstAidGuide> findByGuideIdAndIsDeletedFalse(Integer guideId);
+
+    boolean existsByGuideTitleIgnoreCaseAndIsDeletedFalse(String guideTitle);
+
+    boolean existsByGuideTitleIgnoreCaseAndGuideIdNotAndIsDeletedFalse(
+            String guideTitle,
+            Integer guideId
+    );
 
     long countByIsDeletedFalse();
 

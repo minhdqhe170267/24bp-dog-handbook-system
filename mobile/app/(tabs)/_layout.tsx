@@ -43,6 +43,7 @@ export default function TabLayout() {
         name="training"
         options={{
           title: 'Huấn luyện',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'fitness' : 'fitness-outline'} size={24} color={color} />
           ),
@@ -52,6 +53,7 @@ export default function TabLayout() {
         name="health"
         options={{
           title: 'Sức khỏe',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'medkit' : 'medkit-outline'} size={24} color={color} />
           ),

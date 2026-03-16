@@ -21,12 +21,14 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovalDecision;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.ApprovalRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.ContentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.MediaRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.ContentService;
+import vn.edu.fpt.doghandbook.backend.util.MediaUrlResolver;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +43,7 @@ public class ContentServiceImpl implements ContentService {
     private final MediaRepository mediaRepository;
     private final ApprovalRecordRepository approvalRecordRepository;
     private final UserRepository userRepository;
+    private final MediaUrlResolver mediaUrlResolver;
 
     @Override
     public PageResponse<ContentResponse> getAll(int page, int size, String search, String type, String status) {
@@ -98,15 +101,20 @@ public class ContentServiceImpl implements ContentService {
     @Transactional
     public ContentResponse create(ContentRequest request, Integer authorId) {
         User author = getUserById(authorId);
+        String title = normalizeRequired(request.getTitle(), "title");
+        ContentType contentType = parseContentType(request.getContentType());
+        String body = normalizeRequired(request.getBody(), "body");
+        ContentStatus initialStatus = resolveRequestedWriteStatus(request.getStatus(), ContentStatus.DRAFT);
+        ensureUniqueContentTitle(title, contentType, null);
 
         Content content = Content.builder()
-                .title(normalizeRequired(request.getTitle(), "title"))
-                .contentType(parseContentType(request.getContentType()))
-                .body(normalizeRequired(request.getBody(), "body"))
+                .title(title)
+                .contentType(contentType)
+                .body(body)
                 .summary(trimToNull(request.getSummary()))
-                .status(ContentStatus.DRAFT)
+                .status(initialStatus)
                 .author(author)
-                .publishedAt(null)
+                .publishedAt(initialStatus == ContentStatus.PUBLISHED ? LocalDateTime.now() : null)
                 .version(1)
                 .tags(trimToNull(request.getTags()))
                 .isDeleted(false)
@@ -118,22 +126,33 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
-    public ContentResponse update(Integer id, ContentRequest request) {
+    public ContentResponse update(Integer id, ContentRequest request, Integer actorId) {
         Content content = getActiveContentById(id);
+        getUserById(actorId);
 
         if (content.getStatus() == ContentStatus.PUBLISHED) {
             throw new BadRequestException("Published content must be unpublished before update");
         }
 
-        content.setTitle(normalizeRequired(request.getTitle(), "title"));
-        content.setContentType(parseContentType(request.getContentType()));
-        content.setBody(normalizeRequired(request.getBody(), "body"));
+        String title = normalizeRequired(request.getTitle(), "title");
+        ContentType contentType = parseContentType(request.getContentType());
+        String body = normalizeRequired(request.getBody(), "body");
+        ensureUniqueContentTitle(title, contentType, id);
+
+        content.setTitle(title);
+        content.setContentType(contentType);
+        content.setBody(body);
         content.setSummary(trimToNull(request.getSummary()));
         content.setTags(trimToNull(request.getTags()));
         content.setVersion(content.getVersion() + 1);
 
-        if (content.getStatus() == ContentStatus.REJECTED) {
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            ContentStatus requestedStatus = resolveRequestedWriteStatus(request.getStatus(), content.getStatus());
+            content.setStatus(requestedStatus);
+            content.setPublishedAt(requestedStatus == ContentStatus.PUBLISHED ? LocalDateTime.now() : null);
+        } else if (content.getStatus() == ContentStatus.REJECTED) {
             content.setStatus(ContentStatus.DRAFT);
+            content.setPublishedAt(null);
         }
 
         return toContentResponse(contentRepository.save(content));
@@ -143,6 +162,9 @@ public class ContentServiceImpl implements ContentService {
     @Transactional
     public void delete(Integer id) {
         Content content = getActiveContentById(id);
+        if (content.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Published content must be unpublished before delete");
+        }
         LocalDateTime now = LocalDateTime.now();
 
         content.setIsDeleted(true);
@@ -169,6 +191,7 @@ public class ContentServiceImpl implements ContentService {
         }
 
         content.setStatus(ContentStatus.PENDING);
+        content.setPublishedAt(null);
         return toContentResponse(contentRepository.save(content));
     }
 
@@ -187,20 +210,33 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     @Transactional
+    public ContentResponse unpublish(Integer contentId) {
+        Content content = getActiveContentById(contentId);
+        if (content.getStatus() != ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Only PUBLISHED content can be unpublished");
+        }
+
+        content.setStatus(ContentStatus.DRAFT);
+        content.setPublishedAt(null);
+        return toContentResponse(contentRepository.save(content));
+    }
+
+    @Override
+    @Transactional
     public ApprovalRecordResponse reviewContent(Integer contentId, ApprovalRequest request, Integer reviewerId) {
         Content content = getActiveContentById(contentId);
         if (content.getStatus() != ContentStatus.PENDING) {
             throw new BadRequestException("Only PENDING content can be reviewed");
         }
 
-        ApprovalDecision decision = parseApprovalDecision(request.getDecision());
+        ApprovalDecision decision = parseApprovalDecision(request.resolveDecision());
         if (decision == ApprovalDecision.PENDING) {
             throw new BadRequestException("Invalid review decision: PENDING");
         }
 
-        String comments = trimToNull(request.getComments());
-        if (decision == ApprovalDecision.REVISION_REQUESTED && comments == null) {
-            throw new BadRequestException("Comments are required for REVISION_REQUESTED");
+        String comments = trimToNull(request.resolveComments());
+        if ((decision == ApprovalDecision.REJECTED || decision == ApprovalDecision.REVISION_REQUESTED) && comments == null) {
+            throw new BadRequestException("Comments are required for REJECTED or REVISION_REQUESTED");
         }
 
         User reviewer = getUserById(reviewerId);
@@ -216,8 +252,10 @@ public class ContentServiceImpl implements ContentService {
 
         if (decision == ApprovalDecision.APPROVED) {
             content.setStatus(ContentStatus.APPROVED);
+            content.setPublishedAt(null);
         } else {
             content.setStatus(ContentStatus.REJECTED);
+            content.setPublishedAt(null);
         }
         contentRepository.save(content);
 
@@ -286,7 +324,7 @@ public class ContentServiceImpl implements ContentService {
                 .mediaId(media.getMediaId())
                 .filename(media.getFilename())
                 .mediaType(media.getMediaType() != null ? media.getMediaType().name() : null)
-                .fileUrl(media.getFileUrl())
+                .fileUrl(mediaUrlResolver.toPublicUrl(media.getFileUrl()))
                 .fileSizeBytes(media.getFileSizeBytes())
                 .mimeType(media.getMimeType())
                 .altText(media.getAltText())
@@ -341,6 +379,35 @@ public class ContentServiceImpl implements ContentService {
             throw new BadRequestException("size must be greater than 0");
         }
         return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private void ensureUniqueContentTitle(String title, ContentType contentType, Integer contentId) {
+        boolean exists = contentId == null
+                ? contentRepository.existsByTitleIgnoreCaseAndContentTypeAndIsDeletedFalse(title, contentType)
+                : contentRepository.existsByTitleIgnoreCaseAndContentTypeAndContentIdNotAndIsDeletedFalse(
+                        title,
+                        contentType,
+                        contentId
+                );
+
+        if (exists) {
+            throw new ConflictException("Content with the same title and type already exists");
+        }
+    }
+
+    private ContentStatus resolveRequestedWriteStatus(String value, ContentStatus defaultStatus) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return defaultStatus;
+        }
+
+        ContentStatus requestedStatus = parseContentStatus(normalized);
+        if (requestedStatus == ContentStatus.APPROVED
+                || requestedStatus == ContentStatus.REJECTED
+                || requestedStatus == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("APPROVED, REJECTED and PUBLISHED cannot be set directly");
+        }
+        return requestedStatus;
     }
 
     private ContentType parseContentType(String value) {

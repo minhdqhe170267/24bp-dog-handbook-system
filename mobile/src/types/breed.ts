@@ -2,6 +2,7 @@ export interface Breed {
     breedId: number;
     breedName: string;
     origin: string;
+    description: string;
     sizeClassification: string;
     trainabilityLevel: string;
     weightMaleMinKg: number;
@@ -10,7 +11,8 @@ export interface Breed {
     weightFemaleMaxKg: number;
     avgHeightCm: number;
     lifespanYears: string;
-    description: string;
+    operationalCapabilities?: string | null;
+    metadata?: string | null;
     imageUrl?: string;
     status?: string;
     createdByName?: string;
