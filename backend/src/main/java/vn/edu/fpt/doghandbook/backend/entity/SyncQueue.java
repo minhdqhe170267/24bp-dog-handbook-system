@@ -43,7 +43,7 @@ public class SyncQueue {
     @Column(name = "entity_type", nullable = false)
     private String entityType;
 
-    @Column(name = "entity_id", nullable = false)
+    @Column(name = "entity_id")
     private Integer entityId;
 
     @Enumerated(EnumType.STRING)

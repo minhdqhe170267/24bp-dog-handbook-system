@@ -94,6 +94,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/health-sessions/**").hasAnyRole("ADMIN", "TRAINER")
 
+                        .requestMatchers("/sync/**").hasAnyRole("ADMIN", "TRAINER")
+
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
                                 "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
