@@ -15,6 +15,9 @@ const searchItems = [
     { label: 'Bài tập', href: '/training/exercises', keywords: ['bài tập', 'exercise'] },
     { label: 'Lộ trình', href: '/training/roadmaps', keywords: ['lộ trình', 'roadmap'] },
     { label: 'Y tế', href: '/medical', keywords: ['y tế', 'medical', 'sơ cứu'] },
+    { label: 'Quản lý người dùng', href: '/system/users', keywords: ['người dùng', 'user', 'users'] },
+    { label: 'Cài đặt hệ thống', href: '/system/settings', keywords: ['cài đặt', 'settings', 'hệ thống'] },
+    { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', keywords: ['nhật ký', 'audit', 'log'] },
 ];
 
 const AppHeader = () => {

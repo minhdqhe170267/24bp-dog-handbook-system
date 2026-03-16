@@ -176,3 +176,14 @@
 .animate-pulse-ring {
   animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Make all search fields with "Tìm..." placeholder more readable and consistent */
+input[placeholder*="Tìm"] {
+  font-weight: 500;
+}
+
+input[placeholder*="Tìm"]::placeholder {
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  opacity: 1;
+}

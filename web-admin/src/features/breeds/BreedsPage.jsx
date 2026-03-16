@@ -4,7 +4,7 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { FilePenLine, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
 import api from '../../services/api';
 
 const sizeLabels = { SMALL: 'Nhỏ', MEDIUM: 'Trung bình', LARGE: 'Lớn', GIANT: 'Khổng lồ' };
@@ -43,7 +43,6 @@ const editFields = [
   { key: 'lifespanYears', label: 'Tuổi thọ' },
   { key: 'description', label: 'Mô tả', type: 'textarea' },
   { key: 'operationalCapabilities', label: 'Khả năng tác chiến', type: 'textarea' },
-  { key: 'status', label: 'Trạng thái', type: 'select', options: [{ value: 'DRAFT', label: 'Nháp' }, { value: 'PUBLISHED', label: 'Xuất bản' }] },
 ];
 
 const BreedsPage = () => {
@@ -57,7 +56,18 @@ const BreedsPage = () => {
   const [loading, setLoading] = useState(true);
   const [detailItem, setDetailItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const toBreedPayload = (formData) => ({
+    breedName: formData.breedName?.trim() || '',
+    origin: formData.origin?.trim() || '',
+    sizeClassification: formData.sizeClassification || '',
+    trainabilityLevel: formData.trainabilityLevel || '',
+    lifespanYears: formData.lifespanYears?.trim() || '',
+    description: formData.description?.trim() || '',
+    operationalCapabilities: formData.operationalCapabilities?.trim() || '',
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -91,7 +101,7 @@ const BreedsPage = () => {
   const handleEdit = async (formData) => {
     setSaving(true);
     try {
-      await api.put(`/breeds/${editItem.breedId}`, formData);
+      await api.put(`/breeds/${editItem.breedId}`, toBreedPayload(formData));
       setEditItem(null);
       fetchData();
     } catch (err) {
@@ -102,9 +112,40 @@ const BreedsPage = () => {
     }
   };
 
-  const formatDate = (d) => {
-    if (!d) return '-';
-    try { const dt = new Date(d); return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`; } catch { return d; }
+  const handleCreate = async (formData) => {
+    setSaving(true);
+    try {
+      await api.post('/breeds', toBreedPayload(formData));
+      setCreateOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Create error:', err);
+      alert('Có lỗi xảy ra khi tạo mới');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getDateTimeParts = (value) => {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+    const twoDigits = (num) => String(num).padStart(2, '0');
+    return {
+      time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+      date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+    };
+  };
+
+  const renderDateTimeCell = (value) => {
+    const parts = getDateTimeParts(value);
+    if (!parts) return '—';
+    return (
+      <div className="leading-tight">
+        <div className="text-sm font-medium text-foreground">{parts.time}</div>
+        <div className="text-xs text-muted-foreground">{parts.date}</div>
+      </div>
+    );
   };
 
   const columns = [
@@ -113,12 +154,12 @@ const BreedsPage = () => {
     { key: 'sizeClassification', header: 'Kích thước', render: (r) => sizeLabels[r.sizeClassification] || r.sizeClassification || '-' },
     { key: 'trainabilityLevel', header: 'Khả năng huấn luyện', render: (r) => trainLabels[r.trainabilityLevel] || r.trainabilityLevel || '-' },
     { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
-    { key: 'updatedAt', header: 'Cập nhật', render: (r) => formatDate(r.updatedAt) },
+    { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
     {
       key: 'actions', header: 'Thao tác', render: (r) => (
         <div className="flex items-center gap-1">
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4 text-muted-foreground" /></button>
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4" /></button>
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.breedId)}><Trash2 className="h-4 w-4 text-destructive" /></button>
         </div>
       )
@@ -129,7 +170,7 @@ const BreedsPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Dữ liệu Giống chó" description="Quản lý thông tin các giống chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Giống chó' }]}
-        actions={<button className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><FilePenLine className="h-4 w-4" />Thêm giống chó</button>} />
+        actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo giống chó</button>} />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative">
@@ -155,6 +196,10 @@ const BreedsPage = () => {
       {/* Edit Modal */}
       <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa giống chó" size="lg">
         <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
+      </DetailModal>
+
+      <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm giống chó" size="lg">
+        <EditForm fields={editFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
       </DetailModal>
     </div>
   );

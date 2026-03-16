@@ -4,6 +4,9 @@ const statusConfig = {
     PENDING: { label: 'Chờ duyệt', bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-500/25', dot: 'bg-amber-500' },
     DRAFT: { label: 'Nháp', bg: 'bg-gray-500/10', text: 'text-gray-500', border: 'border-gray-500/25', dot: 'bg-gray-500' },
     REJECTED: { label: 'Từ chối', bg: 'bg-red-500/10', text: 'text-red-600', border: 'border-red-500/25', dot: 'bg-red-500' },
+    MILD: { label: 'Nhẹ', bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/25', dot: 'bg-emerald-500' },
+    MODERATE: { label: 'Trung bình', bg: 'bg-blue-500/10', text: 'text-blue-600', border: 'border-blue-500/25', dot: 'bg-blue-500' },
+    SEVERE: { label: 'Cao', bg: 'bg-orange-500/10', text: 'text-orange-600', border: 'border-orange-500/25', dot: 'bg-orange-500' },
     LOW: { label: 'Nhẹ', bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/25', dot: 'bg-emerald-500' },
     MEDIUM: { label: 'Trung bình', bg: 'bg-amber-500/10', text: 'text-amber-600', border: 'border-amber-500/25', dot: 'bg-amber-500' },
     HIGH: { label: 'Nặng', bg: 'bg-orange-500/10', text: 'text-orange-600', border: 'border-orange-500/25', dot: 'bg-orange-500' },
@@ -30,7 +33,7 @@ const StatusBadge = ({ status }) => {
     };
 
     return (
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border ${config.bg} ${config.text} ${config.border}`}>
+        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border whitespace-nowrap ${config.bg} ${config.text} ${config.border}`}>
             <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${config.dot}`} />
             {config.label}
         </span>
