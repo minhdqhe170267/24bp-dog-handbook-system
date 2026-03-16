@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class SyncController {
 
+    
     private final SyncService syncService;
 
     @GetMapping("/content")
