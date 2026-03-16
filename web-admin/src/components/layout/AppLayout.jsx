@@ -13,7 +13,7 @@ const ROLE_ROUTES = {
         '/diseases',
         '/training/exercises', '/training/methods', '/training/roadmaps',
         '/nutrition',
-        '/medications', '/medical',
+        '/medications', '/medical', '/medical/symptoms',
         '/suggestions',
     ],
     REVIEWER: [
