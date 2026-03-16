@@ -20,7 +20,6 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovalDecision;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
-import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
@@ -105,7 +104,7 @@ public class ContentServiceImpl implements ContentService {
         String title = normalizeRequired(request.getTitle(), "title");
         ContentType contentType = parseContentType(request.getContentType());
         String body = normalizeRequired(request.getBody(), "body");
-        ContentStatus initialStatus = resolveRequestedWriteStatus(request.getStatus(), author, ContentStatus.DRAFT);
+        ContentStatus initialStatus = resolveRequestedWriteStatus(request.getStatus(), ContentStatus.DRAFT);
         ensureUniqueContentTitle(title, contentType, null);
 
         Content content = Content.builder()
@@ -129,7 +128,7 @@ public class ContentServiceImpl implements ContentService {
     @Transactional
     public ContentResponse update(Integer id, ContentRequest request, Integer actorId) {
         Content content = getActiveContentById(id);
-        User actor = getUserById(actorId);
+        getUserById(actorId);
 
         if (content.getStatus() == ContentStatus.PUBLISHED) {
             throw new BadRequestException("Published content must be unpublished before update");
@@ -148,7 +147,7 @@ public class ContentServiceImpl implements ContentService {
         content.setVersion(content.getVersion() + 1);
 
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
-            ContentStatus requestedStatus = resolveRequestedWriteStatus(request.getStatus(), actor, content.getStatus());
+            ContentStatus requestedStatus = resolveRequestedWriteStatus(request.getStatus(), content.getStatus());
             content.setStatus(requestedStatus);
             content.setPublishedAt(requestedStatus == ContentStatus.PUBLISHED ? LocalDateTime.now() : null);
         } else if (content.getStatus() == ContentStatus.REJECTED) {
@@ -252,8 +251,8 @@ public class ContentServiceImpl implements ContentService {
         approvalRecord = approvalRecordRepository.save(approvalRecord);
 
         if (decision == ApprovalDecision.APPROVED) {
-            content.setStatus(ContentStatus.PUBLISHED);
-            content.setPublishedAt(LocalDateTime.now());
+            content.setStatus(ContentStatus.APPROVED);
+            content.setPublishedAt(null);
         } else {
             content.setStatus(ContentStatus.REJECTED);
             content.setPublishedAt(null);
@@ -396,18 +395,17 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
-    private ContentStatus resolveRequestedWriteStatus(String value, User actor, ContentStatus defaultStatus) {
+    private ContentStatus resolveRequestedWriteStatus(String value, ContentStatus defaultStatus) {
         String normalized = trimToNull(value);
         if (normalized == null) {
             return defaultStatus;
         }
 
         ContentStatus requestedStatus = parseContentStatus(normalized);
-        if (requestedStatus == ContentStatus.APPROVED || requestedStatus == ContentStatus.REJECTED) {
-            throw new BadRequestException("APPROVED and REJECTED cannot be set directly");
-        }
-        if (requestedStatus == ContentStatus.PUBLISHED && (actor == null || actor.getRole() != UserRole.ADMIN)) {
-            throw new BadRequestException("Only ADMIN can publish content directly");
+        if (requestedStatus == ContentStatus.APPROVED
+                || requestedStatus == ContentStatus.REJECTED
+                || requestedStatus == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("APPROVED, REJECTED and PUBLISHED cannot be set directly");
         }
         return requestedStatus;
     }

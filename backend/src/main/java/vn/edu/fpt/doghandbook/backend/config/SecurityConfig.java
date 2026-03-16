@@ -53,7 +53,7 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN", "REVIEWER")
 
                         .requestMatchers(HttpMethod.PUT, "/contents/*/publish")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT, "/contents/*/unpublish")
                         .hasRole("ADMIN")
