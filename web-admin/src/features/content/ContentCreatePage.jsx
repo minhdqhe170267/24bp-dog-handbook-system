@@ -22,6 +22,7 @@ import {
     Trash2,
     Image as ImageIcon,
     Video,
+    X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../../services/api';
@@ -64,13 +65,61 @@ const ContentCreatePage = () => {
     const [tags, setTags] = useState('');
     const [contentId, setContentId] = useState(null);
     const [mediaFiles, setMediaFiles] = useState([]);
-    const [mediaPreviewUrls, setMediaPreviewUrls] = useState({});
     const [failedPreviews, setFailedPreviews] = useState({});
     const [dragging, setDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [loadingContent, setLoadingContent] = useState(false);
+    const [activeMediaPreview, setActiveMediaPreview] = useState(null);
+    const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
     const canPublish = canEditContent && user?.role !== 'CONTENT_EDITOR';
+    const normalizeApiBase = (value) => {
+        if (!value) return '/api/v1';
+        const normalized = value.trim().replace(/\/+$/, '');
+        if (/^https?:\/\//i.test(normalized)) return normalized;
+        return normalized.startsWith('/') ? normalized : `/${normalized}`;
+    };
+    const apiBase = normalizeApiBase(api?.defaults?.baseURL || import.meta.env.VITE_API_BASE_URL || '/api/v1');
+
+    const resolveApiOrigin = () => {
+        if (typeof window === 'undefined') return '';
+        if (/^https?:\/\//i.test(apiBase)) {
+            try {
+                return new URL(apiBase).origin;
+            } catch {
+                return window.location.origin;
+            }
+        }
+        return window.location.origin;
+    };
+
+    const apiOrigin = resolveApiOrigin();
+
+    const buildApiUrl = (path) => {
+        if (!path) return '';
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+        if (/^https?:\/\//i.test(apiBase)) {
+            try {
+                const parsed = new URL(apiBase);
+                const basePath = parsed.pathname.replace(/\/+$/, '');
+                return `${parsed.origin}${basePath}${normalizedPath}`;
+            } catch {
+                return `${apiOrigin}${normalizedPath}`;
+            }
+        }
+
+        return `${apiOrigin}${apiBase}${normalizedPath}`;
+    };
+
+    const buildAbsoluteUrl = (path) => {
+        if (!path) return '';
+        if (/^https?:\/\//i.test(path) || path.startsWith('blob:') || path.startsWith('data:')) {
+            return path;
+        }
+        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+        return `${apiOrigin}${normalizedPath}`;
+    };
 
     const getErrorMessage = (err, fallback) => {
         if (typeof err === 'string') return err;
@@ -168,6 +217,15 @@ const ContentCreatePage = () => {
     const isSupportedMedia = (file) =>
         file?.type?.startsWith('image/') || file?.type?.startsWith('video/');
 
+    const revokeBlobUrls = (items) => {
+        items.forEach((item) => {
+            const url = item?.fileUrl;
+            if (typeof url === 'string' && url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        });
+    };
+
     const handleUploadFiles = async (fileList) => {
         if (isReadonlyMode) return;
         const picked = Array.from(fileList || []);
@@ -190,6 +248,16 @@ const ContentCreatePage = () => {
             alert(`Chỉ upload ${slotsLeft} file đầu tiên vì giới hạn ${MAX_MEDIA_FILES} file`);
         }
 
+        const tempItems = queue.map((file, idx) => ({
+            tempId: `local-${Date.now()}-${idx}`,
+            fileName: file.name,
+            filename: file.name,
+            mediaType: file.type?.startsWith('video/') ? 'VIDEO' : 'IMAGE',
+            fileSizeBytes: file.size,
+            fileUrl: URL.createObjectURL(file),
+        }));
+        setMediaFiles((prev) => [...prev, ...tempItems]);
+
         setUploading(true);
         try {
             const entityId = await saveOrUpdateContent();
@@ -207,7 +275,10 @@ const ContentCreatePage = () => {
             }
 
             await fetchMediaByContent(entityId);
+            revokeBlobUrls(tempItems);
         } catch (err) {
+            setMediaFiles((prev) => prev.filter((item) => !tempItems.some((temp) => temp.tempId === item.tempId)));
+            revokeBlobUrls(tempItems);
             alert(getErrorMessage(err, 'Lỗi upload media'));
         } finally {
             setUploading(false);
@@ -227,6 +298,7 @@ const ContentCreatePage = () => {
 
     const handleDeleteMedia = async (mediaId) => {
         if (isReadonlyMode) return;
+        if (!mediaId) return;
         try {
             await api.delete(`/media/${mediaId}`);
             setMediaFiles((prev) => prev.filter((m) => m.mediaId !== mediaId));
@@ -261,71 +333,48 @@ const ContentCreatePage = () => {
     };
 
     const getMediaKey = (media, index) =>
-        media.mediaId || media.fileUrl || media.fileName || media.filename || `media-${index}`;
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadMediaPreviewUrls = async () => {
-            const nextUrls = {};
-
-            for (let i = 0; i < mediaFiles.length; i += 1) {
-                const media = mediaFiles[i];
-                if (!media?.mediaId) continue;
-                if (media.mediaType !== 'IMAGE' && media.mediaType !== 'VIDEO') continue;
-
-                const mediaKey = getMediaKey(media, i);
-                try {
-                    const blob = await api.get(`/media/${media.mediaId}/file`, { responseType: 'blob' });
-                    if (cancelled || !(blob instanceof Blob)) continue;
-                    nextUrls[mediaKey] = URL.createObjectURL(blob);
-                } catch {
-                    if (!cancelled) {
-                        setFailedPreviews((prev) => ({ ...prev, [mediaKey]: true }));
-                    }
-                }
-            }
-
-            if (cancelled) {
-                Object.values(nextUrls).forEach((url) => URL.revokeObjectURL(url));
-                return;
-            }
-
-            setMediaPreviewUrls((prev) => {
-                Object.values(prev).forEach((url) => URL.revokeObjectURL(url));
-                return nextUrls;
-            });
-        };
-
-        loadMediaPreviewUrls();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [mediaFiles]);
-
-    useEffect(() => {
-        return () => {
-            Object.values(mediaPreviewUrls).forEach((url) => URL.revokeObjectURL(url));
-        };
-    }, [mediaPreviewUrls]);
+        media.tempId || media.mediaId || media.fileUrl || media.fileName || media.filename || `media-${index}`;
 
     const getMediaPreviewUrl = (media, index) => {
-        const mediaKey = getMediaKey(media, index);
-        if (mediaPreviewUrls[mediaKey]) {
-            return mediaPreviewUrls[mediaKey];
+        const rawUrl = (media?.fileUrl || media?.url || '').trim();
+        if (media?.tempId && rawUrl.startsWith('blob:')) {
+            return rawUrl;
         }
-
+        if (rawUrl) {
+            return buildAbsoluteUrl(rawUrl);
+        }
         if (media?.mediaId) {
-            return '';
+            return buildApiUrl(`/media/${media.mediaId}/file`);
         }
-
-        const rawUrl = media?.fileUrl || media?.url || '';
-        if (!rawUrl) return '';
-        if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
-        if (rawUrl.startsWith('/')) return rawUrl;
-        return `/${rawUrl}`;
+        return '';
     };
+
+    const openMediaPreview = (media, index) => {
+        const previewUrl = getMediaPreviewUrl(media, index);
+        if (!previewUrl) return;
+
+        setPreviewLoadFailed(false);
+        setActiveMediaPreview({
+            mediaKey: getMediaKey(media, index),
+            name: media.fileName || media.filename || 'Media',
+            mediaType: media.mediaType,
+            previewUrl,
+        });
+    };
+
+    const closeMediaPreview = () => {
+        setActiveMediaPreview(null);
+        setPreviewLoadFailed(false);
+    };
+
+    useEffect(() => {
+        if (!activeMediaPreview) return;
+        const stillExists = mediaFiles.some((media, index) => getMediaKey(media, index) === activeMediaPreview.mediaKey);
+        if (!stillExists) {
+            setActiveMediaPreview(null);
+            setPreviewLoadFailed(false);
+        }
+    }, [mediaFiles, activeMediaPreview]);
 
     const pageTitle = isReadonlyMode ? 'Chi tiết nội dung' : isEditMode ? 'Chỉnh sửa nội dung' : 'Tạo nội dung mới';
     const pageLastCrumb = isReadonlyMode ? 'Chi tiết' : isEditMode ? 'Chỉnh sửa' : 'Tạo mới';
@@ -502,12 +551,20 @@ const ContentCreatePage = () => {
                                         const previewFailed = failedPreviews[mediaKey];
                                         const isVideo = media.mediaType === 'VIDEO';
                                         const isImage = media.mediaType === 'IMAGE';
+                                        const canOpenPreview = Boolean(previewUrl);
+                                        const canRenderThumb = canOpenPreview && !previewFailed;
 
                                         return (
                                         <div key={mediaKey} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
                                             <div className="min-w-0 flex items-center gap-2">
-                                                <div className="h-12 w-12 rounded-md border border-border/60 bg-muted/20 overflow-hidden flex-shrink-0">
-                                                    {previewUrl && isImage && !previewFailed ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openMediaPreview(media, index)}
+                                                    disabled={!canOpenPreview}
+                                                    className={`h-16 w-16 rounded-md border border-border/60 bg-muted/20 overflow-hidden flex-shrink-0 ${canOpenPreview ? 'cursor-zoom-in hover:ring-2 hover:ring-accent/30' : 'cursor-not-allowed opacity-80'}`}
+                                                    title={canOpenPreview ? 'Xem chi tiet' : 'Khong co preview'}
+                                                >
+                                                    {canRenderThumb && isImage ? (
                                                         <img
                                                             src={previewUrl}
                                                             alt={media.fileName || media.filename || 'Ảnh media'}
@@ -515,7 +572,7 @@ const ContentCreatePage = () => {
                                                             loading="lazy"
                                                             onError={() => setFailedPreviews((prev) => ({ ...prev, [mediaKey]: true }))}
                                                         />
-                                                    ) : previewUrl && isVideo && !previewFailed ? (
+                                                    ) : canRenderThumb && isVideo ? (
                                                         <video
                                                             src={previewUrl}
                                                             className="h-full w-full object-cover"
@@ -532,21 +589,41 @@ const ContentCreatePage = () => {
                                                             )}
                                                         </div>
                                                     )}
-                                                </div>
+                                                </button>
                                                 <div className="min-w-0">
                                                     <p className="text-sm text-foreground truncate">{media.fileName || media.filename || '-'}</p>
                                                     <p className="text-xs text-muted-foreground">{media.mediaType} • {(media.fileSizeBytes || 0).toLocaleString()} bytes</p>
+                                                    {canOpenPreview && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openMediaPreview(media, index)}
+                                                            className="text-xs text-accent hover:underline"
+                                                        >
+                                                            Xem chi tiet
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteMedia(media.mediaId)}
-                                                className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
-                                                title="Xóa media"
-                                                disabled={isReadonlyMode}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openMediaPreview(media, index)}
+                                                    className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
+                                                    title="Xem chi tiet"
+                                                    disabled={!canOpenPreview}
+                                                >
+                                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteMedia(media.mediaId)}
+                                                    className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
+                                                    title="Xoa media"
+                                                    disabled={isReadonlyMode || !media.mediaId}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </button>
+                                            </div>
                                         </div>
                                     )})}
                                 </div>
@@ -609,6 +686,62 @@ const ContentCreatePage = () => {
                         </div>
                     </motion.div>
                 </div>
+                </div>
+            )}
+
+            {activeMediaPreview && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/75 p-4 md:p-8"
+                    onClick={closeMediaPreview}
+                >
+                    <div
+                        className="mx-auto flex h-full w-full max-w-5xl flex-col rounded-xl bg-card p-4 shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                                {activeMediaPreview.name}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={closeMediaPreview}
+                                className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
+                                title="Dong"
+                            >
+                                <X className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-background">
+                            {previewLoadFailed ? (
+                                <div className="px-4 text-center">
+                                    <p className="text-sm text-foreground">Khong tai duoc preview media.</p>
+                                    <a
+                                        href={activeMediaPreview.previewUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-2 inline-block text-sm text-accent hover:underline"
+                                    >
+                                        Mo file trong tab moi
+                                    </a>
+                                </div>
+                            ) : activeMediaPreview.mediaType === 'VIDEO' ? (
+                                <video
+                                    src={activeMediaPreview.previewUrl}
+                                    controls
+                                    autoPlay
+                                    className="max-h-full max-w-full"
+                                    onError={() => setPreviewLoadFailed(true)}
+                                />
+                            ) : (
+                                <img
+                                    src={activeMediaPreview.previewUrl}
+                                    alt={activeMediaPreview.name}
+                                    className="max-h-full max-w-full object-contain"
+                                    onError={() => setPreviewLoadFailed(true)}
+                                />
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
