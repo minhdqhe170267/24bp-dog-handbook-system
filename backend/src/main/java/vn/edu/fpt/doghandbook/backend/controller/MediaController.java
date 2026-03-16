@@ -2,6 +2,7 @@ package vn.edu.fpt.doghandbook.backend.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -21,6 +22,7 @@ import vn.edu.fpt.doghandbook.backend.dto.response.MediaResponse;
 import vn.edu.fpt.doghandbook.backend.service.MediaService;
 import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -53,6 +55,18 @@ public class MediaController {
     @GetMapping("/{id}")
     public ApiResponse<MediaResponse> getById(@PathVariable("id") Integer id) {
         return ApiResponse.success(mediaService.getById(id));
+    }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<Void> getFile(@PathVariable("id") Integer id) {
+        MediaResponse media = mediaService.getById(id);
+        String fileUrl = media.getFileUrl();
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.LOCATION, URI.create(fileUrl).toString())
+                .build();
     }
 
     @GetMapping("/entity/{entityType}/{entityId}")

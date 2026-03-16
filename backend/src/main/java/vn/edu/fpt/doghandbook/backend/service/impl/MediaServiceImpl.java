@@ -200,11 +200,7 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private String buildFileUrl(String storedName) {
-        String normalizedUploadDir = uploadDir.replace("\\", "/");
-        if (!normalizedUploadDir.endsWith("/")) {
-            normalizedUploadDir += "/";
-        }
-        return normalizedUploadDir + storedName;
+        return "uploads/" + storedName;
     }
 
     private void reorderMedia(Media targetMedia, Integer requestedDisplayOrder) {
