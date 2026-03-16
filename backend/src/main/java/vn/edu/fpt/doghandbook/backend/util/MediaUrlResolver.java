@@ -22,6 +22,18 @@ public class MediaUrlResolver {
             return normalized;
         }
 
+        int uploadsSegmentIndex = normalized.lastIndexOf("/uploads/");
+        if (uploadsSegmentIndex >= 0) {
+            String uploadsPath = normalized.substring(uploadsSegmentIndex + 1);
+            return contextPath + "/" + uploadsPath;
+        }
+
+        if (normalized.matches("^[A-Za-z]:/.*")) {
+            int lastSlash = normalized.lastIndexOf('/');
+            String fileName = lastSlash >= 0 ? normalized.substring(lastSlash + 1) : normalized;
+            return contextPath + "/uploads/" + fileName;
+        }
+
         if (!contextPath.isEmpty() && normalized.startsWith(contextPath + "/")) {
             return normalized;
         }

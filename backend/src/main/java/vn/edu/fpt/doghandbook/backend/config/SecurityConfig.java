@@ -35,6 +35,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login", "/error", "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/media/*/file").permitAll()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
 
