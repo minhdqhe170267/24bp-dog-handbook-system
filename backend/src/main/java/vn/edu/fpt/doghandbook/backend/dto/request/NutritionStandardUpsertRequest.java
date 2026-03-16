@@ -11,6 +11,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ActivityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.HealthCondition;
+import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 /**
  * Request payload for creating/updating a nutrition standard.
@@ -34,6 +38,7 @@ public class NutritionStandardUpsertRequest {
     @Size(max = 200, message = "rationName must be at most 200 characters")
     private String rationName;
 
+    @Size(max = 5000, message = "description must not exceed 5000 characters")
     private String description;
 
     @NotNull(message = "targetWeightMinKg is required")
@@ -53,10 +58,10 @@ public class NutritionStandardUpsertRequest {
     private Integer targetAgeMaxMonths;
 
     @NotBlank(message = "activityLevel is required")
-    @Size(max = 20, message = "activityLevel is invalid")
+    @ValidEnum(enumClass = ActivityLevel.class, message = "activityLevel không hợp lệ")
     private String activityLevel;
 
-    @Size(max = 20, message = "healthCondition is invalid")
+    @ValidEnum(enumClass = HealthCondition.class, message = "healthCondition không hợp lệ")
     private String healthCondition;
 
     @NotNull(message = "dailyCalories is required")
@@ -75,10 +80,15 @@ public class NutritionStandardUpsertRequest {
     @DecimalMin(value = "0.0", inclusive = false, message = "carbGrams must be greater than 0")
     private Double carbGrams;
 
+    @Size(max = 5000, message = "ingredientsList must not exceed 5000 characters")
     private String ingredientsList;
+
+    @Size(max = 5000, message = "feedingSchedule must not exceed 5000 characters")
     private String feedingSchedule;
+
+    @Size(max = 5000, message = "specialNotes must not exceed 5000 characters")
     private String specialNotes;
 
-    @Size(max = 20, message = "status is invalid")
+    @ValidEnum(enumClass = ContentStatus.class, message = "status không hợp lệ")
     private String status;
 }
