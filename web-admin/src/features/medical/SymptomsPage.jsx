@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
+import FilterSelect from '../../components/shared/FilterSelect';
 import { Button, FormField, FormSelect, FormNumberInput, StatusBadge } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { symptomService } from '../../services/symptomService';
@@ -21,7 +22,7 @@ const urgencyConfig = {
   LOW: { icon: ShieldCheck, bg: 'bg-success/10 border-success/30', text: 'text-success', label: '✅ THẤP' },
 };
 
-const MedicalPage = () => {
+const SymptomsPage = () => {
   const [activeTab, setActiveTab] = useState('list');
   const tabs = [
     { key: 'list', label: 'Danh sách triệu chứng' },
@@ -30,8 +31,11 @@ const MedicalPage = () => {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Quản lý Y tế" description="Danh sách triệu chứng và kiểm tra chẩn đoán"
-        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Y tế' }]} />
+      <PageHeader
+        title="Quản lý Triệu chứng"
+        description="Danh sách triệu chứng và kiểm tra chẩn đoán"
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Triệu chứng' }]}
+      />
       <div className="flex gap-1 mb-6 border-b border-border">
         {tabs.map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -80,9 +84,16 @@ const SymptomListTab = () => {
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <span className="text-sm font-medium text-muted-foreground">Lọc:</span>
-        <FormSelect value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} placeholder="Tất cả"
-          options={categories.map((c) => ({ value: c, label: categoryLabels[c] || c }))} className="w-48" />
+        <FilterSelect
+          value={filterCategory}
+          onChange={setFilterCategory}
+          options={[
+            { value: '', label: 'Tất cả' },
+            ...categories.map((c) => ({ value: c, label: categoryLabels[c] || c })),
+          ]}
+          placeholder="Tất cả"
+          className="w-52"
+        />
       </div>
       <DataTable columns={columns} data={filtered} loading={loading} />
     </div>
@@ -233,4 +244,4 @@ const SymptomCheckerTab = () => {
   );
 };
 
-export default MedicalPage;
+export default SymptomsPage;
