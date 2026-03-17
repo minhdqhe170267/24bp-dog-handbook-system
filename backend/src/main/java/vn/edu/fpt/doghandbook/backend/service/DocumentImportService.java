@@ -12,5 +12,5 @@ public interface DocumentImportService {
 
     ImportPreviewResponse preview(String entityType, MultipartFile file);
 
-    ImportPreviewResponse confirm(String entityType, MultipartFile file);
+    ImportPreviewResponse confirm(String entityType, MultipartFile file, Integer userId);
 }
