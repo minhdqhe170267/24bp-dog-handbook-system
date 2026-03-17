@@ -4,6 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
+import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 @Getter
 @Setter
@@ -14,6 +17,7 @@ public class ContentRequest {
     private String title;
 
     @NotBlank(message = "contentType is required")
+    @ValidEnum(enumClass = ContentType.class, message = "contentType không hợp lệ")
     private String contentType;
 
     @NotBlank(message = "body is required")
@@ -24,5 +28,7 @@ public class ContentRequest {
 
     @Size(max = 255, message = "tags must not exceed 255 characters")
     private String tags;
+
+    @ValidEnum(enumClass = ContentStatus.class, message = "status không hợp lệ")
     private String status;
 }

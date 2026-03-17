@@ -5,14 +5,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
+import vn.edu.fpt.doghandbook.backend.dto.request.ChangePasswordRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.LoginRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.LoginResponse;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.service.AuthService;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -49,15 +48,12 @@ public class AuthController {
     }
 
     @PutMapping("/change-password")
-    public ApiResponse<?> changePassword(@RequestBody Map<String, String> request,
+    public ApiResponse<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
                                          Authentication authentication) {
-        String currentPassword = request.get("currentPassword");
-        String newPassword = request.get("newPassword");
-
         CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
         Integer userId = customUserDetails.getUser().getUserId();
 
-        authService.changePassword(userId, currentPassword, newPassword);
+        authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
         return ApiResponse.success(null, "Đổi mật khẩu thành công");
     }
 }

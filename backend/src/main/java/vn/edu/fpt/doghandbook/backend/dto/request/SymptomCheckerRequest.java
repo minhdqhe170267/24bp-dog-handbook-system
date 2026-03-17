@@ -1,5 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.dto.request;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -16,5 +18,8 @@ public class SymptomCheckerRequest {
     private List<Integer> symptomIds;
 
     private Integer breedId;
+
+    @Min(value = 0, message = "Tuổi phải >= 0 tháng")
+    @Max(value = 240, message = "Tuổi phải <= 240 tháng")
     private Integer ageMonths;
 }

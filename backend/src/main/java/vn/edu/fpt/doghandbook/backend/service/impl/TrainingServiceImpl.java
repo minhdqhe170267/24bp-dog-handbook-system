@@ -181,6 +181,14 @@ public class TrainingServiceImpl implements TrainingService {
 
     @Override
     @Transactional
+    public TrainingRoadmapResponse updateRoadmap(Integer id, TrainingRoadmapRequest request) {
+        TrainingRoadmap entity = getActiveRoadmapById(id);
+        applyRoadmapRequest(entity, request);
+        return toRoadmapResponse(trainingRoadmapRepository.save(entity), List.of());
+    }
+
+    @Override
+    @Transactional
     public void deleteRoadmap(Integer id) {
         TrainingRoadmap entity = getActiveRoadmapById(id);
         entity.setIsDeleted(true);
