@@ -10,6 +10,7 @@ import RoadmapsPage from '../features/training/RoadmapsPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
 import MedicationsPage from '../features/medications/MedicationsPage';
 import FirstAidGuidesPage from '../features/medical/FirstAidGuidesPage';
+import SymptomsPage from '../features/medical/SymptomsPage';
 import UserManagementPage from '../features/system/UserManagementPage';
 import SystemSettingsPage from '../features/system/SystemSettingsPage';
 import AuditLogsPage from '../features/system/AuditLogsPage';
@@ -17,6 +18,8 @@ import ContentListPage from '../features/content/ContentListPage';
 import ContentCreatePage from '../features/content/ContentCreatePage';
 import ApprovalPage from '../features/approval/ApprovalPage';
 import SuggestionsPage from '../features/suggestions/SuggestionsPage';
+import DogsPage from '../features/dogs/DogsPage';
+import DogAssignmentsPage from '../features/assignments/DogAssignmentsPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -39,11 +42,14 @@ const router = createBrowserRouter([
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'medications', element: <MedicationsPage /> },
       { path: 'medical', element: <FirstAidGuidesPage /> },
+      { path: 'medical/symptoms', element: <SymptomsPage /> },
       { path: 'system/users', element: <UserManagementPage /> },
       { path: 'system/settings', element: <SystemSettingsPage /> },
       { path: 'system/audit-logs', element: <AuditLogsPage /> },
       { path: 'approval', element: <ApprovalPage /> },
       { path: 'suggestions', element: <SuggestionsPage /> },
+      { path: 'dogs', element: <DogsPage /> },
+      { path: 'assignments', element: <DogAssignmentsPage /> },
     ],
   },
 ]);

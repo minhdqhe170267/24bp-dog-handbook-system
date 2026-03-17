@@ -3,7 +3,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView } from '../../components/shared/DetailModal';
-import { Eye, MessageSquare } from 'lucide-react';
+import { Eye, MessageSquare, Search } from 'lucide-react';
 import api from '../../services/api';
 
 const suggestionStatusConfig = {
@@ -45,6 +45,7 @@ const detailFields = [
 ];
 
 const SuggestionsPage = () => {
+    const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(10);
@@ -120,15 +121,32 @@ const SuggestionsPage = () => {
         },
     ];
 
+    const normalizedSearch = search.trim().toLowerCase();
+    const filteredItems = items.filter((item) => {
+        if (!normalizedSearch) return true;
+        return (item.title || '').toLowerCase().includes(normalizedSearch);
+    });
+    const hasClientFilter = Boolean(normalizedSearch);
+
     return (
         <div className="animate-fade-in">
             <PageHeader title="Đề xuất nội dung" description="Quản lý các đề xuất nội dung từ huấn luyện viên"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Đề xuất nội dung' }]} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
+                <div className="relative w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                        type="text"
+                        value={search}
+                        onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+                        placeholder="Tìm theo tên nội dung..."
+                        className="h-9 w-full pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                    />
+                </div>
                 <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-                <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
+                <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có đề xuất nào" />
             )}
             <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết đề xuất" size="lg">

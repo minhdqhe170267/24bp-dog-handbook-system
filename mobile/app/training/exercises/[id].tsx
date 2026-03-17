@@ -9,69 +9,18 @@ import { useTrainingProgressStore } from '../../../src/stores/trainingProgressSt
 import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { exerciseService } from '../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../src/types/training';
-import { difficultyMeta, normalizeDifficulty, normalizeStatus, pickTrainingImage, splitToBullets, statusMeta, trainingUi } from '../../../src/features/training/ui';
-
-const parseToolItems = (raw: string | null | undefined): string[] => {
-    if (!raw) {
-        return [];
-    }
-
-    return raw
-        .split(/[\n,;|]+/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-};
-
-const pickToolIcon = (tool: string): keyof typeof Ionicons.glyphMap => {
-    const normalized = tool.toLowerCase();
-
-    if (normalized.includes('clicker') || normalized.includes('coi')) {
-        return 'radio-outline';
-    }
-    if (normalized.includes('day') || normalized.includes('leash')) {
-        return 'walk-outline';
-    }
-    if (normalized.includes('thuong') || normalized.includes('treat') || normalized.includes('snack')) {
-        return 'gift-outline';
-    }
-    if (normalized.includes('am thanh') || normalized.includes('loa') || normalized.includes('sound')) {
-        return 'volume-high-outline';
-    }
-    if (normalized.includes('an') || normalized.includes('food') || normalized.includes('bowl')) {
-        return 'restaurant-outline';
-    }
-
-    return 'cube-outline';
-};
-
-const splitStepContent = (step: string, index: number): { title: string; detail: string } => {
-    const normalized = step.trim();
-    const parts = normalized.split(/[:\-–]\s+/, 2);
-    const stepPrefixPattern = /^(?:b|b(?:uoc|ước)|step)\s*\d+\s*(?:[:.)-]\s*)?/i;
-
-    if (parts.length === 2 && parts[0].trim().length >= 3 && parts[0].trim().length <= 40) {
-        const rawTitle = parts[0].trim();
-        const rawDetail = parts[1].trim();
-        const titleIsOnlyStepToken = /^(?:b|b(?:uoc|ước)|step)\s*\d+$/i.test(rawTitle);
-
-        if (titleIsOnlyStepToken) {
-            return {
-                title: `Bước ${index + 1}`,
-                detail: rawDetail.replace(stepPrefixPattern, '').trim(),
-            };
-        }
-
-        return {
-            title: rawTitle,
-            detail: rawDetail,
-        };
-    }
-
-    return {
-        title: `Bước ${index + 1}`,
-        detail: normalized.replace(stepPrefixPattern, '').trim(),
-    };
-};
+import {
+    buildInstructionSteps,
+    difficultyMeta,
+    normalizeDifficulty,
+    normalizeStatus,
+    parseToolItems,
+    pickToolIcon,
+    pickTrainingImage,
+    splitToBullets,
+    statusMeta,
+    trainingUi,
+} from '../../../src/features/training/ui';
 
 export default function ExerciseDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -138,7 +87,7 @@ export default function ExerciseDetailScreen() {
         );
     }
 
-    const instructions = splitToBullets(exercise.instructions);
+    const instructionSteps = buildInstructionSteps(exercise.instructions);
     const safety = splitToBullets(exercise.safetyPrecautions);
     const tools = parseToolItems(exercise.requiredEquipment);
     const durationLabel = exercise.durationMinutes ? `${exercise.durationMinutes} phút` : 'Chưa rõ';
@@ -279,13 +228,15 @@ export default function ExerciseDetailScreen() {
                         <Ionicons name="list" size={18} color={colors.primary} />
                         <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Hướng dẫn từng bước</Text>
                     </View>
-                    {instructions.length > 0 ? (
+                    <Text style={[styles.sectionHint, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
+                        Chạm vào từng bước để mở hướng dẫn chi tiết.
+                    </Text>
+                    {instructionSteps.length > 0 ? (
                         <View style={styles.stepList}>
-                            {instructions.map((step, index) => {
-                                const parsed = splitStepContent(step, index);
+                            {instructionSteps.map((step, index) => {
                                 return (
-                                    <View
-                                        key={`${step}-${index}`}
+                                    <TouchableOpacity
+                                        key={`${step.title}-${index}`}
                                         style={[
                                             styles.stepCard,
                                             {
@@ -293,19 +244,26 @@ export default function ExerciseDetailScreen() {
                                                 borderColor: isDark ? colors.border : '#E0EAE4',
                                             },
                                         ]}
+                                        onPress={() => router.push(`/training/exercises/${exercise.exerciseId}/steps/${index + 1}` as any)}
+                                        activeOpacity={0.85}
                                     >
                                         <View style={[styles.stepCircle, { backgroundColor: colors.primary }]}>
                                             <Text style={styles.stepNumber}>{index + 1}</Text>
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={[styles.stepHeading, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                                                {parsed.title}
+                                                {step.title}
                                             </Text>
                                             <Text style={[styles.stepDescription, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                                                {parsed.detail}
+                                                {step.detail}
                                             </Text>
                                         </View>
-                                    </View>
+                                        <Ionicons
+                                            name="chevron-forward"
+                                            size={18}
+                                            color={isDark ? colors.textLight : trainingUi.textMuted}
+                                        />
+                                    </TouchableOpacity>
                                 );
                             })}
                         </View>
@@ -485,6 +443,12 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: fontSize.md + 1,
         fontWeight: '700',
+    },
+    sectionHint: {
+        fontSize: 12,
+        lineHeight: 16,
+        marginBottom: spacing.sm,
+        fontWeight: '500',
     },
     toolsSectionTitle: {
         marginBottom: spacing.md,

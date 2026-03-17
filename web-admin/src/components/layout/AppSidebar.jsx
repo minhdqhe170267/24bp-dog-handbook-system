@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../utils/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LayoutDashboard, Dog, Bug, Pill, Apple, Dumbbell, Stethoscope,
+    LayoutDashboard, Dog, Bug, Pill, Apple, Dumbbell, Stethoscope, UserCheck,
     ChevronDown, ChevronLeft, BookOpen, Route, HeartPulse,
     FileText, FilePlus, CheckCircle, Lightbulb,
     Settings, ClipboardList, Users,
@@ -20,6 +20,8 @@ const allNavItems = [
         ]
     },
     { label: 'Giống chó', icon: Dog, href: '/breeds', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Quản lý chó', icon: Dog, href: '/dogs', roles: ['ADMIN'] },
+    { label: 'Phân công chó', icon: UserCheck, href: '/assignments', roles: ['ADMIN'] },
     {
         label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
             { label: 'Bài tập', href: '/training/exercises', icon: BookOpen },
@@ -32,6 +34,7 @@ const allNavItems = [
         label: 'Sức khỏe', icon: Stethoscope, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
             { label: 'Bệnh', href: '/diseases', icon: HeartPulse },
             { label: 'Thuốc', href: '/medications', icon: Pill },
+            { label: 'Triệu chứng', href: '/medical/symptoms', icon: Bug },
             { label: 'Sơ cứu', href: '/medical', icon: Stethoscope },
         ]
     },

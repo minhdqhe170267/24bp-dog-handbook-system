@@ -5,9 +5,17 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.edu.fpt.doghandbook.backend.dto.request.SyncPushRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncQueueResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncStatusResponse;
+import vn.edu.fpt.doghandbook.backend.entity.SyncQueue;
+import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
+import vn.edu.fpt.doghandbook.backend.repository.SyncQueueRepository;
+import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.SyncService;
 
 import java.sql.Timestamp;
@@ -24,6 +32,8 @@ import java.util.function.Function;
 public class SyncServiceImpl implements SyncService {
 
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final SyncQueueRepository syncQueueRepository;
+    private final UserRepository userRepository;
 
     @Override
     public SyncResponse getUpdatedContent(LocalDateTime lastSyncAt) {
@@ -76,6 +86,88 @@ public class SyncServiceImpl implements SyncService {
         return SyncResponse.builder()
                 .data(data)
                 .syncTimestamp(syncWindow.syncTimestamp())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public SyncQueueResponse pushToQueue(SyncPushRequest request, Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+        SyncQueue entity = SyncQueue.builder()
+                .user(user)
+                .entityType(request.getEntityType())
+                .entityId(request.getEntityId())
+                .actionType(SyncActionType.valueOf(request.getActionType()))
+                .payloadData(request.getPayloadData())
+                .syncStatus(SyncStatus.PENDING)
+                .retryCount(0)
+                .queuedAt(LocalDateTime.now())
+                .build();
+
+        SyncQueue saved = syncQueueRepository.save(entity);
+        return toSyncQueueResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public List<SyncQueueResponse> processPending(Integer userId) {
+        List<SyncQueue> pendingItems = syncQueueRepository
+                .findByUserUserIdAndSyncStatusOrderByQueuedAtAsc(userId, SyncStatus.PENDING);
+
+        LocalDateTime now = LocalDateTime.now();
+        for (SyncQueue item : pendingItems) {
+            item.setSyncStatus(SyncStatus.COMPLETED);
+            item.setSyncedAt(now);
+        }
+
+        List<SyncQueue> saved = syncQueueRepository.saveAll(pendingItems);
+        return saved.stream().map(this::toSyncQueueResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SyncStatusResponse getStatus(Integer userId) {
+        long pending = syncQueueRepository.countByUserUserIdAndSyncStatus(userId, SyncStatus.PENDING);
+        long completed = syncQueueRepository.countByUserUserIdAndSyncStatus(userId, SyncStatus.COMPLETED);
+        long failed = syncQueueRepository.countByUserUserIdAndSyncStatus(userId, SyncStatus.FAILED);
+        long conflict = syncQueueRepository.countByUserUserIdAndSyncStatus(userId, SyncStatus.CONFLICT);
+
+        List<SyncQueue> pendingItems = syncQueueRepository
+                .findByUserUserIdAndSyncStatusOrderByQueuedAtAsc(userId, SyncStatus.PENDING);
+
+        // lastSyncAt = most recent COMPLETED item's syncedAt
+        List<SyncQueue> completedItems = syncQueueRepository
+                .findByUserUserIdAndSyncStatusOrderByQueuedAtAsc(userId, SyncStatus.COMPLETED);
+        LocalDateTime lastSyncAt = completedItems.stream()
+                .map(SyncQueue::getSyncedAt)
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+
+        return SyncStatusResponse.builder()
+                .totalPending((int) pending)
+                .totalCompleted((int) completed)
+                .totalFailed((int) failed)
+                .totalConflict((int) conflict)
+                .lastSyncAt(lastSyncAt)
+                .pendingItems(pendingItems.stream().map(this::toSyncQueueResponse).toList())
+                .build();
+    }
+
+    private SyncQueueResponse toSyncQueueResponse(SyncQueue entity) {
+        return SyncQueueResponse.builder()
+                .queueId(entity.getQueueId())
+                .userId(entity.getUser().getUserId())
+                .entityType(entity.getEntityType())
+                .entityId(entity.getEntityId())
+                .actionType(entity.getActionType().name())
+                .syncStatus(entity.getSyncStatus().name())
+                .retryCount(entity.getRetryCount())
+                .errorMessage(entity.getErrorMessage())
+                .queuedAt(entity.getQueuedAt())
+                .syncedAt(entity.getSyncedAt())
                 .build();
     }
 

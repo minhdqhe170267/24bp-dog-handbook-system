@@ -8,13 +8,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthSessionRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.ResolveSessionRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.SessionFollowUpRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthSessionResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.service.HealthSessionService;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/health-sessions")
@@ -73,11 +72,10 @@ public class HealthSessionController {
     @PutMapping("/{id}/resolve")
     public ApiResponse<HealthSessionResponse> resolve(
             @PathVariable Integer id,
-            @RequestBody Map<String, String> body,
+            @Valid @RequestBody ResolveSessionRequest body,
             Authentication authentication) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Integer trainerId = userDetails.getUser().getUserId();
-        String resolutionNotes = body.get("resolutionNotes");
-        return ApiResponse.success(healthSessionService.resolve(id, resolutionNotes, trainerId));
+        return ApiResponse.success(healthSessionService.resolve(id, body.getResolutionNotes(), trainerId));
     }
 }

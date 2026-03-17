@@ -36,5 +36,7 @@ public interface TrainingService {
 
     TrainingRoadmapResponse createRoadmap(TrainingRoadmapRequest request, Integer userId);
 
+    TrainingRoadmapResponse updateRoadmap(Integer id, TrainingRoadmapRequest request);
+
     void deleteRoadmap(Integer id);
 }

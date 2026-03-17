@@ -94,9 +94,13 @@ public class SecurityConfig {
 
                         .requestMatchers("/health-sessions/**").hasAnyRole("ADMIN", "TRAINER")
 
+                        .requestMatchers("/sync/**").hasAnyRole("ADMIN", "TRAINER")
+
+                        .requestMatchers("/import/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
-                                "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
+                                "/dogs/*/health-records/**", "/weight-assessment/**"
                         ).hasAnyRole("ADMIN", "TRAINER")
 
                         .anyRequest().authenticated()
