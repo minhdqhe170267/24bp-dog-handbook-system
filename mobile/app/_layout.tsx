@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Stack, Redirect, useSegments } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
+import { useNetworkStore } from '../src/stores/networkStore';
 import { initDatabase } from '../src/database/schema';
+import { OfflineBanner } from '../src/components/OfflineBanner';
 
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const { isAuthenticated, hydrateAuth } = useAuthStore();
+  const startListening = useNetworkStore((s) => s.startListening);
   const segments = useSegments();
   const inAuthGroup = segments[0] === '(auth)';
 
@@ -29,6 +32,12 @@ export default function RootLayout() {
     bootstrap();
   }, []);
 
+  // Start network listener (separate effect to avoid blocking bootstrap)
+  useEffect(() => {
+    const unsubscribe = startListening();
+    return unsubscribe;
+  }, []);
+
   if (!appReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -39,6 +48,8 @@ export default function RootLayout() {
 
   return (
     <>
+      <OfflineBanner />
+
       {/* Auth guard: redirect based on auth state */}
       {!isAuthenticated && !inAuthGroup && (
         <Redirect href="/(auth)/login" />
