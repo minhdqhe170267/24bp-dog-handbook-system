@@ -3,12 +3,18 @@ package vn.edu.fpt.doghandbook.backend.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.request.OperationReportRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.OperationReportResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.service.OperationReportService;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/reports")
@@ -27,9 +33,11 @@ public class ReportController {
 
     @GetMapping("/my")
     public ApiResponse<PageResponse<OperationReportResponse>> getByTrainer(
-            @RequestParam Integer trainerId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Integer trainerId = userDetails.getUser().getUserId();
         return ApiResponse.success(operationReportService.getByTrainer(trainerId, page, size));
     }
 
@@ -63,7 +71,12 @@ public class ReportController {
     }
 
     @GetMapping("/{id}/export")
-    public ApiResponse<OperationReportResponse> export(@PathVariable Integer id) {
-        return ApiResponse.success(operationReportService.getById(id));
+    public ApiResponse<Map<String, Object>> export(@PathVariable Integer id) {
+        OperationReportResponse report = operationReportService.getById(id);
+        Map<String, Object> exportData = new HashMap<>();
+        exportData.put("report", report);
+        exportData.put("exportedAt", LocalDateTime.now().toString());
+        exportData.put("format", "JSON_FOR_CLIENT_PDF");
+        return ApiResponse.success(exportData);
     }
 }

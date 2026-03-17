@@ -100,7 +100,7 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
-                                "/dogs/*/health-records/**", "/weight-assessment/**", "/diagnosis/**"
+                                "/dogs/*/health-records/**", "/weight-assessment/**"
                         ).hasAnyRole("ADMIN", "TRAINER")
 
                         .anyRequest().authenticated()

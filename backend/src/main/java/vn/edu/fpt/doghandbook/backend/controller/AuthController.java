@@ -47,6 +47,11 @@ public class AuthController {
         return ApiResponse.success(userInfo);
     }
 
+    @PostMapping("/logout")
+    public ApiResponse<?> logout() {
+        return ApiResponse.success(null, "Đăng xuất thành công. Vui lòng xóa token phía client.");
+    }
+
     @PutMapping("/change-password")
     public ApiResponse<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
                                          Authentication authentication) {
