@@ -304,6 +304,7 @@ export default function HealthRecordTimelineScreen() {
     : managedDogCount > 0
       ? `${managedDogCount} chó được giao`
       : 'Chưa có phân công';
+  const recordCountLabel = filteredRecords.length === 1 ? '1 bản ghi' : `${filteredRecords.length} bản ghi`;
   const emptyTitle = dogId
     ? 'Chưa có hồ sơ cho chó này'
     : managedDogCount === 0
@@ -409,7 +410,7 @@ export default function HealthRecordTimelineScreen() {
       <View style={styles.timelineHeader}>
         <Text style={[styles.timelineTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: fonts.bold }]}>Timeline hồ sơ</Text>
         <View style={styles.timelineCountPill}>
-          <Text style={[styles.timelineCountText, { fontFamily: fonts.bold }]}>{filteredRecords.length} bản ghi</Text>
+          <Text style={[styles.timelineCountText, { fontFamily: fonts.bold }]}>{recordCountLabel}</Text>
         </View>
       </View>
 
