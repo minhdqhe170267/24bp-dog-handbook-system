@@ -36,10 +36,22 @@ export const setToken = (token: string | null) => {
 export const getToken = () => authToken;
 
 // Request interceptor: attach token to every request
+// Prefers in-memory token (fast), falls back to SecureStore (persisted)
 apiClient.interceptors.request.use(
-    (config) => {
-        if (authToken) {
-            config.headers.Authorization = `Bearer ${authToken}`;
+    async (config) => {
+        let token = authToken;
+
+        if (!token) {
+            try {
+                const SecureStore = await import('expo-secure-store');
+                token = await SecureStore.getItemAsync('auth_token');
+            } catch {
+                // SecureStore unavailable (e.g. tests)
+            }
+        }
+
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },

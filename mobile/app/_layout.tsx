@@ -5,25 +5,31 @@ import { useAuthStore } from '../src/stores/authStore';
 import { initDatabase } from '../src/database/schema';
 
 export default function RootLayout() {
-  const [dbReady, setDbReady] = useState(false);
-  const { isAuthenticated } = useAuthStore();
+  const [appReady, setAppReady] = useState(false);
+  const { isAuthenticated, hydrateAuth } = useAuthStore();
   const segments = useSegments();
   const inAuthGroup = segments[0] === '(auth)';
 
   useEffect(() => {
-    initDatabase()
-      .then(() => {
+    const bootstrap = async () => {
+      try {
+        // 1. Initialize SQLite (must complete before hydrating auth)
+        await initDatabase();
         console.log('[DB] SQLite initialized successfully');
-        setDbReady(true);
-      })
-      .catch((err) => {
-        console.error('[DB] Failed to initialize:', err);
-        // Still set ready so app doesn't get stuck, but log error
-        setDbReady(true);
-      });
+
+        // 2. Restore auth session from SecureStore + SQLite
+        await hydrateAuth();
+      } catch (err) {
+        console.error('[BOOT] Bootstrap failed:', err);
+      } finally {
+        setAppReady(true);
+      }
+    };
+
+    bootstrap();
   }, []);
 
-  if (!dbReady) {
+  if (!appReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
