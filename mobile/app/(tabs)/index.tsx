@@ -1,134 +1,292 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
   Alert,
+  Platform,
   StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
-import { Card } from '../../src/components/Card';
-import { spacing, fontSize } from '../../src/constants/theme';
-import { useAuthStore } from '../../src/stores/authStore';
+import { spacing } from '../../src/constants/theme';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { useAuthStore } from '../../src/stores/authStore';
+import { dogManagementUi } from '../../src/features/dog-management/ui';
 
-const modules = [
-  { id: '1', icon: 'paw', label: 'Giống chó', bgColor: '#E8F5E9', iconColor: '#1B4332', route: '/(tabs)/breeds' },
-  { id: '2', icon: 'restaurant', label: 'Dinh dưỡng', bgColor: '#FFF3E0', iconColor: '#E67E22', route: '/nutrition' },
-  { id: '3', icon: 'fitness', label: 'Huấn luyện', bgColor: '#E3F2FD', iconColor: '#2980B9', route: '/(tabs)/training' },
-  { id: '4', icon: 'medkit', label: 'Sức khỏe', bgColor: '#FFEBEE', iconColor: '#E74C3C', route: '/(tabs)/health' },
-  { id: '5', icon: 'document-text', label: 'Ghi chú', bgColor: '#F3E5F5', iconColor: '#8E44AD', route: null },
-  { id: '6', icon: 'stats-chart', label: 'Báo cáo', bgColor: '#E0F2F1', iconColor: '#16A085', route: null },
+type HomeAction = {
+  id: string;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route?: string;
+  message?: string;
+};
+
+const homeActions: HomeAction[] = [
+  { id: 'training', title: 'Huấn luyện', icon: 'flag', route: '/(tabs)/training' },
+  { id: 'dog-hub', title: 'Hồ sơ chó', icon: 'paw', route: '/dog-management' },
+  { id: 'health', title: 'Sức khỏe', icon: 'medkit', route: '/(tabs)/health' },
+  { id: 'tasks', title: 'Nhiệm vụ', icon: 'clipboard', route: '/dog-management/assignments' },
+  { id: 'reports', title: 'Báo cáo', icon: 'bar-chart', message: 'Màn báo cáo sẽ được bổ sung ở bước tiếp theo.' },
+  { id: 'breeds', title: 'Giống chó', icon: 'search', route: '/(tabs)/breeds' },
 ];
 
-const stats = [
-  { label: 'Chó đang quản lý', value: '3' },
-  { label: 'Ghi chú tháng này', value: '15' },
-  { label: 'Báo cáo chờ duyệt', value: '2' },
-];
+const fonts = {
+  regular: Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' }),
+  medium: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+  bold: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+};
 
 export default function HomeScreen() {
-  const { user } = useAuthStore();
-  const { colors, isDark } = useThemeStore();
   const router = useRouter();
+  const { colors, isDark } = useThemeStore();
+  const { user } = useAuthStore();
+  const [searchText, setSearchText] = useState('');
 
-  const handleModulePress = (item: typeof modules[0]) => {
+  const onPressAction = (item: HomeAction) => {
     if (item.route) {
       router.push(item.route as any);
-    } else {
-      Alert.alert('Thông báo', 'Chức năng đang phát triển');
+      return;
     }
+    Alert.alert('Thông báo', item.message || 'Chức năng đang phát triển.');
   };
 
   return (
-    <ScreenWrapper scrollable>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.greeting, { color: colors.text }]}>
-            Xin chào, {user?.fullName || 'Trainer'}
-          </Text>
-          <TouchableOpacity
-            onPress={() => Alert.alert('Thông báo', 'Chưa có thông báo mới')}
-            style={styles.notificationBtn}
-          >
-            <Ionicons name="notifications-outline" size={26} color={colors.primary} />
-            <View style={[styles.notificationBadge, { backgroundColor: colors.error }]} />
-          </TouchableOpacity>
+    <ScreenWrapper scrollable style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+      <View style={styles.headerRow}>
+        <View style={styles.profileLeft}>
+          <View style={styles.avatarWrap}>
+            <Ionicons name="person" size={18} color="#FFFFFF" />
+          </View>
+          <View>
+            <Text style={[styles.helloText, { fontFamily: fonts.medium }]}>Xin chào,</Text>
+            <Text style={[styles.nameText, { fontFamily: fonts.bold }]}>
+              Đồng chí {user?.fullName || 'Huấn luyện viên'}
+            </Text>
+          </View>
         </View>
-        {user?.militaryRank && (
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {user.militaryRank} — {user.unit}
-          </Text>
-        )}
+        <TouchableOpacity style={styles.notifyBtn} activeOpacity={0.85}>
+          <Ionicons name="notifications" size={16} color="#6B7C71" />
+          <View style={styles.notifyDot} />
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={modules}
-        numColumns={2}
-        scrollEnabled={false}
-        columnWrapperStyle={styles.columnWrapper}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+      <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surface : '#F1F4F2' }]}>
+        <Ionicons name="search" size={15} color="#8A9C90" />
+        <TextInput
+          value={searchText}
+          onChangeText={setSearchText}
+          placeholder="Tìm kiếm dữ liệu..."
+          placeholderTextColor="#8A9C90"
+          style={[styles.searchInput, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: fonts.medium }]}
+        />
+      </View>
+
+      <Text style={[styles.mainTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: fonts.bold }]}>
+        Truy cập nhanh
+      </Text>
+
+      <View style={styles.actionGrid}>
+        {homeActions.map((item) => (
           <TouchableOpacity
-            style={styles.moduleItem}
-            activeOpacity={0.7}
-            onPress={() => handleModulePress(item)}
+            key={item.id}
+            activeOpacity={0.88}
+            style={[
+              styles.actionCard,
+              {
+                backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                borderColor: isDark ? colors.border : dogManagementUi.border,
+              },
+            ]}
+            onPress={() => onPressAction(item)}
           >
-            <Card style={styles.moduleCard}>
-              <View style={[styles.iconCircle, { backgroundColor: isDark ? item.iconColor + '20' : item.bgColor }]}>
-                <Ionicons name={item.icon as any} size={28} color={item.iconColor} />
-              </View>
-              <Text style={[styles.moduleLabel, { color: colors.text }]}>{item.label}</Text>
-            </Card>
+            <View style={styles.actionIconWrap}>
+              <Ionicons name={item.icon} size={18} color="#2E5A46" />
+            </View>
+            <Text style={[styles.actionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: fonts.bold }]}>
+              {item.title}
+            </Text>
           </TouchableOpacity>
-        )}
-      />
+        ))}
+      </View>
 
       <TouchableOpacity
-        style={[styles.emergencyBtn, { backgroundColor: colors.primary }]}
-        activeOpacity={0.8}
-        onPress={() => Alert.alert('SƠ CỨU KHẨN CẤP', 'Chức năng đang phát triển')}
+        activeOpacity={0.9}
+        style={styles.emergencyBtn}
+        onPress={() => router.push('/health/first-aid')}
       >
-        <Ionicons name="warning" size={22} color={colors.white} />
-        <Text style={styles.emergencyText}>SƠ CỨU KHẨN CẤP</Text>
+        <View style={styles.emergencyLeftBadge}>
+          <Ionicons name="medical" size={14} color="#FFFFFF" />
+        </View>
+        <View style={styles.emergencyTextWrap}>
+          <Text style={[styles.emergencyTitle, { fontFamily: fonts.bold }]}>SƠ CỨU KHẨN CẤP</Text>
+          <Text style={[styles.emergencySub, { fontFamily: fonts.medium }]}>Hướng dẫn xử lý nhanh khi gặp sự cố</Text>
+        </View>
+        <Ionicons style={styles.emergencyChevron} name="chevron-forward" size={17} color="#FFFFFF" />
       </TouchableOpacity>
-
-      <Card style={styles.statsCard}>
-        <Text style={[styles.statsTitle, { color: colors.text }]}>Thống kê nhanh</Text>
-        {stats.map((stat, index) => (
-          <View
-            key={index}
-            style={[styles.statRow, index < stats.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-          >
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
-            <Text style={[styles.statValue, { color: colors.primary }]}>{stat.value}</Text>
-          </View>
-        ))}
-      </Card>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { marginTop: spacing.md, marginBottom: spacing.lg },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  notificationBtn: { position: 'relative', padding: spacing.xs },
-  notificationBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4 },
-  greeting: { fontSize: fontSize.xxl, fontWeight: 'bold' },
-  subtitle: { fontSize: fontSize.md, marginTop: spacing.xs },
-  columnWrapper: { justifyContent: 'space-between' },
-  moduleItem: { width: '48%', marginBottom: spacing.md },
-  moduleCard: { alignItems: 'center', paddingVertical: spacing.lg },
-  iconCircle: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  moduleLabel: { fontSize: fontSize.md, fontWeight: '600', marginTop: spacing.sm },
-  emergencyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, paddingVertical: spacing.md, marginTop: spacing.sm, marginBottom: spacing.sm },
-  emergencyText: { color: '#FFFFFF', fontSize: fontSize.lg, fontWeight: 'bold', marginLeft: spacing.sm },
-  statsCard: { marginTop: spacing.sm },
-  statsTitle: { fontSize: fontSize.lg, fontWeight: 'bold', marginBottom: spacing.md },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.sm },
-  statLabel: { fontSize: fontSize.md },
-  statValue: { fontSize: fontSize.md, fontWeight: '600' },
+  headerRow: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  profileLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#1F5A3A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helloText: {
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#7D8F84',
+    fontWeight: '600',
+  },
+  nameText: {
+    fontSize: 18,
+    lineHeight: 22,
+    color: '#153326',
+    fontWeight: '800',
+  },
+  notifyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF2EF',
+  },
+  notifyDot: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#FF5F5F',
+  },
+  searchBar: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  mainTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '800',
+    marginBottom: spacing.sm,
+  },
+  actionGrid: {
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+  },
+  actionCard: {
+    width: '48.5%',
+    minHeight: 108,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0D2318',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  actionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E9EFEB',
+    marginBottom: 10,
+  },
+  actionTitle: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '700',
+  },
+  emergencyBtn: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+    alignSelf: 'center',
+    width: '92%',
+    maxWidth: 380,
+    minHeight: 62,
+    borderRadius: 16,
+    backgroundColor: '#1D563B',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#2B6A4C',
+    shadowColor: '#0D2318',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  emergencyLeftBadge: {
+    position: 'absolute',
+    left: 14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2E6E50',
+  },
+  emergencyTextWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emergencyChevron: {
+    position: 'absolute',
+    right: 16,
+  },
+  emergencyTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  emergencySub: {
+    color: '#D8EADF',
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
