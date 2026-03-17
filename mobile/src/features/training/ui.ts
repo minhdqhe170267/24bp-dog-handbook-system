@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+
 export const trainingUi = {
     surface: '#FFFFFF',
     page: '#F4F7F5',
@@ -105,4 +107,178 @@ export const splitToBullets = (text: string | null | undefined): string[] => {
         .split(/[\n.;]+/)
         .map((item) => item.trim())
         .filter(Boolean);
+};
+
+export type InstructionStep = {
+    title: string;
+    detail: string;
+};
+
+type ToolIconName = keyof typeof Ionicons.glyphMap;
+
+const dedupeList = (items: string[]) => Array.from(new Set(items));
+
+const tryParseJsonArray = (value: string | null | undefined): string[] | null => {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+            return parsed.map((item) => String(item).trim()).filter(Boolean);
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+};
+
+const splitLooseList = (value: string | null | undefined): string[] => {
+    const parsedArray = tryParseJsonArray(value);
+    if (parsedArray) {
+        return parsedArray;
+    }
+
+    if (!value) {
+        return [];
+    }
+
+    return value
+        .split(/\r?\n|[;|]+|,(?=\s*[A-Za-zÀ-ỹ0-9])/)
+        .map((item) => item.replace(/^\s*[-*•\d.)]+\s*/, '').trim())
+        .filter(Boolean);
+};
+
+const splitByIndexedMarkers = (
+    value: string,
+    regex: RegExp,
+    getStartOffset: (match: RegExpMatchArray) => number
+): string[] => {
+    const matches = Array.from(value.matchAll(regex));
+    if (matches.length === 0) {
+        return [];
+    }
+
+    return matches
+        .map((match, index) => {
+            const start = (match.index ?? 0) + getStartOffset(match);
+            const end = index < matches.length - 1
+                ? (matches[index + 1].index ?? value.length) + getStartOffset(matches[index + 1])
+                : value.length;
+            return value.slice(start, end).trim();
+        })
+        .filter(Boolean);
+};
+
+export const parseToolItems = (value: string | null | undefined): string[] => {
+    return dedupeList(splitLooseList(value));
+};
+
+export const parseMediaUrls = (value: string | null | undefined): string[] => {
+    return dedupeList(
+        splitLooseList(value)
+        .flatMap((item) => item.split(/\s+/))
+        .map((item) => item.trim())
+        .filter(Boolean)
+    );
+};
+
+export const buildInstructionSteps = (instructions: string | null | undefined): InstructionStep[] => {
+    const parsedArray = tryParseJsonArray(instructions);
+    const stepLabel = 'Bước';
+
+    if (parsedArray && parsedArray.length > 0) {
+        return parsedArray.map((item, index) => {
+            const [titlePart, ...detailParts] = item.split(/:\s+/);
+            const title = titlePart?.trim() || `${stepLabel} ${index + 1}`;
+            const detail = detailParts.join(': ').trim() || title;
+            return { title, detail };
+        });
+    }
+
+    const normalizedText = (instructions || '').replace(/\s+/g, ' ').trim();
+
+    const labeledChunks = splitByIndexedMarkers(
+        normalizedText,
+        /(^|[\s.;!?])((?:bước|buoc|step)\s*\d+\s*[:.)-]?)/giu,
+        (match) => (match[1] || '').length
+    );
+
+    if (labeledChunks.length > 0) {
+        return labeledChunks.map((item, index) => {
+            const labeledMatch = item.match(/^(?:bước|buoc|step)\s*(\d+)\s*[:.)-]?\s*(.*)$/iu);
+            const stepNumber = labeledMatch?.[1] || String(index + 1);
+            const detail = labeledMatch?.[2]?.trim() || item.trim();
+            return {
+                title: `${stepLabel} ${stepNumber}`,
+                detail,
+            };
+        });
+    }
+
+    const numericChunks = splitByIndexedMarkers(
+        normalizedText,
+        /(^|[\s.;!?])(\d{1,2}[.)-]\s*)/g,
+        (match) => (match[1] || '').length
+    );
+
+    if (numericChunks.length > 1) {
+        return numericChunks.map((item, index) => {
+            const numericMatch = item.match(/^(\d{1,2})[.)-]\s*(.*)$/);
+            const stepNumber = numericMatch?.[1] || String(index + 1);
+            const detail = numericMatch?.[2]?.trim() || item.trim();
+            return {
+                title: `${stepLabel} ${stepNumber}`,
+                detail,
+            };
+        });
+    }
+
+    const rawSteps = (instructions || '')
+        .split(/\r?\n+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    const normalizedSteps = (rawSteps.length > 0 ? rawSteps : splitToBullets(instructions)).filter(Boolean);
+
+    return normalizedSteps.map((item, index) => {
+        const cleaned = item.replace(/^\s*(?:bước|buoc|step)\s*\d+[:.)-]?\s*/iu, '').trim();
+        const numberedMatch = item.match(/^\s*(?:(?:bước|buoc|step)\s*)?(\d+)[:.)-]?\s*(.+)$/iu);
+        const title = numberedMatch ? `${stepLabel} ${numberedMatch[1]}` : `${stepLabel} ${index + 1}`;
+        const detail = cleaned || item.trim() || title;
+        return { title, detail };
+    });
+};
+
+export const pickToolIcon = (tool: string | null | undefined): ToolIconName => {
+    const normalized = (tool || '').toLowerCase();
+
+    if (/(còi|whistle)/.test(normalized)) {
+        return 'megaphone-outline';
+    }
+    if (/(dây|leash|xích)/.test(normalized)) {
+        return 'git-branch-outline';
+    }
+    if (/(bóng|ball)/.test(normalized)) {
+        return 'football-outline';
+    }
+    if (/(áo|giáp|vest|harness)/.test(normalized)) {
+        return 'shield-outline';
+    }
+    if (/(chóp|cone|cọc)/.test(normalized)) {
+        return 'triangle-outline';
+    }
+    if (/(rào|bar|jump|hurdle)/.test(normalized)) {
+        return 'resize-outline';
+    }
+    if (/(khăn|mùi|scent)/.test(normalized)) {
+        return 'flask-outline';
+    }
+    if (/(thưởng|snack|treat|food)/.test(normalized)) {
+        return 'nutrition-outline';
+    }
+
+    return 'construct-outline';
 };
