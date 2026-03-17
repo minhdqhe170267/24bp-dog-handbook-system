@@ -116,6 +116,8 @@ export type InstructionStep = {
 
 type ToolIconName = keyof typeof Ionicons.glyphMap;
 
+const dedupeList = (items: string[]) => Array.from(new Set(items));
+
 const tryParseJsonArray = (value: string | null | undefined): string[] | null => {
     if (!value) {
         return null;
@@ -171,14 +173,16 @@ const splitByIndexedMarkers = (
 };
 
 export const parseToolItems = (value: string | null | undefined): string[] => {
-    return splitLooseList(value);
+    return dedupeList(splitLooseList(value));
 };
 
 export const parseMediaUrls = (value: string | null | undefined): string[] => {
-    return splitLooseList(value)
+    return dedupeList(
+        splitLooseList(value)
         .flatMap((item) => item.split(/\s+/))
         .map((item) => item.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+    );
 };
 
 export const buildInstructionSteps = (instructions: string | null | undefined): InstructionStep[] => {
