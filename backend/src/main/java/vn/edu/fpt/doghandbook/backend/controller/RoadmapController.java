@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -47,6 +48,13 @@ public class RoadmapController {
             Authentication authentication) {
         TrainingRoadmapResponse response = trainingService.createRoadmap(request, extractUserId(authentication));
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<TrainingRoadmapResponse> updateRoadmap(
+            @PathVariable("id") Integer id,
+            @Valid @RequestBody TrainingRoadmapRequest request) {
+        return ApiResponse.success(trainingService.updateRoadmap(id, request));
     }
 
     @DeleteMapping("/{id}")
