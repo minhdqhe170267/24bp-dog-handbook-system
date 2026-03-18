@@ -41,7 +41,7 @@ public class SyncController {
 
     @PostMapping("/push")
     public ApiResponse<SyncPushBatchResponse> pushBatch(
-            @Valid @RequestBody List<SyncPushRequest> items,
+            @RequestBody List<@Valid SyncPushRequest> items,
             Authentication authentication) {
         Integer userId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(syncService.pushBatch(items, userId));

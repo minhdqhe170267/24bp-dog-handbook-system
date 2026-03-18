@@ -18,5 +18,11 @@ public class SyncPushBatchResponse {
 
     private List<SyncPushItemResponse> results;
 
-    private LocalDateTime syncTimestamp;
+    private LocalDateTime serverTime;
+
+    private int totalSynced;
+
+    private int totalConflicts;
+
+    private int totalFailed;
 }

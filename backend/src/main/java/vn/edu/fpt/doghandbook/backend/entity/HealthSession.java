@@ -72,6 +72,9 @@ public class HealthSession {
     @Column(name = "last_update_at", nullable = false)
     private LocalDateTime lastUpdateAt;
 
+    @Column(name = "updated_at", nullable = true)
+    private LocalDateTime updatedAt;
+
     @Column(name = "follow_up_date", nullable = true)
     private LocalDate followUpDate;
 
@@ -96,10 +99,13 @@ public class HealthSession {
         if (this.severity == null) {
             this.severity = SessionSeverity.MEDIUM;
         }
+        this.updatedAt = now;
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.lastUpdateAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        this.lastUpdateAt = now;
+        this.updatedAt = now;
     }
 }

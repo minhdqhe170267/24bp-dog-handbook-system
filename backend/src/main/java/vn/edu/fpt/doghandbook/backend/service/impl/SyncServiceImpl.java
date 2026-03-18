@@ -7,7 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import vn.edu.fpt.doghandbook.backend.dto.request.SyncPushRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushBatchResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushItemResponse;
@@ -37,6 +40,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
+import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.entity.enums.WeightStatus;
 import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
@@ -71,12 +75,14 @@ import java.util.function.Function;
 @Transactional(readOnly = true)
 public class SyncServiceImpl implements SyncService {
 
+    private static final int MAX_BATCH_SIZE = 100;
     private static final int MAX_RETRY_COUNT = 3;
 
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final SyncQueueRepository syncQueueRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
 
     // Entity repositories for sync push processing
     private final FieldNoteRepository fieldNoteRepository;
@@ -229,33 +235,40 @@ public class SyncServiceImpl implements SyncService {
     }
 
     @Override
-    @Transactional
     public SyncPushBatchResponse pushBatch(List<SyncPushRequest> items, Integer userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        if (items == null) {
+            throw new BadRequestException("Danh sách sync push không được để trống");
+        }
+        if (items.size() > MAX_BATCH_SIZE) {
+            throw new BadRequestException("Batch sync push tối đa 100 items");
+        }
 
-        List<SyncPushItemResponse> results = new ArrayList<>();
+        LocalDateTime serverTime = LocalDateTime.now();
+        List<SyncPushItemResponse> results = new ArrayList<>(items.size());
         for (SyncPushRequest item : items) {
-            SyncQueue queueItem = SyncQueue.builder()
-                    .user(user)
-                    .localId(item.getLocalId())
-                    .entityType(item.getEntityType())
-                    .entityId(item.getEntityId())
-                    .actionType(SyncActionType.valueOf(item.getActionType()))
-                    .payloadData(item.getPayloadData())
-                    .syncStatus(SyncStatus.PENDING)
-                    .retryCount(0)
-                    .queuedAt(LocalDateTime.now())
-                    .build();
-            queueItem = syncQueueRepository.save(queueItem);
+            results.add(processBatchItem(item, userId));
+        }
 
-            SyncPushItemResponse result = processItem(queueItem, user);
-            results.add(result);
+        int totalSynced = 0;
+        int totalConflicts = 0;
+        int totalFailed = 0;
+        for (SyncPushItemResponse result : results) {
+            String syncStatus = result.getSyncStatus();
+            if ("SYNCED".equals(syncStatus)) {
+                totalSynced++;
+            } else if ("CONFLICT".equals(syncStatus)) {
+                totalConflicts++;
+            } else if ("FAILED".equals(syncStatus)) {
+                totalFailed++;
+            }
         }
 
         return SyncPushBatchResponse.builder()
                 .results(results)
-                .syncTimestamp(LocalDateTime.now())
+                .serverTime(serverTime)
+                .totalSynced(totalSynced)
+                .totalConflicts(totalConflicts)
+                .totalFailed(totalFailed)
                 .build();
     }
 
@@ -342,6 +355,47 @@ public class SyncServiceImpl implements SyncService {
 
             return SyncPushItemResponse.failed(localId, entityType, e.getMessage());
         }
+    }
+
+    SyncPushItemResponse processBatchItem(SyncPushRequest item, Integer userId) {
+        try {
+            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+            transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            SyncPushItemResponse result = transactionTemplate.execute(status -> {
+                User user = userRepository.findById(userId)
+                        .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+                try {
+                    SyncQueue queueItem = SyncQueue.builder()
+                            .user(user)
+                            .localId(item.getLocalId())
+                            .entityType(item.getEntityType())
+                            .entityId(item.getEntityId())
+                            .actionType(SyncActionType.valueOf(item.getActionType()))
+                            .payloadData(item.getPayloadData())
+                            .syncStatus(SyncStatus.PENDING)
+                            .retryCount(0)
+                            .queuedAt(LocalDateTime.now())
+                            .build();
+                    queueItem = syncQueueRepository.save(queueItem);
+                    return processItem(queueItem, user);
+                } catch (Exception e) {
+                    log.error("[SYNC:PUSH] Failed to enqueue {} {} localId={}: {}",
+                            item.getEntityType(), item.getActionType(), item.getLocalId(), e.getMessage());
+                    return SyncPushItemResponse.failed(item.getLocalId(), item.getEntityType(), e.getMessage());
+                }
+            });
+
+            if (result != null) {
+                return result;
+            }
+        } catch (Exception e) {
+            log.error("[SYNC:PUSH] Failed to process batch item {} {} localId={}: {}",
+                    item.getEntityType(), item.getActionType(), item.getLocalId(), e.getMessage());
+        }
+
+        return SyncPushItemResponse.failed(item.getLocalId(), item.getEntityType(),
+                "Unable to process batch item");
     }
 
     private Map<String, Object> parsePayload(String payloadData) {
