@@ -16,8 +16,9 @@ import java.time.LocalDateTime;
 public class ApprovalRecordResponse {
 
     private Integer approvalId;
-    private Integer contentId;
-    private String contentTitle;
+    private String entityType;
+    private Integer entityId;
+    private String entityTitle;
     private Integer reviewerId;
     private String reviewerName;
     private String decision;
