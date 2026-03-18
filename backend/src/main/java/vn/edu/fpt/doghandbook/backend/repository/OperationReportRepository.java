@@ -19,4 +19,6 @@ public interface OperationReportRepository extends JpaRepository<OperationReport
     Page<OperationReport> findByDogProfileDogIdAndIsDeletedFalseOrderByReportDateDesc(Integer dogId, Pageable pageable);
 
     Optional<OperationReport> findByReportIdAndIsDeletedFalse(Integer id);
+
+    Optional<OperationReport> findByLocalId(String localId);
 }

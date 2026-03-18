@@ -6,12 +6,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthRecordRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthRecordResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.service.HealthRecordService;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 @RestController
 @RequestMapping("/health-records")
@@ -44,10 +44,21 @@ public class HealthRecordController {
     public ResponseEntity<ApiResponse<HealthRecordResponse>> create(
             @Valid @RequestBody HealthRecordRequest request,
             Authentication authentication) {
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Integer examinerId = userDetails.getUser().getUserId();
+        Integer examinerId = AuthenticationUtils.extractUserId(authentication);
         HealthRecordResponse response = healthRecordService.create(request, examinerId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(response, "Tạo hồ sơ sức khỏe thành công"));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<HealthRecordResponse> update(
+            @PathVariable Integer id,
+            @Valid @RequestBody HealthRecordRequest request,
+            Authentication authentication) {
+        Integer examinerId = AuthenticationUtils.extractUserId(authentication);
+        return ApiResponse.success(
+                healthRecordService.update(id, request, examinerId),
+                "Cập nhật hồ sơ sức khỏe thành công"
+        );
     }
 }

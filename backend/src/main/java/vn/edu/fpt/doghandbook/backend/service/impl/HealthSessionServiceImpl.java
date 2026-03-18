@@ -1,6 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,11 +25,13 @@ import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthSessionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.service.HealthSessionService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class HealthSessionServiceImpl implements HealthSessionService {
@@ -42,6 +45,13 @@ public class HealthSessionServiceImpl implements HealthSessionService {
     @Override
     @Transactional
     public HealthSessionResponse create(HealthSessionRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = healthSessionRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         DogProfile dog = dogProfileRepository.findByDogIdAndIsDeletedFalse(request.getDogId())
                 .orElseThrow(() -> new RuntimeException("Dog not found: " + request.getDogId()));
 
@@ -49,6 +59,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
                 .orElseThrow(() -> new RuntimeException("Trainer not found: " + trainerId));
 
         HealthSession session = HealthSession.builder()
+                .localId(request.getLocalId())
                 .dogProfile(dog)
                 .trainer(trainer)
                 .issueSummary(request.getIssueSummary())

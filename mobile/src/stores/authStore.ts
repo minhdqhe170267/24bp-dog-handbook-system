@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import * as SecureStore from 'expo-secure-store';
 import { authService } from '../services/authService';
+import { userSessionDBService } from '../database/services/userSessionDBService';
 import { UserInfo, LoginRequest } from '../types/auth';
 
 interface AuthState {
@@ -8,9 +10,10 @@ interface AuthState {
     isLoading: boolean;
     error: string | null;
     login: (data: LoginRequest) => Promise<boolean>;
-    logout: () => void;
+    logout: () => Promise<void>;
     clearError: () => void;
     devLogin: () => void;
+    hydrateAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -23,7 +26,27 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ isLoading: true, error: null });
         try {
             const response = await authService.login(data);
-            set({ user: response.user, isAuthenticated: true, isLoading: false });
+            const { token, expiresIn, user } = response;
+
+            // Persist token in SecureStore (encrypted)
+            await SecureStore.setItemAsync('auth_token', token);
+
+            // Persist user info in SQLite user_session
+            const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+            await userSessionDBService.save({
+                user_id: user.userId,
+                username: user.username,
+                full_name: user.fullName,
+                role: user.role as any,
+                military_rank: user.militaryRank ?? null,
+                unit: user.unit ?? null,
+                token: token,
+                refresh_token: null,
+                token_expires_at: expiresAt,
+            });
+
+            console.log('[AUTH] Session persisted to SecureStore + SQLite');
+            set({ user, isAuthenticated: true, isLoading: false });
             return true;
         } catch (err: any) {
             set({ isLoading: false, error: err?.message || 'Đăng nhập thất bại' });
@@ -31,8 +54,14 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
     },
 
-    logout: () => {
+    logout: async () => {
         authService.logout();
+
+        // Clear persisted auth data
+        await SecureStore.deleteItemAsync('auth_token');
+        await userSessionDBService.clear();
+
+        console.log('[AUTH] Session cleared from SecureStore + SQLite');
         set({ user: null, isAuthenticated: false, error: null });
     },
 
@@ -51,5 +80,33 @@ export const useAuthStore = create<AuthState>((set) => ({
             isAuthenticated: true,
             error: null,
         });
+    },
+
+    hydrateAuth: async () => {
+        try {
+            const token = await SecureStore.getItemAsync('auth_token');
+            const session = await userSessionDBService.get();
+
+            if (token && session && session.user_id) {
+                // Restore in-memory token for API interceptor
+                const { setToken } = await import('../services/api');
+                setToken(token);
+
+                set({
+                    user: {
+                        userId: session.user_id,
+                        username: session.username ?? '',
+                        fullName: session.full_name ?? '',
+                        role: session.role ?? 'TRAINER',
+                        militaryRank: session.military_rank ?? undefined,
+                        unit: session.unit ?? undefined,
+                    },
+                    isAuthenticated: true,
+                });
+                console.log('[AUTH] Session restored from local storage');
+            }
+        } catch (err) {
+            console.error('[AUTH] Failed to hydrate session:', err);
+        }
     },
 }));

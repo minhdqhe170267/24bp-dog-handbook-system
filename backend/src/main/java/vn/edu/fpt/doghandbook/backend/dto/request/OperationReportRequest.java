@@ -9,10 +9,14 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
 public class OperationReportRequest {
+
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
 
     @NotNull
     private Integer dogId;
@@ -33,4 +37,6 @@ public class OperationReportRequest {
 
     @Size(max = 5000, message = "Metadata tối đa 5000 ký tự")
     private String metadata;
+
+    private LocalDateTime localUpdatedAt;
 }
