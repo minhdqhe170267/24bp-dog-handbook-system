@@ -340,7 +340,12 @@ public class SyncServiceImpl implements SyncService {
             item.setSyncStatus(SyncStatus.CONFLICT);
             item.setErrorMessage(e.getMessage());
             syncQueueRepository.save(item);
-            return SyncPushItemResponse.conflict(localId, entityType, e.getServerData());
+            // Convert serverData to a safe string to avoid LazyInitializationException
+            // when Jackson serializes outside the transaction
+            Object safeServerData = e.getServerData() != null
+                    ? e.getServerData().toString()
+                    : null;
+            return SyncPushItemResponse.conflict(localId, entityType, safeServerData);
 
         } catch (Exception e) {
             log.error("[SYNC:PUSH] Failed {} {} localId={}: {}",
@@ -1143,27 +1148,33 @@ public class SyncServiceImpl implements SyncService {
     // ── Fetch method for DogAssignment (filtered by userId, uses is_active) ──
 
     private List<Map<String, Object>> fetchDogAssignments(SyncWindow syncWindow, Integer userId) {
-        String selectClause = "assignment_id AS assignmentId, trainer_id AS trainerId, "
-                + "dog_id AS dogId, assignment_type AS assignmentType, "
-                + "start_date AS startDate, end_date AS endDate, "
-                + "is_active AS isActive, notes, "
-                + "created_at AS createdAt, updated_at AS updatedAt";
+        String selectClause = "da.assignment_id AS assignmentId, da.trainer_id AS trainerId, "
+                + "da.dog_id AS dogId, da.assignment_type AS assignmentType, "
+                + "da.start_date AS startDate, da.end_date AS endDate, "
+                + "da.is_active AS isActive, da.notes, "
+                + "da.created_at AS createdAt, da.updated_at AS updatedAt, "
+                + "u.full_name AS trainerName, "
+                + "dp.dog_name AS dogName, dp.dog_code AS dogCode";
         String sql;
         if (syncWindow.lastSyncAt() == null) {
             sql = """
                     SELECT %s
-                    FROM dog_assignment
-                    WHERE trainer_id = :userId
-                    ORDER BY updated_at ASC, assignment_id ASC
+                    FROM dog_assignment da
+                    LEFT JOIN user u ON u.user_id = da.trainer_id
+                    LEFT JOIN dog_profile dp ON dp.dog_id = da.dog_id
+                    WHERE da.trainer_id = :userId
+                    ORDER BY da.updated_at ASC, da.assignment_id ASC
                     """.formatted(selectClause);
         } else {
             sql = """
                     SELECT %s
-                    FROM dog_assignment
-                    WHERE trainer_id = :userId
-                      AND updated_at > :lastSyncAt
-                      AND updated_at <= :syncTimestamp
-                    ORDER BY updated_at ASC, assignment_id ASC
+                    FROM dog_assignment da
+                    LEFT JOIN user u ON u.user_id = da.trainer_id
+                    LEFT JOIN dog_profile dp ON dp.dog_id = da.dog_id
+                    WHERE da.trainer_id = :userId
+                      AND da.updated_at > :lastSyncAt
+                      AND da.updated_at <= :syncTimestamp
+                    ORDER BY da.updated_at ASC, da.assignment_id ASC
                     """.formatted(selectClause);
         }
         MapSqlParameterSource params = new MapSqlParameterSource()
@@ -1303,6 +1314,9 @@ public class SyncServiceImpl implements SyncService {
         item.put("endDate", row.get("endDate"));
         item.put("isActive", toBoolean(row.get("isActive")));
         item.put("notes", row.get("notes"));
+        item.put("trainerName", row.get("trainerName"));
+        item.put("dogName", row.get("dogName"));
+        item.put("dogCode", row.get("dogCode"));
         return item;
     }
 

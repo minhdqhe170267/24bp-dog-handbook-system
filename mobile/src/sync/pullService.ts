@@ -21,7 +21,43 @@ import { nutritionDBService } from '../database/services/nutritionDBService';
 import { contentDBService } from '../database/services/contentDBService';
 import { dogProfileDBService } from '../database/services/dogProfileDBService';
 import { dogAssignmentDBService } from '../database/services/dogAssignmentDBService';
+import { db } from '../database';
 import type { PullResult, ProgressCallback } from './types';
+
+/**
+ * Convert camelCase key to snake_case.
+ * Backend sends camelCase (breedId, dogName) but SQLite uses snake_case (breed_id, dog_name).
+ */
+const camelToSnake = (str: string): string =>
+  str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+/**
+ * Metadata fields the backend injects for sync tracking.
+ * These don't exist as columns in most SQLite tables — strip before upsert.
+ */
+const SYNC_METADATA_FIELDS = new Set(['syncAction', 'sync_action']);
+
+/**
+ * Convert all keys of a record from camelCase to snake_case,
+ * stripping sync-only metadata fields that don't exist in SQLite.
+ */
+const toSnakeCaseRecord = (record: Record<string, any>, injectAuditFields: boolean): Record<string, any> => {
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(record)) {
+    if (SYNC_METADATA_FIELDS.has(key)) continue;
+    result[camelToSnake(key)] = record[key];
+  }
+  // Inject NOT NULL audit fields only for tables that have them
+  if (injectAuditFields) {
+    const now = new Date().toISOString();
+    if (!result.created_at) result.created_at = result.updated_at || now;
+    if (!result.updated_at) result.updated_at = now;
+  }
+  return result;
+};
+
+/** Junction tables have no audit fields (created_at, updated_at) */
+const JUNCTION_TABLES = new Set(['disease_symptom_mapping', 'roadmap_exercise']);
 
 /**
  * Map: backend response key (camelCase) → SQLite table + DB service.
@@ -39,20 +75,25 @@ const PULL_KEY_TO_TABLE: Record<string, PullTableConfig> = {
   breeds:                 { table: 'dog_breed',                dbService: breedDBService },
   diseases:               { table: 'disease',                  dbService: diseaseDBService },
   symptoms:               { table: 'symptom',                  dbService: symptomDBService },
-  diseaseSymptomMappings: { table: 'disease_symptom_mapping',  dbService: diseaseSymptomMappingDBService },
   medications:            { table: 'medication',               dbService: medicationDBService },
   firstAidGuides:         { table: 'first_aid_guide',          dbService: firstAidDBService },
   trainingMethods:        { table: 'training_method',          dbService: trainingMethodDBService },
   exercises:              { table: 'training_exercise',        dbService: exerciseDBService },
   roadmaps:               { table: 'training_roadmap',         dbService: roadmapDBService },
-  roadmapExercises:       { table: 'roadmap_exercise',         dbService: roadmapExerciseDBService },
   nutritionStandards:     { table: 'nutrition_standard',       dbService: nutritionDBService },
   developmentStages:      { table: 'development_stage',        dbService: developmentStageDBService },
   contents:               { table: 'content',                  dbService: contentDBService },
   dogProfiles:            { table: 'dog_profile',              dbService: dogProfileDBService },
   dogAssignments:         { table: 'dog_assignment',           dbService: dogAssignmentDBService },
+  // Junction tables LAST — they have FK references to parent tables above
+  diseaseSymptomMappings: { table: 'disease_symptom_mapping',  dbService: diseaseSymptomMappingDBService },
+  roadmapExercises:       { table: 'roadmap_exercise',         dbService: roadmapExerciseDBService },
 };
 
+/**
+ * Ordered keys — parent tables first, junction tables last.
+ * This ensures FK constraints are satisfied during upsert.
+ */
 const PULL_KEYS = Object.keys(PULL_KEY_TO_TABLE);
 
 /**
@@ -90,17 +131,29 @@ export const pullServerUpdates = async (onProgress?: ProgressCallback): Promise<
     onProgress?.('pull', table, i + 1, PULL_KEYS.length);
 
     try {
-      const records = entityData[key] || [];
+      const rawRecords = entityData[key] || [];
+
+      // Convert camelCase keys from server to snake_case for SQLite
+      const needsAudit = !JUNCTION_TABLES.has(table);
+      const records = rawRecords.map((r: Record<string, any>) => toSnakeCaseRecord(r, needsAudit));
 
       if (records.length > 0) {
-        await dbService.upsertFromServer(records);
+        // Temporarily disable FK checks for junction tables — parent rows
+        // may not exist in SQLite yet during incremental sync
+        const isJunction = JUNCTION_TABLES.has(table);
+        if (isJunction) db.execSync('PRAGMA foreign_keys = OFF;');
+        try {
+          await dbService.upsertFromServer(records);
+        } finally {
+          if (isJunction) db.execSync('PRAGMA foreign_keys = ON;');
+        }
       }
 
       const recordCount = await dbService.getCount();
       await syncMetadataDBService.updateAfterSync(table, recordCount, 'SUCCESS');
 
-      results[table] = records.length;
-      console.log(`[SYNC:PULL] ${table}: ${records.length} records`);
+      results[table] = rawRecords.length;
+      console.log(`[SYNC:PULL] ${table}: ${rawRecords.length} records`);
     } catch (err: any) {
       console.error(`[SYNC:PULL] ${table}: failed —`, err?.message || err);
       await syncMetadataDBService.markFailed(table);

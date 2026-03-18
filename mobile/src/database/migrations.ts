@@ -12,12 +12,15 @@ interface Migration {
  */
 const migrations: Migration[] = [
   // Version 1 is the initial schema created by schema.ts.
-  // Future migrations go here:
-  // {
-  //   version: 2,
-  //   description: 'Add xyz column to field_note',
-  //   sql: ['ALTER TABLE field_note ADD COLUMN xyz TEXT;'],
-  // },
+  {
+    version: 2,
+    description: 'Add trainerName, dogName, dogCode to dog_assignment',
+    sql: [
+      'ALTER TABLE dog_assignment ADD COLUMN trainer_name TEXT;',
+      'ALTER TABLE dog_assignment ADD COLUMN dog_name TEXT;',
+      'ALTER TABLE dog_assignment ADD COLUMN dog_code TEXT;',
+    ],
+  },
 ];
 
 /**
