@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { sqliteStorage } from './sqliteStorage';
 
 export const lightColors = {
     primary: '#1B4332',
@@ -42,12 +44,27 @@ interface ThemeState {
     toggleTheme: () => void;
 }
 
-export const useThemeStore = create<ThemeState>((set) => ({
-    isDark: false,
-    colors: lightColors,
-    toggleTheme: () =>
-        set((state) => ({
-            isDark: !state.isDark,
-            colors: state.isDark ? lightColors : darkColors,
-        })),
-}));
+export const useThemeStore = create<ThemeState>()(
+    persist(
+        (set) => ({
+            isDark: false,
+            colors: lightColors,
+            toggleTheme: () =>
+                set((state) => ({
+                    isDark: !state.isDark,
+                    colors: state.isDark ? lightColors : darkColors,
+                })),
+        }),
+        {
+            name: 'store:theme',
+            storage: createJSONStorage(() => sqliteStorage),
+            partialize: (state) => ({ isDark: state.isDark }),
+            onRehydrateStorage: () => (state) => {
+                // Restore colors from persisted isDark flag
+                if (state) {
+                    state.colors = state.isDark ? darkColors : lightColors;
+                }
+            },
+        },
+    ),
+);

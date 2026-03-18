@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { sqliteStorage } from './sqliteStorage';
 
 export type ExerciseProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -18,71 +20,79 @@ interface TrainingProgressState {
     clearAllProgress: () => void;
 }
 
-export const useTrainingProgressStore = create<TrainingProgressState>((set, get) => ({
-    progressByExercise: {},
+export const useTrainingProgressStore = create<TrainingProgressState>()(
+    persist(
+        (set, get) => ({
+            progressByExercise: {},
 
-    startExercise: (exerciseId) =>
-        set((state) => {
-            if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
-                return state;
-            }
+            startExercise: (exerciseId) =>
+                set((state) => {
+                    if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
+                        return state;
+                    }
 
-            const previous = state.progressByExercise[exerciseId];
-            const now = new Date().toISOString();
+                    const previous = state.progressByExercise[exerciseId];
+                    const now = new Date().toISOString();
 
-            return {
-                progressByExercise: {
-                    ...state.progressByExercise,
-                    [exerciseId]: {
-                        status: 'IN_PROGRESS',
-                        startedAt: previous?.startedAt || now,
-                        completedAt: undefined,
-                        updatedAt: now,
-                    },
-                },
-            };
+                    return {
+                        progressByExercise: {
+                            ...state.progressByExercise,
+                            [exerciseId]: {
+                                status: 'IN_PROGRESS',
+                                startedAt: previous?.startedAt || now,
+                                completedAt: undefined,
+                                updatedAt: now,
+                            },
+                        },
+                    };
+                }),
+
+            completeExercise: (exerciseId) =>
+                set((state) => {
+                    if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
+                        return state;
+                    }
+
+                    const previous = state.progressByExercise[exerciseId];
+                    const now = new Date().toISOString();
+
+                    return {
+                        progressByExercise: {
+                            ...state.progressByExercise,
+                            [exerciseId]: {
+                                status: 'COMPLETED',
+                                startedAt: previous?.startedAt || now,
+                                completedAt: now,
+                                updatedAt: now,
+                            },
+                        },
+                    };
+                }),
+
+            resetExercise: (exerciseId) =>
+                set((state) => {
+                    if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
+                        return state;
+                    }
+
+                    const next = { ...state.progressByExercise };
+                    delete next[exerciseId];
+                    return { progressByExercise: next };
+                }),
+
+            getExerciseStatus: (exerciseId) => {
+                if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
+                    return 'NOT_STARTED';
+                }
+                return get().progressByExercise[exerciseId]?.status || 'NOT_STARTED';
+            },
+
+            clearAllProgress: () => set({ progressByExercise: {} }),
         }),
-
-    completeExercise: (exerciseId) =>
-        set((state) => {
-            if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
-                return state;
-            }
-
-            const previous = state.progressByExercise[exerciseId];
-            const now = new Date().toISOString();
-
-            return {
-                progressByExercise: {
-                    ...state.progressByExercise,
-                    [exerciseId]: {
-                        status: 'COMPLETED',
-                        startedAt: previous?.startedAt || now,
-                        completedAt: now,
-                        updatedAt: now,
-                    },
-                },
-            };
-        }),
-
-    resetExercise: (exerciseId) =>
-        set((state) => {
-            if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
-                return state;
-            }
-
-            const next = { ...state.progressByExercise };
-            delete next[exerciseId];
-            return { progressByExercise: next };
-        }),
-
-    getExerciseStatus: (exerciseId) => {
-        if (!Number.isFinite(exerciseId) || exerciseId <= 0) {
-            return 'NOT_STARTED';
-        }
-        return get().progressByExercise[exerciseId]?.status || 'NOT_STARTED';
-    },
-
-    clearAllProgress: () => set({ progressByExercise: {} }),
-}));
-
+        {
+            name: 'store:trainingProgress',
+            storage: createJSONStorage(() => sqliteStorage),
+            partialize: (state) => ({ progressByExercise: state.progressByExercise }),
+        },
+    ),
+);
