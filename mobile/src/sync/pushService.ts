@@ -38,17 +38,51 @@ const ENTITY_DB_SERVICE: Record<EntityType, {
 };
 
 /**
+ * Ensure payloadData JSON includes localUpdatedAt for conflict detection.
+ * Backend checkConflict() reads getDateTime(payload, "localUpdatedAt", null).
+ * Mobile stores updated_at (snake_case) — inject camelCase alias.
+ */
+const ensureLocalUpdatedAt = (payloadJson: string, action: string): string => {
+  if (action === 'CREATE') return payloadJson;
+
+  try {
+    const parsed = JSON.parse(payloadJson);
+    if (!parsed.localUpdatedAt && parsed.updated_at) {
+      parsed.localUpdatedAt = parsed.updated_at;
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return payloadJson;
+  }
+};
+
+/**
  * Build batch request items from sync_queue rows.
- * Maps mobile fields to backend SyncPushRequest contract.
+ * Maps mobile fields to backend SyncPushRequest contract:
+ *   - entityType: snake_case (field_note, health_record, ...)
+ *   - localId: UUID string
+ *   - actionType: "CREATE" | "UPDATE" | "DELETE" (uppercase)
+ *   - payloadData: JSON string (not object)
+ *   - payloadData includes localUpdatedAt for conflict detection
  */
 const toBatchRequest = (items: SyncQueueRow[]): PushBatchRequest[] =>
-  items.map(item => ({
-    localId: item.entity_id,        // UUID string
-    entityType: item.entity_type,   // snake_case
-    entityId: null,                 // server ID — null for CREATE
-    actionType: item.action,        // CREATE | UPDATE | DELETE
-    payloadData: item.payload,      // JSON string
-  }));
+  items.map(item => {
+    const request: PushBatchRequest = {
+      localId: item.entity_id,                                // UUID string
+      entityType: item.entity_type,                            // snake_case
+      entityId: null,                                          // server resolves via localId
+      actionType: item.action,                                 // CREATE | UPDATE | DELETE
+      payloadData: ensureLocalUpdatedAt(item.payload, item.action), // JSON string with localUpdatedAt
+    };
+
+    if (__DEV__) {
+      console.log(`[SYNC:PUSH] Request item: entityType=${request.entityType} ` +
+        `localId=${request.localId} action=${request.actionType} ` +
+        `payloadType=${typeof request.payloadData} payloadLength=${request.payloadData.length}`);
+    }
+
+    return request;
+  });
 
 /**
  * Process batch response — update sync_queue and entity tables.
