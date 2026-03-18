@@ -37,6 +37,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.entity.enums.WeightStatus;
 import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiagnosisRecordRepository;
@@ -321,6 +322,13 @@ public class SyncServiceImpl implements SyncService {
 
             return SyncPushItemResponse.synced(localId, serverId, entityType);
 
+        } catch (SyncConflictException e) {
+            log.warn("[SYNC:CONFLICT] {} localId={}: {}", entityType, localId, e.getMessage());
+            item.setSyncStatus(SyncStatus.CONFLICT);
+            item.setErrorMessage(e.getMessage());
+            syncQueueRepository.save(item);
+            return SyncPushItemResponse.conflict(localId, entityType, e.getServerData());
+
         } catch (Exception e) {
             log.error("[SYNC:PUSH] Failed {} {} localId={}: {}",
                     entityType, action, localId, e.getMessage());
@@ -386,6 +394,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 FieldNote note = fieldNoteRepository.findByNoteIdAndIsDeletedFalse(serverId)
                         .orElseThrow(() -> new RuntimeException("FieldNote not found: " + serverId));
+                checkConflict("field_note", serverId, note.getUpdatedAt(), payload, note);
                 if (payload.containsKey("title")) note.setTitle(getString(payload, "title"));
                 if (payload.containsKey("content")) note.setContent(getString(payload, "content"));
                 if (payload.containsKey("photoUrls")) note.setPhotoUrls(getString(payload, "photoUrls"));
@@ -439,6 +448,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(serverId)
                         .orElseThrow(() -> new RuntimeException("HealthRecord not found: " + serverId));
+                checkConflict("health_record", serverId, record.getUpdatedAt(), payload, record);
                 if (payload.containsKey("weightKg")) record.setWeightKg(getBigDecimal(payload, "weightKg"));
                 if (payload.containsKey("temperatureC")) record.setTemperatureC(getBigDecimal(payload, "temperatureC"));
                 if (payload.containsKey("observedSymptoms")) record.setObservedSymptoms(getString(payload, "observedSymptoms"));
@@ -483,6 +493,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 HealthSession session = healthSessionRepository.findBySessionId(serverId)
                         .orElseThrow(() -> new RuntimeException("HealthSession not found: " + serverId));
+                checkConflict("health_session", serverId, session.getLastUpdateAt(), payload, session);
                 if (payload.containsKey("issueSummary")) session.setIssueSummary(getString(payload, "issueSummary"));
                 if (payload.containsKey("severity")) session.setSeverity(getEnum(payload, "severity", SessionSeverity.class, session.getSeverity()));
                 if (payload.containsKey("resolutionNotes")) session.setResolutionNotes(getString(payload, "resolutionNotes"));
@@ -519,6 +530,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 SessionFollowUp followUp = sessionFollowUpRepository.findById(serverId)
                         .orElseThrow(() -> new RuntimeException("SessionFollowUp not found: " + serverId));
+                checkConflict("session_follow_up", serverId, followUp.getFollowupDate(), payload, followUp);
                 if (payload.containsKey("notes")) followUp.setNotes(getString(payload, "notes"));
                 if (payload.containsKey("nextAction")) followUp.setNextAction(getString(payload, "nextAction"));
                 yield sessionFollowUpRepository.save(followUp).getFollowupId();
@@ -550,6 +562,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 ContentSuggestion suggestion = contentSuggestionRepository.findById(serverId)
                         .orElseThrow(() -> new RuntimeException("ContentSuggestion not found: " + serverId));
+                checkConflict("content_suggestion", serverId, suggestion.getSubmittedAt(), payload, suggestion);
                 if (payload.containsKey("title")) suggestion.setTitle(getString(payload, "title"));
                 if (payload.containsKey("description")) suggestion.setDescription(getString(payload, "description"));
                 yield contentSuggestionRepository.save(suggestion).getSuggestionId();
@@ -612,6 +625,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 OperationReport report = operationReportRepository.findByReportIdAndIsDeletedFalse(serverId)
                         .orElseThrow(() -> new RuntimeException("OperationReport not found: " + serverId));
+                checkConflict("operation_report", serverId, report.getUpdatedAt(), payload, report);
                 if (payload.containsKey("reportTitle")) report.setReportTitle(getString(payload, "reportTitle"));
                 if (payload.containsKey("reportContent")) report.setReportContent(getString(payload, "reportContent"));
                 if (payload.containsKey("metadata")) report.setMetadata(getString(payload, "metadata"));
@@ -655,6 +669,7 @@ public class SyncServiceImpl implements SyncService {
                 Integer serverId = requireServerId(payload);
                 DiagnosisRecord record = diagnosisRecordRepository.findById(serverId)
                         .orElseThrow(() -> new RuntimeException("DiagnosisRecord not found: " + serverId));
+                checkConflict("diagnosis_record", serverId, record.getDiagnosedAt(), payload, record);
                 if (payload.containsKey("actionTaken")) record.setActionTaken(getString(payload, "actionTaken"));
                 yield diagnosisRecordRepository.save(record).getDiagnosisId();
             }
@@ -664,6 +679,20 @@ public class SyncServiceImpl implements SyncService {
                 yield serverId;
             }
         };
+    }
+
+    // ── Conflict Detection ──
+
+    private void checkConflict(String entityType, Integer serverId,
+                                LocalDateTime serverUpdatedAt, Map<String, Object> payload,
+                                Object serverData) {
+        LocalDateTime localUpdatedAt = getDateTime(payload, "localUpdatedAt", null);
+        if (localUpdatedAt != null && serverUpdatedAt != null
+                && serverUpdatedAt.isAfter(localUpdatedAt)) {
+            log.warn("[SYNC:CONFLICT] {} id={} serverTime={} > localTime={}",
+                    entityType, serverId, serverUpdatedAt, localUpdatedAt);
+            throw new SyncConflictException("Record modified on server", serverData);
+        }
     }
 
     // ── Payload Helpers ──

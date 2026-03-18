@@ -29,4 +29,5 @@ public class FieldNoteRequest {
 
     private Integer linkedContentId;
     private LocalDateTime recordingDate;
+    private LocalDateTime localUpdatedAt;
 }

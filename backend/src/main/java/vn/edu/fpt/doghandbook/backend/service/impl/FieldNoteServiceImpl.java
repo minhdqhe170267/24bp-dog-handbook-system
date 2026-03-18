@@ -1,6 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,7 @@ import vn.edu.fpt.doghandbook.backend.entity.FieldNote;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.FieldNoteRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -22,6 +24,7 @@ import vn.edu.fpt.doghandbook.backend.service.FieldNoteService;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FieldNoteServiceImpl implements FieldNoteService {
@@ -132,6 +135,15 @@ public class FieldNoteServiceImpl implements FieldNoteService {
 
         if (!note.getTrainer().getUserId().equals(trainerId)) {
             throw new BadRequestException("Không có quyền chỉnh sửa ghi chú này");
+        }
+
+        // Conflict detection: server record modified after mobile's last known version
+        if (request.getLocalUpdatedAt() != null
+                && note.getUpdatedAt() != null
+                && note.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
+            log.warn("[SYNC:CONFLICT] field_note id={} serverTime={} > localTime={}",
+                    noteId, note.getUpdatedAt(), request.getLocalUpdatedAt());
+            throw new SyncConflictException("Record modified on server", toResponse(note));
         }
 
         if (request.getTitle() != null) note.setTitle(request.getTitle());

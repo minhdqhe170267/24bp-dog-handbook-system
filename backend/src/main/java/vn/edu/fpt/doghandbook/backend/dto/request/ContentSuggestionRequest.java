@@ -8,6 +8,8 @@ import lombok.Setter;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 public class ContentSuggestionRequest {
@@ -25,4 +27,6 @@ public class ContentSuggestionRequest {
     @NotBlank(message = "Mô tả không được để trống")
     @Size(max = 5000, message = "Mô tả tối đa 5000 ký tự")
     private String description;
+
+    private LocalDateTime localUpdatedAt;
 }
