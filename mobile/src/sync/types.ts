@@ -4,26 +4,34 @@
 
 import type { SyncAction, EntityType } from '../database/types';
 
-/** POST /api/v1/sync/push — single item pushed to server queue */
-export interface PushItemRequest {
-  entityType: EntityType;
-  entityId: string; // local_id (UUID)
-  actionType: SyncAction; // CREATE | UPDATE | DELETE
-  payloadData: string; // JSON-stringified payload
+// ── Push types ──
+
+/** Single item in POST /api/v1/sync/push batch request */
+export interface PushBatchRequest {
+  localId: string;          // UUID from mobile
+  entityType: EntityType;   // snake_case
+  entityId: number | null;  // server ID (null for CREATE)
+  actionType: SyncAction;   // CREATE | UPDATE | DELETE
+  payloadData: string;      // JSON-stringified payload
 }
 
-/** Response from POST /api/v1/sync/push */
-export interface PushItemResponse {
-  queueId: number;
-  userId: number;
+/** Single item result in SyncPushBatchResponse.results */
+export interface PushItemResult {
+  localId: string;
+  serverId: number | null;
   entityType: string;
-  entityId: number | null;
-  actionType: string;
-  syncStatus: string; // QUEUED | PROCESSING | SYNCED | FAILED
-  retryCount: number;
-  errorMessage: string | null;
-  queuedAt: string;
-  syncedAt: string | null;
+  syncStatus: 'SYNCED' | 'CONFLICT' | 'FAILED';
+  serverData: any | null;   // server version when CONFLICT
+  error: string | null;     // error message when FAILED
+}
+
+/** Response from POST /api/v1/sync/push (batch) */
+export interface PushBatchResponse {
+  results: PushItemResult[];
+  serverTime: string;
+  totalSynced: number;
+  totalConflicts: number;
+  totalFailed: number;
 }
 
 /** Aggregated result after pushing all pending items */
@@ -33,6 +41,8 @@ export interface PushResult {
   failed: number;
   errors: string[];
 }
+
+// ── Pull types ──
 
 /** Result of pulling a single table from server */
 export interface PullTableResult {
@@ -45,6 +55,8 @@ export interface PullTableResult {
 export interface PullResult {
   tables: { [table: string]: number }; // table -> record count (-1 = failed)
 }
+
+// ── Sync engine types ──
 
 /** Full sync result (push + pull) */
 export interface SyncResult {
