@@ -68,10 +68,18 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
     @Override
     @Transactional
     public ContentSuggestionResponse submit(ContentSuggestionRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = contentSuggestionRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         User trainer = getUserById(trainerId);
         TrainingExercise relatedExercise = getExerciseIfPresent(request.getRelatedExerciseId());
 
         ContentSuggestion entity = ContentSuggestion.builder()
+                .localId(request.getLocalId())
                 .trainer(trainer)
                 .suggestionType(parseSuggestionType(request.getSuggestionType()))
                 .relatedExercise(relatedExercise)

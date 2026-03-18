@@ -45,6 +45,13 @@ public class HealthSessionServiceImpl implements HealthSessionService {
     @Override
     @Transactional
     public HealthSessionResponse create(HealthSessionRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = healthSessionRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         DogProfile dog = dogProfileRepository.findByDogIdAndIsDeletedFalse(request.getDogId())
                 .orElseThrow(() -> new RuntimeException("Dog not found: " + request.getDogId()));
 
@@ -52,6 +59,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
                 .orElseThrow(() -> new RuntimeException("Trainer not found: " + trainerId));
 
         HealthSession session = HealthSession.builder()
+                .localId(request.getLocalId())
                 .dogProfile(dog)
                 .trainer(trainer)
                 .issueSummary(request.getIssueSummary())

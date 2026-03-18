@@ -14,6 +14,9 @@ import java.time.LocalDateTime;
 @Setter
 public class ContentSuggestionRequest {
 
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
+
     @NotNull(message = "Loại đề xuất không được để trống")
     @ValidEnum(enumClass = SuggestionType.class, message = "Loại đề xuất không hợp lệ")
     private String suggestionType;

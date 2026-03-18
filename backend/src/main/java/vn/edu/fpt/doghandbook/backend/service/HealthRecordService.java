@@ -13,4 +13,6 @@ public interface HealthRecordService {
     HealthRecordResponse getById(Integer recordId);
 
     HealthRecordResponse create(HealthRecordRequest request, Integer examinerId);
+
+    HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId);
 }

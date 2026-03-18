@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 @Setter
 public class HealthRecordRequest {
 
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
+
     @NotNull
     private Integer dogId;
 

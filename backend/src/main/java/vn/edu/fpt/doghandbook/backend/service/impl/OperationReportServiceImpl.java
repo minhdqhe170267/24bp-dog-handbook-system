@@ -88,6 +88,13 @@ public class OperationReportServiceImpl implements OperationReportService {
     @Override
     @Transactional
     public OperationReportResponse create(OperationReportRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = operationReportRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         User trainer = userRepository.findById(trainerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer not found with id: " + trainerId));
 
@@ -97,6 +104,7 @@ public class OperationReportServiceImpl implements OperationReportService {
                 .orElseThrow(() -> new ResourceNotFoundException("Dog not found with id: " + request.getDogId()));
 
         OperationReport report = OperationReport.builder()
+                .localId(request.getLocalId())
                 .trainer(trainer)
                 .dogProfile(dog)
                 .reportType(reportType)

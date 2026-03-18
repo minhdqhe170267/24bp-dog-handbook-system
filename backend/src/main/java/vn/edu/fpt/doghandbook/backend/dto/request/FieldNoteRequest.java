@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Setter
 public class FieldNoteRequest {
 
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
+
     @NotBlank(message = "Tiêu đề không được để trống")
     @Size(max = 200, message = "Tiêu đề tối đa 200 ký tự")
     private String title;

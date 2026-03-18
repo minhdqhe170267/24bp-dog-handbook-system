@@ -105,6 +105,13 @@ public class FieldNoteServiceImpl implements FieldNoteService {
     @Override
     @Transactional
     public FieldNoteResponse create(FieldNoteRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = fieldNoteRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         User trainer = userRepository.findById(trainerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer not found with id: " + trainerId));
 
@@ -113,6 +120,7 @@ public class FieldNoteServiceImpl implements FieldNoteService {
                 : null;
 
         FieldNote note = FieldNote.builder()
+                .localId(request.getLocalId())
                 .trainer(trainer)
                 .dogProfile(dog)
                 .title(request.getTitle())

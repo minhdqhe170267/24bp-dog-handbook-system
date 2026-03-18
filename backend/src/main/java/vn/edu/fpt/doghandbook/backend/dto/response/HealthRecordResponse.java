@@ -44,4 +44,6 @@ public class HealthRecordResponse {
     private String notes;
 
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }
