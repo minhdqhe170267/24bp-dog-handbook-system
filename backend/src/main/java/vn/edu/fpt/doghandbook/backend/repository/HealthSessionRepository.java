@@ -14,4 +14,6 @@ public interface HealthSessionRepository extends JpaRepository<HealthSession, In
     Page<HealthSession> findByDogProfile_DogIdOrderByStartedAtDesc(Integer dogId, Pageable pageable);
 
     Optional<HealthSession> findBySessionId(Integer sessionId);
+
+    Optional<HealthSession> findByLocalId(String localId);
 }

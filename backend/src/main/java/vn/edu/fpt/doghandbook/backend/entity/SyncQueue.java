@@ -43,6 +43,9 @@ public class SyncQueue {
     @Column(name = "entity_type", nullable = false)
     private String entityType;
 
+    @Column(name = "local_id", length = 36)
+    private String localId;
+
     @Column(name = "entity_id")
     private Integer entityId;
 

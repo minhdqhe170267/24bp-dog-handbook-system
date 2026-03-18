@@ -36,6 +36,9 @@ public class ContentSuggestion {
     @Column(name = "suggestion_id")
     private Integer suggestionId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trainer_id", nullable = false)
     private User trainer;

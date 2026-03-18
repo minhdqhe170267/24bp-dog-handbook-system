@@ -7,6 +7,7 @@ import vn.edu.fpt.doghandbook.backend.entity.ContentSuggestion;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ContentSuggestionRepository extends JpaRepository<ContentSuggestion, Integer> {
 
@@ -17,4 +18,6 @@ public interface ContentSuggestionRepository extends JpaRepository<ContentSugges
     List<ContentSuggestion> findByTrainerUserIdOrderBySubmittedAtDesc(Integer trainerId);
 
     long countByStatus(SuggestionStatus status);
+
+    Optional<ContentSuggestion> findByLocalId(String localId);
 }

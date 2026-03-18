@@ -36,6 +36,9 @@ public class SessionFollowUp {
     @Column(name = "followup_id")
     private Integer followupId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id", nullable = false)
     private HealthSession healthSession;

@@ -42,6 +42,9 @@ public class HealthRecord {
     @Column(name = "record_id")
     private Integer recordId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dog_id", nullable = false)
     private DogProfile dogProfile;

@@ -36,6 +36,9 @@ public class WeightAssessment {
     @Column(name = "assessment_id")
     private Integer assessmentId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dog_id", nullable = false)
     private DogProfile dogProfile;

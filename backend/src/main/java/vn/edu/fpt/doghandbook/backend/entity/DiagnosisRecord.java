@@ -33,6 +33,9 @@ public class DiagnosisRecord {
     @Column(name = "diagnosis_id")
     private Integer diagnosisId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dog_id", nullable = false)
     private DogProfile dogProfile;
