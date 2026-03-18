@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface SyncService {
 
-    SyncResponse getUpdatedContent(LocalDateTime lastSyncAt);
+    SyncResponse getUpdatedContent(LocalDateTime lastSyncAt, Integer userId);
 
     SyncQueueResponse pushToQueue(SyncPushRequest request, Integer userId);
 
