@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import vn.edu.fpt.doghandbook.backend.dto.request.SyncPushRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushBatchResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushItemResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncQueueResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncStatusResponse;
@@ -38,6 +40,14 @@ public class SyncController {
     }
 
     @PostMapping("/push")
+    public ApiResponse<SyncPushBatchResponse> pushBatch(
+            @Valid @RequestBody List<SyncPushRequest> items,
+            Authentication authentication) {
+        Integer userId = AuthenticationUtils.extractUserId(authentication);
+        return ApiResponse.success(syncService.pushBatch(items, userId));
+    }
+
+    @PostMapping("/push/single")
     public ApiResponse<SyncQueueResponse> pushToQueue(
             @Valid @RequestBody SyncPushRequest request,
             Authentication authentication) {
@@ -46,7 +56,7 @@ public class SyncController {
     }
 
     @PostMapping("/process")
-    public ApiResponse<List<SyncQueueResponse>> processPending(Authentication authentication) {
+    public ApiResponse<List<SyncPushItemResponse>> processPending(Authentication authentication) {
         Integer userId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(syncService.processPending(userId));
     }

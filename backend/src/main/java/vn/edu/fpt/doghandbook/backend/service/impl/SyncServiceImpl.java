@@ -1,39 +1,93 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.fpt.doghandbook.backend.dto.request.SyncPushRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushBatchResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushItemResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncQueueResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncStatusResponse;
+import vn.edu.fpt.doghandbook.backend.entity.ContentSuggestion;
+import vn.edu.fpt.doghandbook.backend.entity.DiagnosisRecord;
+import vn.edu.fpt.doghandbook.backend.entity.Disease;
+import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
+import vn.edu.fpt.doghandbook.backend.entity.FieldNote;
+import vn.edu.fpt.doghandbook.backend.entity.HealthRecord;
+import vn.edu.fpt.doghandbook.backend.entity.HealthSession;
+import vn.edu.fpt.doghandbook.backend.entity.OperationReport;
+import vn.edu.fpt.doghandbook.backend.entity.SessionFollowUp;
 import vn.edu.fpt.doghandbook.backend.entity.SyncQueue;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.WeightAssessment;
+import vn.edu.fpt.doghandbook.backend.entity.enums.AppetiteLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.DogActivityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.FecesStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.FollowUpStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.WeightStatus;
+import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DiagnosisRecordRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DiseaseRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
+import vn.edu.fpt.doghandbook.backend.repository.FieldNoteRepository;
+import vn.edu.fpt.doghandbook.backend.repository.HealthRecordRepository;
+import vn.edu.fpt.doghandbook.backend.repository.HealthSessionRepository;
+import vn.edu.fpt.doghandbook.backend.repository.OperationReportRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SyncQueueRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.repository.WeightAssessmentRepository;
 import vn.edu.fpt.doghandbook.backend.service.SyncService;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SyncServiceImpl implements SyncService {
 
+    private static final int MAX_RETRY_COUNT = 3;
+
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final SyncQueueRepository syncQueueRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+
+    // Entity repositories for sync push processing
+    private final FieldNoteRepository fieldNoteRepository;
+    private final HealthRecordRepository healthRecordRepository;
+    private final ContentSuggestionRepository contentSuggestionRepository;
+    private final HealthSessionRepository healthSessionRepository;
+    private final SessionFollowUpRepository sessionFollowUpRepository;
+    private final WeightAssessmentRepository weightAssessmentRepository;
+    private final OperationReportRepository operationReportRepository;
+    private final DiagnosisRecordRepository diagnosisRecordRepository;
+    private final DogProfileRepository dogProfileRepository;
+    private final DiseaseRepository diseaseRepository;
 
     @Override
     public SyncResponse getUpdatedContent(LocalDateTime lastSyncAt, Integer userId) {
@@ -159,6 +213,7 @@ public class SyncServiceImpl implements SyncService {
 
         SyncQueue entity = SyncQueue.builder()
                 .user(user)
+                .localId(request.getLocalId())
                 .entityType(request.getEntityType())
                 .entityId(request.getEntityId())
                 .actionType(SyncActionType.valueOf(request.getActionType()))
@@ -174,18 +229,521 @@ public class SyncServiceImpl implements SyncService {
 
     @Override
     @Transactional
-    public List<SyncQueueResponse> processPending(Integer userId) {
+    public SyncPushBatchResponse pushBatch(List<SyncPushRequest> items, Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
+        List<SyncPushItemResponse> results = new ArrayList<>();
+        for (SyncPushRequest item : items) {
+            SyncQueue queueItem = SyncQueue.builder()
+                    .user(user)
+                    .localId(item.getLocalId())
+                    .entityType(item.getEntityType())
+                    .entityId(item.getEntityId())
+                    .actionType(SyncActionType.valueOf(item.getActionType()))
+                    .payloadData(item.getPayloadData())
+                    .syncStatus(SyncStatus.PENDING)
+                    .retryCount(0)
+                    .queuedAt(LocalDateTime.now())
+                    .build();
+            queueItem = syncQueueRepository.save(queueItem);
+
+            SyncPushItemResponse result = processItem(queueItem, user);
+            results.add(result);
+        }
+
+        return SyncPushBatchResponse.builder()
+                .results(results)
+                .syncTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public List<SyncPushItemResponse> processPending(Integer userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+
         List<SyncQueue> pendingItems = syncQueueRepository
                 .findByUserUserIdAndSyncStatusOrderByQueuedAtAsc(userId, SyncStatus.PENDING);
 
-        LocalDateTime now = LocalDateTime.now();
+        List<SyncPushItemResponse> results = new ArrayList<>();
         for (SyncQueue item : pendingItems) {
-            item.setSyncStatus(SyncStatus.COMPLETED);
-            item.setSyncedAt(now);
+            SyncPushItemResponse result = processItem(item, user);
+            results.add(result);
         }
 
-        List<SyncQueue> saved = syncQueueRepository.saveAll(pendingItems);
-        return saved.stream().map(this::toSyncQueueResponse).toList();
+        return results;
+    }
+
+    // ── Sync Push Processing ──
+
+    private SyncPushItemResponse processItem(SyncQueue item, User user) {
+        String entityType = item.getEntityType();
+        String localId = item.getLocalId();
+        SyncActionType action = item.getActionType();
+
+        try {
+            Map<String, Object> payload = parsePayload(item.getPayloadData());
+
+            // Idempotency: check if localId already processed
+            if (localId != null && action == SyncActionType.CREATE) {
+                Integer existingServerId = findExistingServerId(entityType, localId);
+                if (existingServerId != null) {
+                    log.info("[SYNC:PUSH] Idempotent skip {} {} localId={} → serverId={}",
+                            entityType, action, localId, existingServerId);
+                    item.setSyncStatus(SyncStatus.COMPLETED);
+                    item.setSyncedAt(LocalDateTime.now());
+                    syncQueueRepository.save(item);
+                    return SyncPushItemResponse.synced(localId, existingServerId, entityType);
+                }
+            }
+
+            Integer serverId = switch (entityType) {
+                case "field_note" -> processFieldNote(action, localId, payload, user);
+                case "health_record" -> processHealthRecord(action, localId, payload, user);
+                case "health_session" -> processHealthSession(action, localId, payload, user);
+                case "session_follow_up" -> processSessionFollowUp(action, localId, payload);
+                case "content_suggestion" -> processContentSuggestion(action, localId, payload, user);
+                case "weight_assessment" -> processWeightAssessment(action, localId, payload, user);
+                case "operation_report" -> processOperationReport(action, localId, payload, user);
+                case "diagnosis_record" -> processDiagnosisRecord(action, localId, payload, user);
+                default -> throw new IllegalArgumentException("Unknown entity type: " + entityType);
+            };
+
+            item.setEntityId(serverId);
+            item.setSyncStatus(SyncStatus.COMPLETED);
+            item.setSyncedAt(LocalDateTime.now());
+            syncQueueRepository.save(item);
+
+            log.info("[SYNC:PUSH] Processing {} {} localId={} → serverId={}",
+                    entityType, action, localId, serverId);
+
+            return SyncPushItemResponse.synced(localId, serverId, entityType);
+
+        } catch (Exception e) {
+            log.error("[SYNC:PUSH] Failed {} {} localId={}: {}",
+                    entityType, action, localId, e.getMessage());
+
+            item.setRetryCount(item.getRetryCount() + 1);
+            if (item.getRetryCount() >= MAX_RETRY_COUNT) {
+                item.setSyncStatus(SyncStatus.FAILED);
+            }
+            item.setErrorMessage(e.getMessage());
+            syncQueueRepository.save(item);
+
+            return SyncPushItemResponse.failed(localId, entityType, e.getMessage());
+        }
+    }
+
+    private Map<String, Object> parsePayload(String payloadData) {
+        if (payloadData == null || payloadData.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(payloadData, new TypeReference<>() {});
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid payload JSON: " + e.getMessage());
+        }
+    }
+
+    private Integer findExistingServerId(String entityType, String localId) {
+        return switch (entityType) {
+            case "field_note" -> fieldNoteRepository.findByLocalId(localId).map(FieldNote::getNoteId).orElse(null);
+            case "health_record" -> healthRecordRepository.findByLocalId(localId).map(HealthRecord::getRecordId).orElse(null);
+            case "health_session" -> healthSessionRepository.findByLocalId(localId).map(HealthSession::getSessionId).orElse(null);
+            case "session_follow_up" -> sessionFollowUpRepository.findByLocalId(localId).map(SessionFollowUp::getFollowupId).orElse(null);
+            case "content_suggestion" -> contentSuggestionRepository.findByLocalId(localId).map(ContentSuggestion::getSuggestionId).orElse(null);
+            case "weight_assessment" -> weightAssessmentRepository.findByLocalId(localId).map(WeightAssessment::getAssessmentId).orElse(null);
+            case "operation_report" -> operationReportRepository.findByLocalId(localId).map(OperationReport::getReportId).orElse(null);
+            case "diagnosis_record" -> diagnosisRecordRepository.findByLocalId(localId).map(DiagnosisRecord::getDiagnosisId).orElse(null);
+            default -> null;
+        };
+    }
+
+    // ── Entity Processors ──
+
+    private Integer processFieldNote(SyncActionType action, String localId,
+                                      Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDog(payload);
+                FieldNote note = FieldNote.builder()
+                        .localId(localId)
+                        .trainer(user)
+                        .dogProfile(dog)
+                        .title(getString(payload, "title"))
+                        .content(getString(payload, "content"))
+                        .photoUrls(getString(payload, "photoUrls"))
+                        .recordingDate(getDateTime(payload, "recordingDate", LocalDateTime.now()))
+                        .location(getString(payload, "location"))
+                        .linkedContentId(getInteger(payload, "linkedContentId"))
+                        .isDeleted(false)
+                        .build();
+                yield fieldNoteRepository.save(note).getNoteId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                FieldNote note = fieldNoteRepository.findByNoteIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("FieldNote not found: " + serverId));
+                if (payload.containsKey("title")) note.setTitle(getString(payload, "title"));
+                if (payload.containsKey("content")) note.setContent(getString(payload, "content"));
+                if (payload.containsKey("photoUrls")) note.setPhotoUrls(getString(payload, "photoUrls"));
+                if (payload.containsKey("location")) note.setLocation(getString(payload, "location"));
+                if (payload.containsKey("dogId")) note.setDogProfile(resolveDog(payload));
+                yield fieldNoteRepository.save(note).getNoteId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                FieldNote note = fieldNoteRepository.findByNoteIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("FieldNote not found: " + serverId));
+                note.setIsDeleted(true);
+                note.setDeletedAt(LocalDateTime.now());
+                fieldNoteRepository.save(note);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processHealthRecord(SyncActionType action, String localId,
+                                         Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDogRequired(payload);
+                HealthRecord record = HealthRecord.builder()
+                        .localId(localId)
+                        .dogProfile(dog)
+                        .examiner(user)
+                        .examinationDate(getDateTime(payload, "examinationDate", LocalDateTime.now()))
+                        .weightKg(getBigDecimal(payload, "weightKg"))
+                        .temperatureC(getBigDecimal(payload, "temperatureC"))
+                        .fecesStatus(getEnum(payload, "fecesStatus", FecesStatus.class, FecesStatus.NOT_CHECKED))
+                        .appetiteLevel(getEnum(payload, "appetiteLevel", AppetiteLevel.class, null))
+                        .activityLevel(getEnum(payload, "activityLevel", DogActivityLevel.class, null))
+                        .observedSymptoms(getString(payload, "observedSymptoms"))
+                        .diagnosis(getString(payload, "diagnosis"))
+                        .treatmentGiven(getString(payload, "treatmentGiven"))
+                        .nextCheckupDate(getLocalDate(payload, "nextCheckupDate"))
+                        .notes(getString(payload, "notes"))
+                        .isDeleted(false)
+                        .build();
+                record = healthRecordRepository.save(record);
+                // Update dog's current weight
+                if (record.getWeightKg() != null) {
+                    dog.setCurrentWeightKg(record.getWeightKg());
+                    dogProfileRepository.save(dog);
+                }
+                yield record.getRecordId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("HealthRecord not found: " + serverId));
+                if (payload.containsKey("weightKg")) record.setWeightKg(getBigDecimal(payload, "weightKg"));
+                if (payload.containsKey("temperatureC")) record.setTemperatureC(getBigDecimal(payload, "temperatureC"));
+                if (payload.containsKey("observedSymptoms")) record.setObservedSymptoms(getString(payload, "observedSymptoms"));
+                if (payload.containsKey("diagnosis")) record.setDiagnosis(getString(payload, "diagnosis"));
+                if (payload.containsKey("treatmentGiven")) record.setTreatmentGiven(getString(payload, "treatmentGiven"));
+                if (payload.containsKey("notes")) record.setNotes(getString(payload, "notes"));
+                yield healthRecordRepository.save(record).getRecordId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("HealthRecord not found: " + serverId));
+                record.setIsDeleted(true);
+                record.setDeletedAt(LocalDateTime.now());
+                healthRecordRepository.save(record);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processHealthSession(SyncActionType action, String localId,
+                                          Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDogRequired(payload);
+                HealthSession session = HealthSession.builder()
+                        .localId(localId)
+                        .dogProfile(dog)
+                        .trainer(user)
+                        .issueSummary(getString(payload, "issueSummary"))
+                        .severity(getEnum(payload, "severity", SessionSeverity.class, SessionSeverity.MEDIUM))
+                        .followUpDate(getLocalDate(payload, "followUpDate"))
+                        .build();
+                // Link initial diagnosis if provided
+                Integer diagId = getInteger(payload, "initialDiagnosisId");
+                if (diagId != null) {
+                    session.setInitialDiagnosis(diagnosisRecordRepository.findById(diagId).orElse(null));
+                }
+                yield healthSessionRepository.save(session).getSessionId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                HealthSession session = healthSessionRepository.findBySessionId(serverId)
+                        .orElseThrow(() -> new RuntimeException("HealthSession not found: " + serverId));
+                if (payload.containsKey("issueSummary")) session.setIssueSummary(getString(payload, "issueSummary"));
+                if (payload.containsKey("severity")) session.setSeverity(getEnum(payload, "severity", SessionSeverity.class, session.getSeverity()));
+                if (payload.containsKey("resolutionNotes")) session.setResolutionNotes(getString(payload, "resolutionNotes"));
+                yield healthSessionRepository.save(session).getSessionId();
+            }
+            case DELETE -> {
+                // HealthSession has no soft-delete, skip
+                Integer serverId = requireServerId(payload);
+                log.warn("[SYNC:PUSH] DELETE not supported for health_session, serverId={}", serverId);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processSessionFollowUp(SyncActionType action, String localId,
+                                             Map<String, Object> payload) {
+        return switch (action) {
+            case CREATE -> {
+                Integer sessionId = getInteger(payload, "sessionId");
+                HealthSession session = healthSessionRepository.findBySessionId(sessionId)
+                        .orElseThrow(() -> new RuntimeException("HealthSession not found: " + sessionId));
+                SessionFollowUp followUp = SessionFollowUp.builder()
+                        .localId(localId)
+                        .healthSession(session)
+                        .statusUpdate(getEnum(payload, "statusUpdate", FollowUpStatus.class, FollowUpStatus.SAME))
+                        .notes(getString(payload, "notes"))
+                        .weightKg(getBigDecimal(payload, "weightKg"))
+                        .temperatureC(getBigDecimal(payload, "temperatureC"))
+                        .nextAction(getString(payload, "nextAction"))
+                        .build();
+                yield sessionFollowUpRepository.save(followUp).getFollowupId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                SessionFollowUp followUp = sessionFollowUpRepository.findById(serverId)
+                        .orElseThrow(() -> new RuntimeException("SessionFollowUp not found: " + serverId));
+                if (payload.containsKey("notes")) followUp.setNotes(getString(payload, "notes"));
+                if (payload.containsKey("nextAction")) followUp.setNextAction(getString(payload, "nextAction"));
+                yield sessionFollowUpRepository.save(followUp).getFollowupId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                log.warn("[SYNC:PUSH] DELETE not supported for session_follow_up, serverId={}", serverId);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processContentSuggestion(SyncActionType action, String localId,
+                                              Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                ContentSuggestion suggestion = ContentSuggestion.builder()
+                        .localId(localId)
+                        .trainer(user)
+                        .suggestionType(getEnum(payload, "suggestionType", SuggestionType.class, null))
+                        .title(getString(payload, "title"))
+                        .description(getString(payload, "description"))
+                        .status(SuggestionStatus.SUBMITTED)
+                        .submittedAt(LocalDateTime.now())
+                        .build();
+                yield contentSuggestionRepository.save(suggestion).getSuggestionId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                ContentSuggestion suggestion = contentSuggestionRepository.findById(serverId)
+                        .orElseThrow(() -> new RuntimeException("ContentSuggestion not found: " + serverId));
+                if (payload.containsKey("title")) suggestion.setTitle(getString(payload, "title"));
+                if (payload.containsKey("description")) suggestion.setDescription(getString(payload, "description"));
+                yield contentSuggestionRepository.save(suggestion).getSuggestionId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                log.warn("[SYNC:PUSH] DELETE not supported for content_suggestion, serverId={}", serverId);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processWeightAssessment(SyncActionType action, String localId,
+                                             Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDogRequired(payload);
+                WeightAssessment assessment = WeightAssessment.builder()
+                        .localId(localId)
+                        .dogProfile(dog)
+                        .assessor(user)
+                        .recordedWeightKg(getBigDecimal(payload, "recordedWeightKg"))
+                        .standardMinKg(getBigDecimal(payload, "standardMinKg"))
+                        .standardMaxKg(getBigDecimal(payload, "standardMaxKg"))
+                        .status(getEnum(payload, "status", WeightStatus.class, WeightStatus.NORMAL))
+                        .deviationPercent(getBigDecimal(payload, "deviationPercent"))
+                        .recommendation(getString(payload, "recommendation"))
+                        .followUpWeeks(getInteger(payload, "followUpWeeks"))
+                        .build();
+                yield weightAssessmentRepository.save(assessment).getAssessmentId();
+            }
+            case UPDATE, DELETE -> {
+                Integer serverId = requireServerId(payload);
+                log.warn("[SYNC:PUSH] {} not supported for weight_assessment, serverId={}", action, serverId);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processOperationReport(SyncActionType action, String localId,
+                                            Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDogRequired(payload);
+                OperationReport report = OperationReport.builder()
+                        .localId(localId)
+                        .trainer(user)
+                        .dogProfile(dog)
+                        .reportType(getEnum(payload, "reportType", ReportType.class, ReportType.TRAINING))
+                        .reportTitle(getString(payload, "reportTitle"))
+                        .reportDate(getLocalDate(payload, "reportDate") != null
+                                ? getLocalDate(payload, "reportDate") : LocalDate.now())
+                        .reportContent(getString(payload, "reportContent"))
+                        .metadata(getString(payload, "metadata"))
+                        .isDeleted(false)
+                        .build();
+                yield operationReportRepository.save(report).getReportId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                OperationReport report = operationReportRepository.findByReportIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("OperationReport not found: " + serverId));
+                if (payload.containsKey("reportTitle")) report.setReportTitle(getString(payload, "reportTitle"));
+                if (payload.containsKey("reportContent")) report.setReportContent(getString(payload, "reportContent"));
+                if (payload.containsKey("metadata")) report.setMetadata(getString(payload, "metadata"));
+                if (payload.containsKey("reportType")) report.setReportType(getEnum(payload, "reportType", ReportType.class, report.getReportType()));
+                yield operationReportRepository.save(report).getReportId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                OperationReport report = operationReportRepository.findByReportIdAndIsDeletedFalse(serverId)
+                        .orElseThrow(() -> new RuntimeException("OperationReport not found: " + serverId));
+                report.setIsDeleted(true);
+                report.setDeletedAt(LocalDateTime.now());
+                operationReportRepository.save(report);
+                yield serverId;
+            }
+        };
+    }
+
+    private Integer processDiagnosisRecord(SyncActionType action, String localId,
+                                            Map<String, Object> payload, User user) {
+        return switch (action) {
+            case CREATE -> {
+                DogProfile dog = resolveDogRequired(payload);
+                DiagnosisRecord record = DiagnosisRecord.builder()
+                        .localId(localId)
+                        .dogProfile(dog)
+                        .trainer(user)
+                        .selectedSymptoms(getString(payload, "selectedSymptoms"))
+                        .matchScore(getBigDecimal(payload, "matchScore"))
+                        .allResults(getString(payload, "allResults"))
+                        .actionTaken(getString(payload, "actionTaken"))
+                        .build();
+                // Link matched disease if provided
+                Integer diseaseId = getInteger(payload, "matchedDiseaseId");
+                if (diseaseId != null) {
+                    record.setMatchedDisease(diseaseRepository.findById(diseaseId).orElse(null));
+                }
+                yield diagnosisRecordRepository.save(record).getDiagnosisId();
+            }
+            case UPDATE -> {
+                Integer serverId = requireServerId(payload);
+                DiagnosisRecord record = diagnosisRecordRepository.findById(serverId)
+                        .orElseThrow(() -> new RuntimeException("DiagnosisRecord not found: " + serverId));
+                if (payload.containsKey("actionTaken")) record.setActionTaken(getString(payload, "actionTaken"));
+                yield diagnosisRecordRepository.save(record).getDiagnosisId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                log.warn("[SYNC:PUSH] DELETE not supported for diagnosis_record, serverId={}", serverId);
+                yield serverId;
+            }
+        };
+    }
+
+    // ── Payload Helpers ──
+
+    private DogProfile resolveDog(Map<String, Object> payload) {
+        Integer dogId = getInteger(payload, "dogId");
+        if (dogId == null) return null;
+        return dogProfileRepository.findByDogIdAndIsDeletedFalse(dogId).orElse(null);
+    }
+
+    private DogProfile resolveDogRequired(Map<String, Object> payload) {
+        Integer dogId = getInteger(payload, "dogId");
+        if (dogId == null) throw new RuntimeException("dogId is required in payload");
+        return dogProfileRepository.findByDogIdAndIsDeletedFalse(dogId)
+                .orElseThrow(() -> new RuntimeException("Dog not found: " + dogId));
+    }
+
+    private Integer requireServerId(Map<String, Object> payload) {
+        Integer serverId = getInteger(payload, "serverId");
+        if (serverId == null) throw new RuntimeException("serverId is required for UPDATE/DELETE");
+        return serverId;
+    }
+
+    private String getString(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Integer getInteger(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return number.intValue();
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private BigDecimal getBigDecimal(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return BigDecimal.valueOf(number.doubleValue());
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private LocalDateTime getDateTime(Map<String, Object> payload, String key, LocalDateTime defaultValue) {
+        Object value = payload.get(key);
+        if (value == null) return defaultValue;
+        try {
+            return LocalDateTime.parse(String.valueOf(value));
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private LocalDate getLocalDate(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(String.valueOf(value));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <E extends Enum<E>> E getEnum(Map<String, Object> payload, String key,
+                                           Class<E> enumClass, E defaultValue) {
+        Object value = payload.get(key);
+        if (value == null) return defaultValue;
+        try {
+            return Enum.valueOf(enumClass, String.valueOf(value).toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return defaultValue;
+        }
     }
 
     @Override
