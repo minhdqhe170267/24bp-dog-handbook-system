@@ -11,6 +11,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.FollowUpStatus;
 import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -36,4 +37,6 @@ public class SessionFollowUpRequest {
 
     @Size(max = 500, message = "Hành động tiếp theo tối đa 500 ký tự")
     private String nextAction;
+
+    private LocalDateTime localUpdatedAt;
 }

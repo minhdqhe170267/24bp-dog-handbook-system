@@ -40,6 +40,16 @@ export const syncScheduler = {
     });
 
     console.log('[SYNC:SCHEDULER] Started (every 30m + on network restore)');
+
+    // Run sync immediately on start
+    setTimeout(async () => {
+      console.log('[SYNC:SCHEDULER] Initial sync on start');
+      try {
+        await syncEngine.startSync();
+      } catch (err) {
+        console.error('[SYNC:SCHEDULER] Initial sync failed:', err);
+      }
+    }, 3000); // 3s delay to let auth settle
   },
 
   /**

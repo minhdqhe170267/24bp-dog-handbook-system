@@ -11,6 +11,9 @@ import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 @Setter
 public class SyncPushRequest {
 
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
+
     @NotBlank(message = "Loại entity không được để trống")
     @Size(max = 50, message = "Loại entity tối đa 50 ký tự")
     private String entityType;

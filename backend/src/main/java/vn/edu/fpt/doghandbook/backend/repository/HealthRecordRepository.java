@@ -19,4 +19,6 @@ public interface HealthRecordRepository extends JpaRepository<HealthRecord, Inte
     Page<HealthRecord> findByIsDeletedFalseOrderByExaminationDateDesc(Pageable pageable);
 
     Optional<HealthRecord> findByRecordIdAndIsDeletedFalse(Integer recordId);
+
+    Optional<HealthRecord> findByLocalId(String localId);
 }

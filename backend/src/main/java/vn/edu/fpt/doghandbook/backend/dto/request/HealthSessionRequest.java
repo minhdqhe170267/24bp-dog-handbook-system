@@ -9,10 +9,14 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
 public class HealthSessionRequest {
+
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
 
     @NotNull
     private Integer dogId;
@@ -27,4 +31,6 @@ public class HealthSessionRequest {
     private String severity = "MEDIUM";
 
     private LocalDate followUpDate;
+
+    private LocalDateTime localUpdatedAt;
 }

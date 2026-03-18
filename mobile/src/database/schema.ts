@@ -322,6 +322,9 @@ CREATE TABLE IF NOT EXISTS dog_assignment (
   end_date        TEXT,
   is_active       INTEGER NOT NULL DEFAULT 1,
   notes           TEXT,
+  trainer_name    TEXT,
+  dog_name        TEXT,
+  dog_code        TEXT,
   created_at      TEXT    NOT NULL,
   updated_at      TEXT    NOT NULL,
   _sync_version   INTEGER NOT NULL DEFAULT 0

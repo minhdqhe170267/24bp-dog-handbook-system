@@ -35,6 +35,9 @@ public class FieldNote {
     @Column(name = "note_id")
     private Integer noteId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trainer_id", nullable = false)
     private User trainer;

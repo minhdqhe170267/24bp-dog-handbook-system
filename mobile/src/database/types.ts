@@ -312,6 +312,9 @@ export interface DogAssignmentRow {
   end_date: string | null;
   is_active: number;
   notes: string | null;
+  trainer_name: string | null;
+  dog_name: string | null;
+  dog_code: string | null;
   created_at: string;
   updated_at: string;
   _sync_version: number;

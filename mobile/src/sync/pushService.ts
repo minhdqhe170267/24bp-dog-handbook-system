@@ -1,7 +1,7 @@
 // ──────────────────────────────────────────────────────────────
 // PUSH: Upload local changes to server
-// Reads sync_queue WHERE status = 'PENDING', pushes each item
-// via POST /sync/push (backend queues & processes them)
+// Reads sync_queue WHERE status = 'PENDING', pushes in batch
+// via POST /sync/push (backend processes each item independently)
 // ──────────────────────────────────────────────────────────────
 
 import apiClient from '../services/api';
@@ -16,12 +16,13 @@ import { weightAssessmentDBService } from '../database/services/weightAssessment
 import { operationReportDBService } from '../database/services/operationReportDBService';
 import { diagnosisRecordDBService } from '../database/services/diagnosisRecordDBService';
 import type { SyncQueueRow, EntityType } from '../database/types';
-import type { PushResult, PushItemRequest, PushItemResponse } from './types';
+import type { PushResult, PushBatchRequest, PushBatchResponse, PushItemResult } from './types';
 
 const MAX_RETRIES = 3;
+const MAX_BATCH_SIZE = 100;
 
 /**
- * Map entity_type → DB service with markSynced/markFailed
+ * Map entity_type → DB service with markSynced
  */
 const ENTITY_DB_SERVICE: Record<EntityType, {
   markSynced: (localId: string, serverId: number) => Promise<void>;
@@ -37,70 +38,158 @@ const ENTITY_DB_SERVICE: Record<EntityType, {
 };
 
 /**
- * Push a single sync_queue item to the server.
- * Uses POST /sync/push which queues the item on the backend.
+ * Ensure payloadData JSON includes localUpdatedAt for conflict detection.
+ * Backend checkConflict() reads getDateTime(payload, "localUpdatedAt", null).
+ * Mobile stores updated_at (snake_case) — inject camelCase alias.
  */
-const pushSingleItem = async (item: SyncQueueRow): Promise<'SYNCED' | 'CONFLICT' | 'FAILED'> => {
-  const request: PushItemRequest = {
-    entityType: item.entity_type,
-    entityId: item.entity_id,
-    actionType: item.action,
-    payloadData: item.payload,
-  };
+const ensureLocalUpdatedAt = (payloadJson: string, action: string): string => {
+  if (action === 'CREATE') return payloadJson;
 
   try {
-    // apiClient response interceptor already unwraps to ApiResponse
-    const apiResponse = await apiClient.post('/sync/push', request) as any;
-    const result: PushItemResponse = apiResponse.data;
+    const parsed = JSON.parse(payloadJson);
+    if (!parsed.localUpdatedAt && parsed.updated_at) {
+      parsed.localUpdatedAt = parsed.updated_at;
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return payloadJson;
+  }
+};
 
-    if (result.syncStatus === 'QUEUED' || result.syncStatus === 'SYNCED' || result.syncStatus === 'PROCESSING') {
-      // Mark queue item as synced
+/**
+ * Build batch request items from sync_queue rows.
+ * Maps mobile fields to backend SyncPushRequest contract:
+ *   - entityType: snake_case (field_note, health_record, ...)
+ *   - localId: UUID string
+ *   - actionType: "CREATE" | "UPDATE" | "DELETE" (uppercase)
+ *   - payloadData: JSON string (not object)
+ *   - payloadData includes localUpdatedAt for conflict detection
+ */
+const toBatchRequest = (items: SyncQueueRow[]): PushBatchRequest[] =>
+  items.map(item => {
+    const request: PushBatchRequest = {
+      localId: item.entity_id,                                // UUID string
+      entityType: item.entity_type,                            // snake_case
+      entityId: null,                                          // server resolves via localId
+      actionType: item.action,                                 // CREATE | UPDATE | DELETE
+      payloadData: ensureLocalUpdatedAt(item.payload, item.action), // JSON string with localUpdatedAt
+    };
+
+    if (__DEV__) {
+      console.log(`[SYNC:PUSH] Request item: entityType=${request.entityType} ` +
+        `localId=${request.localId} action=${request.actionType} ` +
+        `payloadType=${typeof request.payloadData} payloadLength=${request.payloadData.length}`);
+    }
+
+    return request;
+  });
+
+/**
+ * Process batch response — update sync_queue and entity tables.
+ */
+const processBatchResponse = async (
+  items: SyncQueueRow[],
+  results: PushItemResult[],
+  pushResult: PushResult,
+): Promise<void> => {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const item = items[i];
+    if (!item) continue;
+
+    if (result.syncStatus === 'SYNCED') {
       await syncQueueDBService.markSynced(item.id);
 
-      // Update entity table with server_id if returned
-      if (result.entityId) {
+      if (result.serverId) {
         const dbService = ENTITY_DB_SERVICE[item.entity_type];
         if (dbService) {
-          await dbService.markSynced(item.entity_id, result.entityId);
+          await dbService.markSynced(item.entity_id, result.serverId);
         }
       }
 
-      return 'SYNCED';
-    }
-
-    if (result.syncStatus === 'FAILED') {
-      await syncQueueDBService.markFailed(item.id, result.errorMessage || 'Server returned FAILED');
-      return 'FAILED';
-    }
-
-    // Unknown status — treat as synced
-    await syncQueueDBService.markSynced(item.id);
-    return 'SYNCED';
-  } catch (err: any) {
-    const status = err?.status;
-    const message = err?.message || 'Network error';
-
-    // 409 Conflict — server has a different version
-    if (status === 409) {
-      const serverData = err?.data?.data;
+      pushResult.synced++;
+    } else if (result.syncStatus === 'CONFLICT') {
       await syncConflictDBService.create(
         item.entity_type,
         item.entity_id,
         item.payload,
-        JSON.stringify(serverData || {}),
+        JSON.stringify(result.serverData || {}),
       );
       await syncQueueDBService.markFailed(item.id, 'CONFLICT: server has newer version');
-      return 'CONFLICT';
+      pushResult.conflicts++;
+    } else {
+      await syncQueueDBService.markFailed(item.id, result.error || 'Server returned FAILED');
+      pushResult.failed++;
+      pushResult.errors.push(`${item.entity_type}/${item.entity_id}: ${result.error || 'FAILED'}`);
     }
+  }
+};
 
-    // Other errors — increment retry
-    await syncQueueDBService.markFailed(item.id, message);
-    return 'FAILED';
+/**
+ * Push a batch of items to POST /sync/push.
+ * Falls back to POST /sync/push/single per item on batch failure.
+ */
+const pushBatch = async (items: SyncQueueRow[], pushResult: PushResult): Promise<void> => {
+  try {
+    const batchRequest = toBatchRequest(items);
+    const apiResponse = await apiClient.post('/sync/push', batchRequest) as any;
+
+    // apiClient interceptor unwraps to ApiResponse envelope
+    const batchResponse: PushBatchResponse = apiResponse.data;
+    const results: PushItemResult[] = batchResponse?.results || [];
+
+    await processBatchResponse(items, results, pushResult);
+  } catch (batchErr: any) {
+    console.warn('[SYNC:PUSH] Batch failed, falling back to individual push —', batchErr?.message);
+
+    // Fallback: push each item individually via /sync/push/single
+    for (const item of items) {
+      try {
+        const singleRequest = toBatchRequest([item])[0];
+        const apiResponse = await apiClient.post('/sync/push/single', singleRequest) as any;
+        const result = apiResponse.data;
+
+        if (result?.syncStatus === 'COMPLETED' || result?.syncStatus === 'PENDING') {
+          await syncQueueDBService.markSynced(item.id);
+
+          if (result.entityId) {
+            const dbService = ENTITY_DB_SERVICE[item.entity_type];
+            if (dbService) {
+              await dbService.markSynced(item.entity_id, result.entityId);
+            }
+          }
+
+          pushResult.synced++;
+        } else {
+          await syncQueueDBService.markFailed(item.id, result?.errorMessage || 'FAILED');
+          pushResult.failed++;
+        }
+      } catch (singleErr: any) {
+        const status = singleErr?.status;
+
+        if (status === 409) {
+          const serverData = singleErr?.data?.data;
+          await syncConflictDBService.create(
+            item.entity_type,
+            item.entity_id,
+            item.payload,
+            JSON.stringify(serverData || {}),
+          );
+          await syncQueueDBService.markFailed(item.id, 'CONFLICT: server has newer version');
+          pushResult.conflicts++;
+        } else {
+          await syncQueueDBService.markFailed(item.id, singleErr?.message || 'Network error');
+          pushResult.failed++;
+          pushResult.errors.push(`${item.entity_type}/${item.entity_id}: ${singleErr?.message || 'unknown error'}`);
+        }
+      }
+    }
   }
 };
 
 /**
  * Push all PENDING items from sync_queue to server.
+ * Sends in batches of MAX_BATCH_SIZE (100).
  * Items that have exceeded MAX_RETRIES are skipped.
  */
 export const pushLocalChanges = async (): Promise<PushResult> => {
@@ -113,28 +202,28 @@ export const pushLocalChanges = async (): Promise<PushResult> => {
     return result;
   }
 
-  console.log(`[SYNC:PUSH] Pushing ${pendingItems.length} items...`);
-
+  // Filter out items exceeding max retries
+  const pushable: SyncQueueRow[] = [];
   for (const item of pendingItems) {
-    // Skip items that have exceeded max retries
     if (item.retry_count >= MAX_RETRIES) {
       console.warn(`[SYNC:PUSH] Skipping ${item.entity_type}/${item.entity_id} — max retries exceeded`);
       result.failed++;
       result.errors.push(`${item.entity_type}/${item.entity_id}: max retries exceeded`);
-      continue;
+    } else {
+      pushable.push(item);
     }
+  }
 
-    try {
-      const status = await pushSingleItem(item);
+  if (pushable.length === 0) {
+    return result;
+  }
 
-      if (status === 'SYNCED') result.synced++;
-      else if (status === 'CONFLICT') result.conflicts++;
-      else result.failed++;
-    } catch (err: any) {
-      console.error(`[SYNC:PUSH] Unexpected error for ${item.entity_type}/${item.entity_id}:`, err);
-      result.failed++;
-      result.errors.push(`${item.entity_type}/${item.entity_id}: ${err?.message || 'unknown error'}`);
-    }
+  console.log(`[SYNC:PUSH] Pushing ${pushable.length} items...`);
+
+  // Split into batches of MAX_BATCH_SIZE
+  for (let start = 0; start < pushable.length; start += MAX_BATCH_SIZE) {
+    const batch = pushable.slice(start, start + MAX_BATCH_SIZE);
+    await pushBatch(batch, result);
   }
 
   console.log(`[SYNC:PUSH] Done — synced: ${result.synced}, conflicts: ${result.conflicts}, failed: ${result.failed}`);

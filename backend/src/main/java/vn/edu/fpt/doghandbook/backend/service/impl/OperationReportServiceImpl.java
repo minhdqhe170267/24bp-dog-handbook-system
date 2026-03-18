@@ -1,6 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.OperationReportRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -23,6 +25,7 @@ import vn.edu.fpt.doghandbook.backend.service.OperationReportService;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationReportServiceImpl implements OperationReportService {
@@ -85,6 +88,13 @@ public class OperationReportServiceImpl implements OperationReportService {
     @Override
     @Transactional
     public OperationReportResponse create(OperationReportRequest request, Integer trainerId) {
+        if (request.getLocalId() != null) {
+            var existing = operationReportRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         User trainer = userRepository.findById(trainerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer not found with id: " + trainerId));
 
@@ -94,6 +104,7 @@ public class OperationReportServiceImpl implements OperationReportService {
                 .orElseThrow(() -> new ResourceNotFoundException("Dog not found with id: " + request.getDogId()));
 
         OperationReport report = OperationReport.builder()
+                .localId(request.getLocalId())
                 .trainer(trainer)
                 .dogProfile(dog)
                 .reportType(reportType)
@@ -115,6 +126,15 @@ public class OperationReportServiceImpl implements OperationReportService {
 
         if (!report.getTrainer().getUserId().equals(trainerId)) {
             throw new BadRequestException("Không có quyền chỉnh sửa báo cáo này");
+        }
+
+        // Conflict detection
+        if (request.getLocalUpdatedAt() != null
+                && report.getUpdatedAt() != null
+                && report.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
+            log.warn("[SYNC:CONFLICT] operation_report id={} serverTime={} > localTime={}",
+                    reportId, report.getUpdatedAt(), request.getLocalUpdatedAt());
+            throw new SyncConflictException("Record modified on server", toResponse(report));
         }
 
         if (request.getReportType() != null) {
