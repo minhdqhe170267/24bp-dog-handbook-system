@@ -8,22 +8,17 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.edu.fpt.doghandbook.backend.dto.request.ApprovalRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.ContentRequest;
-import vn.edu.fpt.doghandbook.backend.dto.response.ApprovalRecordResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ContentResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
-import vn.edu.fpt.doghandbook.backend.entity.ApprovalRecord;
 import vn.edu.fpt.doghandbook.backend.entity.Content;
 import vn.edu.fpt.doghandbook.backend.entity.Media;
 import vn.edu.fpt.doghandbook.backend.entity.User;
-import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovalDecision;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
-import vn.edu.fpt.doghandbook.backend.repository.ApprovalRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.ContentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.MediaRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -41,7 +36,6 @@ public class ContentServiceImpl implements ContentService {
 
     private final ContentRepository contentRepository;
     private final MediaRepository mediaRepository;
-    private final ApprovalRecordRepository approvalRecordRepository;
     private final UserRepository userRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
@@ -56,29 +50,16 @@ public class ContentServiceImpl implements ContentService {
 
         if (normalizedSearch != null && contentType != null && contentStatus != null) {
             contentPage = contentRepository.findByTitleContainingIgnoreCaseAndContentTypeAndStatusAndIsDeletedFalse(
-                    normalizedSearch,
-                    contentType,
-                    contentStatus,
-                    pageable
-            );
+                    normalizedSearch, contentType, contentStatus, pageable);
         } else if (normalizedSearch != null && contentType != null) {
             contentPage = contentRepository.findByTitleContainingIgnoreCaseAndContentTypeAndIsDeletedFalse(
-                    normalizedSearch,
-                    contentType,
-                    pageable
-            );
+                    normalizedSearch, contentType, pageable);
         } else if (normalizedSearch != null && contentStatus != null) {
             contentPage = contentRepository.findByTitleContainingIgnoreCaseAndStatusAndIsDeletedFalse(
-                    normalizedSearch,
-                    contentStatus,
-                    pageable
-            );
+                    normalizedSearch, contentStatus, pageable);
         } else if (contentType != null && contentStatus != null) {
             contentPage = contentRepository.findByContentTypeAndStatusAndIsDeletedFalse(
-                    contentType,
-                    contentStatus,
-                    pageable
-            );
+                    contentType, contentStatus, pageable);
         } else if (normalizedSearch != null) {
             contentPage = contentRepository.findByTitleContainingIgnoreCaseAndIsDeletedFalse(normalizedSearch, pageable);
         } else if (contentType != null) {
@@ -114,7 +95,7 @@ public class ContentServiceImpl implements ContentService {
                 .summary(trimToNull(request.getSummary()))
                 .status(initialStatus)
                 .author(author)
-                .publishedAt(initialStatus == ContentStatus.PUBLISHED ? LocalDateTime.now() : null)
+                .publishedAt(null)
                 .version(1)
                 .tags(trimToNull(request.getTags()))
                 .isDeleted(false)
@@ -149,10 +130,8 @@ public class ContentServiceImpl implements ContentService {
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             ContentStatus requestedStatus = resolveRequestedWriteStatus(request.getStatus(), content.getStatus());
             content.setStatus(requestedStatus);
-            content.setPublishedAt(requestedStatus == ContentStatus.PUBLISHED ? LocalDateTime.now() : null);
         } else if (content.getStatus() == ContentStatus.REJECTED) {
             content.setStatus(ContentStatus.DRAFT);
-            content.setPublishedAt(null);
         }
 
         return toContentResponse(contentRepository.save(content));
@@ -182,102 +161,7 @@ public class ContentServiceImpl implements ContentService {
         contentRepository.save(content);
     }
 
-    @Override
-    @Transactional
-    public ContentResponse submitForReview(Integer contentId) {
-        Content content = getActiveContentById(contentId);
-        if (content.getStatus() != ContentStatus.DRAFT && content.getStatus() != ContentStatus.REJECTED) {
-            throw new BadRequestException("Only DRAFT or REJECTED content can be submitted for review");
-        }
-
-        content.setStatus(ContentStatus.PENDING);
-        content.setPublishedAt(null);
-        return toContentResponse(contentRepository.save(content));
-    }
-
-    @Override
-    @Transactional
-    public ContentResponse publish(Integer contentId) {
-        Content content = getActiveContentById(contentId);
-        if (content.getStatus() != ContentStatus.APPROVED) {
-            throw new BadRequestException("Only APPROVED content can be published");
-        }
-
-        content.setStatus(ContentStatus.PUBLISHED);
-        content.setPublishedAt(LocalDateTime.now());
-        return toContentResponse(contentRepository.save(content));
-    }
-
-    @Override
-    @Transactional
-    public ContentResponse unpublish(Integer contentId) {
-        Content content = getActiveContentById(contentId);
-        if (content.getStatus() != ContentStatus.PUBLISHED) {
-            throw new BadRequestException("Only PUBLISHED content can be unpublished");
-        }
-
-        content.setStatus(ContentStatus.DRAFT);
-        content.setPublishedAt(null);
-        return toContentResponse(contentRepository.save(content));
-    }
-
-    @Override
-    @Transactional
-    public ApprovalRecordResponse reviewContent(Integer contentId, ApprovalRequest request, Integer reviewerId) {
-        Content content = getActiveContentById(contentId);
-        if (content.getStatus() != ContentStatus.PENDING) {
-            throw new BadRequestException("Only PENDING content can be reviewed");
-        }
-
-        ApprovalDecision decision = parseApprovalDecision(request.resolveDecision());
-        if (decision == ApprovalDecision.PENDING) {
-            throw new BadRequestException("Invalid review decision: PENDING");
-        }
-
-        String comments = trimToNull(request.resolveComments());
-        if ((decision == ApprovalDecision.REJECTED || decision == ApprovalDecision.REVISION_REQUESTED) && comments == null) {
-            throw new BadRequestException("Comments are required for REJECTED or REVISION_REQUESTED");
-        }
-
-        User reviewer = getUserById(reviewerId);
-        ApprovalRecord approvalRecord = ApprovalRecord.builder()
-                .content(content)
-                .reviewer(reviewer)
-                .decision(decision)
-                .comments(comments)
-                .reviewedAt(LocalDateTime.now())
-                .build();
-
-        approvalRecord = approvalRecordRepository.save(approvalRecord);
-
-        if (decision == ApprovalDecision.APPROVED) {
-            content.setStatus(ContentStatus.APPROVED);
-            content.setPublishedAt(null);
-        } else {
-            content.setStatus(ContentStatus.REJECTED);
-            content.setPublishedAt(null);
-        }
-        contentRepository.save(content);
-
-        return toApprovalRecordResponse(approvalRecord);
-    }
-
-    @Override
-    public List<ApprovalRecordResponse> getApprovalHistory(Integer contentId) {
-        getActiveContentById(contentId);
-        return approvalRecordRepository.findByContentContentIdOrderByReviewedAtDesc(contentId)
-                .stream()
-                .map(this::toApprovalRecordResponse)
-                .toList();
-    }
-
-    @Override
-    public PageResponse<ContentResponse> getPendingReviews(int page, int size) {
-        Pageable pageable = buildPageable(page, size);
-        Page<Content> pendingPage = contentRepository
-                .findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable);
-        return toContentPageResponse(pendingPage);
-    }
+    // ── Private helpers ──────────────────────────────────────────
 
     private PageResponse<ContentResponse> toContentPageResponse(Page<Content> contentPage) {
         List<ContentResponse> responses = contentPage.getContent()
@@ -332,22 +216,6 @@ public class ContentServiceImpl implements ContentService {
                 .build();
     }
 
-    private ApprovalRecordResponse toApprovalRecordResponse(ApprovalRecord entity) {
-        Content content = entity.getContent();
-        User reviewer = entity.getReviewer();
-
-        return ApprovalRecordResponse.builder()
-                .approvalId(entity.getApprovalId())
-                .contentId(resolveContentId(content))
-                .contentTitle(resolveContentTitle(content))
-                .reviewerId(resolveUserId(reviewer))
-                .reviewerName(resolveUserFullName(reviewer))
-                .decision(entity.getDecision() != null ? entity.getDecision().name() : null)
-                .comments(entity.getComments())
-                .reviewedAt(entity.getReviewedAt())
-                .build();
-    }
-
     private Content getActiveContentById(Integer id) {
         if (id == null || id <= 0) {
             throw new BadRequestException("id must be greater than 0");
@@ -366,7 +234,6 @@ public class ContentServiceImpl implements ContentService {
         if (userId == null || userId <= 0) {
             throw new BadRequestException("userId must be greater than 0");
         }
-
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
@@ -385,10 +252,7 @@ public class ContentServiceImpl implements ContentService {
         boolean exists = contentId == null
                 ? contentRepository.existsByTitleIgnoreCaseAndContentTypeAndIsDeletedFalse(title, contentType)
                 : contentRepository.existsByTitleIgnoreCaseAndContentTypeAndContentIdNotAndIsDeletedFalse(
-                        title,
-                        contentType,
-                        contentId
-                );
+                        title, contentType, contentId);
 
         if (exists) {
             throw new ConflictException("Content with the same title and type already exists");
@@ -428,15 +292,6 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
-    private ApprovalDecision parseApprovalDecision(String value) {
-        String normalized = normalizeRequired(value, "decision");
-        try {
-            return ApprovalDecision.valueOf(normalized.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            throw new BadRequestException("Invalid approval decision: " + value);
-        }
-    }
-
     private String normalizeRequired(String value, String fieldName) {
         String normalized = trimToNull(value);
         if (normalized == null) {
@@ -446,53 +301,16 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private String trimToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     private Integer resolveUserId(User user) {
-        if (user == null) {
-            return null;
-        }
-        try {
-            return user.getUserId();
-        } catch (EntityNotFoundException ex) {
-            return null;
-        }
+        if (user == null) return null;
+        try { return user.getUserId(); } catch (EntityNotFoundException ex) { return null; }
     }
 
     private String resolveUserFullName(User user) {
-        if (user == null) {
-            return null;
-        }
-        try {
-            return user.getFullName();
-        } catch (EntityNotFoundException ex) {
-            return null;
-        }
-    }
-
-    private Integer resolveContentId(Content content) {
-        if (content == null) {
-            return null;
-        }
-        try {
-            return content.getContentId();
-        } catch (EntityNotFoundException ex) {
-            return null;
-        }
-    }
-
-    private String resolveContentTitle(Content content) {
-        if (content == null) {
-            return null;
-        }
-        try {
-            return content.getTitle();
-        } catch (EntityNotFoundException ex) {
-            return null;
-        }
+        if (user == null) return null;
+        try { return user.getFullName(); } catch (EntityNotFoundException ex) { return null; }
     }
 }

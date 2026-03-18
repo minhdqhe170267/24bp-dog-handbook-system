@@ -49,7 +49,7 @@ public class ContentController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<ContentResponse> getById(@PathVariable("id") Integer id, Authentication authentication) {
+    public ApiResponse<ContentResponse> getById(@PathVariable Integer id, Authentication authentication) {
         ContentResponse response = contentService.getById(id);
         if (AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
                 && !ContentStatus.PUBLISHED.name().equalsIgnoreCase(response.getStatus())) {
@@ -69,7 +69,7 @@ public class ContentController {
 
     @PutMapping("/{id}")
     public ApiResponse<ContentResponse> update(
-            @PathVariable("id") Integer id,
+            @PathVariable Integer id,
             @Valid @RequestBody ContentRequest request,
             Authentication authentication
     ) {
@@ -77,23 +77,8 @@ public class ContentController {
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
+    public ApiResponse<Void> delete(@PathVariable Integer id) {
         contentService.delete(id);
         return ApiResponse.success(null);
-    }
-
-    @PutMapping("/{id}/submit")
-    public ApiResponse<ContentResponse> submitForReview(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.submitForReview(id));
-    }
-
-    @PutMapping("/{id}/publish")
-    public ApiResponse<ContentResponse> publish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.publish(id));
-    }
-
-    @PutMapping("/{id}/unpublish")
-    public ApiResponse<ContentResponse> unpublish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(contentService.unpublish(id));
     }
 }
