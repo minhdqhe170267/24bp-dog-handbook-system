@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.MediaType;
 
 import java.time.LocalDateTime;
@@ -38,9 +39,12 @@ public class Media {
     @Column(name = "media_id")
     private Integer mediaId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "content_id", nullable = true)
-    private Content content;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_type", nullable = false)
+    private ApprovableEntityType entityType;
+
+    @Column(name = "entity_id", nullable = false)
+    private Integer entityId;
 
     @Column(name = "filename", nullable = false)
     private String filename;

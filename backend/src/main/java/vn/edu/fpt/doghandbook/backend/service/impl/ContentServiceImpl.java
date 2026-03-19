@@ -14,6 +14,7 @@ import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.Content;
 import vn.edu.fpt.doghandbook.backend.entity.Media;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
@@ -149,7 +150,7 @@ public class ContentServiceImpl implements ContentService {
         content.setIsDeleted(true);
         content.setDeletedAt(now);
 
-        List<Media> mediaFiles = mediaRepository.findByContentContentIdAndIsDeletedFalseOrderByDisplayOrder(id);
+        List<Media> mediaFiles = mediaRepository.findByEntityTypeAndEntityIdAndIsDeletedFalseOrderByDisplayOrder(ApprovableEntityType.CONTENT, id);
         mediaFiles.forEach(media -> {
             media.setIsDeleted(true);
             media.setDeletedAt(now);
@@ -180,7 +181,7 @@ public class ContentServiceImpl implements ContentService {
 
     private ContentResponse toContentResponse(Content entity) {
         List<ContentResponse.MediaItem> mediaItems = mediaRepository
-                .findByContentContentIdAndIsDeletedFalseOrderByDisplayOrder(entity.getContentId())
+                .findByEntityTypeAndEntityIdAndIsDeletedFalseOrderByDisplayOrder(ApprovableEntityType.CONTENT, entity.getContentId())
                 .stream()
                 .map(this::toMediaItem)
                 .toList();
