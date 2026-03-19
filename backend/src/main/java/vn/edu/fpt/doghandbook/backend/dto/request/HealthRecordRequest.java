@@ -13,10 +13,14 @@ import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
 public class HealthRecordRequest {
+
+    @Size(max = 36, message = "Local ID tối đa 36 ký tự")
+    private String localId;
 
     @NotNull
     private Integer dogId;
@@ -51,4 +55,6 @@ public class HealthRecordRequest {
 
     @Size(max = 5000, message = "Ghi chú tối đa 5000 ký tự")
     private String notes;
+
+    private LocalDateTime localUpdatedAt;
 }

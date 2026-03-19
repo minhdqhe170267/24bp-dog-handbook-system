@@ -39,6 +39,9 @@ public class OperationReport {
     @Column(name = "report_id")
     private Integer reportId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trainer_id", nullable = false)
     private User trainer;

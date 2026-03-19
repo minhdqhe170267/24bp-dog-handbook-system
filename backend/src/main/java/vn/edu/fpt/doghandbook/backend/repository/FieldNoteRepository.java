@@ -18,4 +18,6 @@ public interface FieldNoteRepository extends JpaRepository<FieldNote, Integer> {
     Page<FieldNote> findByDogProfileDogIdAndIsDeletedFalseOrderByRecordingDateDesc(Integer dogId, Pageable pageable);
 
     Optional<FieldNote> findByNoteIdAndIsDeletedFalse(Integer noteId);
+
+    Optional<FieldNote> findByLocalId(String localId);
 }

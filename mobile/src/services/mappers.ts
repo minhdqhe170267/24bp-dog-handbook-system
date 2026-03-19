@@ -157,7 +157,8 @@ export const DOG_PROFILE_COLS = [
 
 export const ASSIGNMENT_COLS = [
   'assignment_id', 'trainer_id', 'dog_id', 'assignment_type', 'start_date',
-  'end_date', 'is_active', 'notes', 'created_at', 'updated_at', '_sync_version',
+  'end_date', 'is_active', 'notes', 'trainer_name', 'dog_name', 'dog_code',
+  'created_at', 'updated_at', '_sync_version',
 ];
 
 export const CONTENT_COLS = [
