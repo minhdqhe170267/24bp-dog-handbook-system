@@ -9,15 +9,13 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.MediaUpdateRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.MediaResponse;
-import vn.edu.fpt.doghandbook.backend.entity.Content;
 import vn.edu.fpt.doghandbook.backend.entity.Media;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.MediaType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
-import vn.edu.fpt.doghandbook.backend.repository.ContentRepository;
-import vn.edu.fpt.doghandbook.backend.repository.MediaRepository;
-import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.repository.*;
 import vn.edu.fpt.doghandbook.backend.service.MediaService;
 import vn.edu.fpt.doghandbook.backend.util.MediaUrlResolver;
 
@@ -38,12 +36,20 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class MediaServiceImpl implements MediaService {
 
-    private static final String CONTENT_ENTITY_TYPE = "CONTENT";
     private static final long MAX_IMAGE_SIZE_BYTES = 10L * 1024 * 1024;
     private static final long MAX_VIDEO_SIZE_BYTES = 100L * 1024 * 1024;
 
     private final MediaRepository mediaRepository;
     private final ContentRepository contentRepository;
+    private final DogBreedRepository dogBreedRepository;
+    private final NutritionStandardRepository nutritionStandardRepository;
+    private final TrainingExerciseRepository trainingExerciseRepository;
+    private final TrainingRoadmapRepository trainingRoadmapRepository;
+    private final TrainingMethodRepository trainingMethodRepository;
+    private final DevelopmentStageRepository developmentStageRepository;
+    private final DiseaseRepository diseaseRepository;
+    private final MedicationRepository medicationRepository;
+    private final FirstAidGuideRepository firstAidGuideRepository;
     private final UserRepository userRepository;
     private final MediaUrlResolver mediaUrlResolver;
 
@@ -67,12 +73,9 @@ public class MediaServiceImpl implements MediaService {
             throw new BadRequestException("displayOrder must be greater than 0");
         }
 
-        String normalizedEntityType = normalizeEntityType(entityType);
-        if (!CONTENT_ENTITY_TYPE.equals(normalizedEntityType)) {
-            throw new BadRequestException("Only entityType=CONTENT is supported");
-        }
+        ApprovableEntityType parsedType = parseEntityType(entityType);
+        validateEntityExists(parsedType, entityId);
 
-        Content content = getActiveContentById(entityId);
         User uploader = getUserById(uploadedBy);
 
         String cleanOriginalName = sanitizeFilename(file.getOriginalFilename());
@@ -93,7 +96,8 @@ public class MediaServiceImpl implements MediaService {
         }
 
         Media media = Media.builder()
-                .content(content)
+                .entityType(parsedType)
+                .entityId(entityId)
                 .filename(cleanOriginalName)
                 .mediaType(mediaType)
                 .fileUrl(buildFileUrl(storedName))
@@ -118,15 +122,12 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     public List<MediaResponse> getByEntity(String entityType, Integer entityId) {
-        String normalizedEntityType = normalizeEntityType(entityType);
-        if (!CONTENT_ENTITY_TYPE.equals(normalizedEntityType)) {
-            throw new BadRequestException("Only entityType=CONTENT is supported");
-        }
+        ApprovableEntityType parsedType = parseEntityType(entityType);
         if (entityId == null || entityId <= 0) {
             throw new BadRequestException("entityId must be greater than 0");
         }
 
-        return mediaRepository.findByContentContentIdAndIsDeletedFalseOrderByDisplayOrder(entityId)
+        return mediaRepository.findByEntityTypeAndEntityIdAndIsDeletedFalseOrderByDisplayOrder(parsedType, entityId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -146,12 +147,16 @@ public class MediaServiceImpl implements MediaService {
     @Transactional
     public void delete(Integer id) {
         Media media = getActiveMediaById(id);
-        Integer contentId = resolveContentId(media.getContent());
+        ApprovableEntityType entityType = media.getEntityType();
+        Integer entityId = media.getEntityId();
+
         media.setIsDeleted(true);
         media.setDeletedAt(LocalDateTime.now());
         mediaRepository.save(media);
-        if (contentId != null) {
-            List<Media> remainingMedia = mediaRepository.findByContentContentIdAndIsDeletedFalseOrderByDisplayOrder(contentId);
+
+        if (entityType != null && entityId != null) {
+            List<Media> remainingMedia = mediaRepository
+                    .findByEntityTypeAndEntityIdAndIsDeletedFalseOrderByDisplayOrder(entityType, entityId);
             for (int index = 0; index < remainingMedia.size(); index++) {
                 remainingMedia.get(index).setDisplayOrder(index + 1);
             }
@@ -160,25 +165,37 @@ public class MediaServiceImpl implements MediaService {
         tryDeleteLocalFile(media.getFileUrl());
     }
 
+    // ── Entity validation ───────────────────────────────────────────
+
+    private void validateEntityExists(ApprovableEntityType type, Integer id) {
+        if (id == null || id <= 0) {
+            throw new BadRequestException("entityId must be greater than 0");
+        }
+        boolean exists = switch (type) {
+            case CONTENT -> contentRepository.findById(id).filter(e -> !Boolean.TRUE.equals(e.getIsDeleted())).isPresent();
+            case DOG_BREED -> dogBreedRepository.findByBreedIdAndIsDeletedFalse(id).isPresent();
+            case NUTRITION_STANDARD -> nutritionStandardRepository.findById(id).isPresent();
+            case TRAINING_EXERCISE -> trainingExerciseRepository.findById(id).isPresent();
+            case TRAINING_ROADMAP -> trainingRoadmapRepository.findById(id).isPresent();
+            case TRAINING_METHOD -> trainingMethodRepository.findById(id).isPresent();
+            case DEVELOPMENT_STAGE -> developmentStageRepository.findById(id).isPresent();
+            case DISEASE -> diseaseRepository.findById(id).isPresent();
+            case MEDICATION -> medicationRepository.findById(id).isPresent();
+            case FIRST_AID_GUIDE -> firstAidGuideRepository.findById(id).isPresent();
+        };
+        if (!exists) {
+            throw new ResourceNotFoundException(type.name(), "id", id);
+        }
+    }
+
+    // ── Private helpers ─────────────────────────────────────────────
+
     private Media getActiveMediaById(Integer id) {
         if (id == null || id <= 0) {
             throw new BadRequestException("id must be greater than 0");
         }
         return mediaRepository.findByMediaIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Media", "id", id));
-    }
-
-    private Content getActiveContentById(Integer contentId) {
-        if (contentId == null || contentId <= 0) {
-            throw new BadRequestException("entityId must be greater than 0");
-        }
-
-        Content content = contentRepository.findById(contentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Content", "id", contentId));
-        if (Boolean.TRUE.equals(content.getIsDeleted())) {
-            throw new ResourceNotFoundException("Content", "id", contentId);
-        }
-        return content;
     }
 
     private User getUserById(Integer userId) {
@@ -204,14 +221,15 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private void reorderMedia(Media targetMedia, Integer requestedDisplayOrder) {
-        Integer contentId = resolveContentId(targetMedia.getContent());
-        if (contentId == null) {
+        ApprovableEntityType entityType = targetMedia.getEntityType();
+        Integer entityId = targetMedia.getEntityId();
+        if (entityType == null || entityId == null) {
             mediaRepository.save(targetMedia);
             return;
         }
 
         List<Media> mediaItems = new ArrayList<>(
-                mediaRepository.findByContentContentIdAndIsDeletedFalseOrderByDisplayOrder(contentId)
+                mediaRepository.findByEntityTypeAndEntityIdAndIsDeletedFalseOrderByDisplayOrder(entityType, entityId)
         );
         if (mediaItems.isEmpty()) {
             return;
@@ -238,7 +256,6 @@ public class MediaServiceImpl implements MediaService {
         if (fileUrl == null || fileUrl.isBlank()) {
             return;
         }
-
         try {
             Path path = Paths.get(fileUrl);
             if (!path.isAbsolute()) {
@@ -287,7 +304,6 @@ public class MediaServiceImpl implements MediaService {
         if (originalFilename == null || originalFilename.isBlank()) {
             return fallback;
         }
-
         String cleaned = StringUtils.cleanPath(originalFilename.trim());
         int slashIndex = Math.max(cleaned.lastIndexOf('/'), cleaned.lastIndexOf('\\'));
         String fileNameOnly = slashIndex >= 0 ? cleaned.substring(slashIndex + 1) : cleaned;
@@ -297,11 +313,15 @@ public class MediaServiceImpl implements MediaService {
         return fileNameOnly.replaceAll("\\s+", "_");
     }
 
-    private String normalizeEntityType(String entityType) {
+    private ApprovableEntityType parseEntityType(String entityType) {
         if (entityType == null || entityType.isBlank()) {
             throw new BadRequestException("entityType is required");
         }
-        return entityType.trim().toUpperCase(Locale.ROOT);
+        try {
+            return ApprovableEntityType.valueOf(entityType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("entityType không hợp lệ: " + entityType);
+        }
     }
 
     private String normalizeAltText(String altText) {
@@ -313,7 +333,6 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private MediaResponse toResponse(Media media) {
-        Integer contentId = resolveContentId(media.getContent());
         return MediaResponse.builder()
                 .mediaId(media.getMediaId())
                 .fileName(media.getFilename())
@@ -323,22 +342,11 @@ public class MediaServiceImpl implements MediaService {
                 .mimeType(media.getMimeType())
                 .altText(media.getAltText())
                 .displayOrder(media.getDisplayOrder())
-                .entityType(contentId == null ? null : CONTENT_ENTITY_TYPE)
-                .entityId(contentId)
+                .entityType(media.getEntityType() != null ? media.getEntityType().name() : null)
+                .entityId(media.getEntityId())
                 .uploadedByName(resolveUserFullName(media.getUploadedBy()))
                 .createdAt(media.getCreatedAt())
                 .build();
-    }
-
-    private Integer resolveContentId(Content content) {
-        if (content == null) {
-            return null;
-        }
-        try {
-            return content.getContentId();
-        } catch (EntityNotFoundException ex) {
-            return null;
-        }
     }
 
     private String resolveUserFullName(User user) {
