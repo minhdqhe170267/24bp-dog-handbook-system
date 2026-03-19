@@ -11,12 +11,14 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovalDecision;
 
 import java.time.LocalDateTime;
@@ -35,9 +37,12 @@ public class ApprovalRecord {
     @Column(name = "approval_id")
     private Integer approvalId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "content_id", nullable = false)
-    private Content content;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_type", nullable = false)
+    private ApprovableEntityType entityType;
+
+    @Column(name = "entity_id", nullable = false)
+    private Integer entityId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewer_id", nullable = false)
@@ -53,10 +58,20 @@ public class ApprovalRecord {
     @Column(name = "reviewed_at", nullable = false)
     private LocalDateTime reviewedAt;
 
+    @Column(name = "updated_at", nullable = true)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
         if (this.reviewedAt == null) {
-            this.reviewedAt = LocalDateTime.now();
+            this.reviewedAt = now;
         }
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

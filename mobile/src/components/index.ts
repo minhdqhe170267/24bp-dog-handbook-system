@@ -6,3 +6,4 @@ export { ScreenWrapper } from './ScreenWrapper';
 export { LoadingSpinner } from './LoadingSpinner';
 export { EmptyState } from './EmptyState';
 export { StatusBadge } from './StatusBadge';
+export { OfflineBanner } from './OfflineBanner';

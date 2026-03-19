@@ -1,12 +1,14 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportPreviewResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportTemplateResponse;
@@ -36,7 +38,10 @@ public class DocumentImportController {
     @PostMapping("/confirm")
     public ApiResponse<ImportPreviewResponse> confirm(
             @RequestParam String entityType,
-            @RequestParam("file") MultipartFile file) {
-        return ApiResponse.success(documentImportService.confirm(entityType, file));
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Integer userId = userDetails.getUser().getUserId();
+        return ApiResponse.success(documentImportService.confirm(entityType, file, userId));
     }
 }

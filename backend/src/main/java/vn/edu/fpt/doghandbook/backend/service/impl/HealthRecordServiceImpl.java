@@ -1,6 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,7 +16,9 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AppetiteLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.DogActivityLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FecesStatus;
+import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
@@ -24,6 +27,7 @@ import vn.edu.fpt.doghandbook.backend.service.HealthRecordService;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class HealthRecordServiceImpl implements HealthRecordService {
@@ -79,6 +83,13 @@ public class HealthRecordServiceImpl implements HealthRecordService {
     @Override
     @Transactional
     public HealthRecordResponse create(HealthRecordRequest request, Integer examinerId) {
+        if (request.getLocalId() != null) {
+            var existing = healthRecordRepository.findByLocalId(request.getLocalId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get());
+            }
+        }
+
         DogProfile dog = dogProfileRepository.findByDogIdAndIsDeletedFalse(request.getDogId())
                 .orElseThrow(() -> new ResourceNotFoundException("Dog not found with id: " + request.getDogId()));
 
@@ -86,6 +97,7 @@ public class HealthRecordServiceImpl implements HealthRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + examinerId));
 
         HealthRecord record = HealthRecord.builder()
+                .localId(request.getLocalId())
                 .dogProfile(dog)
                 .examiner(examiner)
                 .examinationDate(LocalDateTime.now())
@@ -101,6 +113,49 @@ public class HealthRecordServiceImpl implements HealthRecordService {
                 .notes(request.getNotes())
                 .isDeleted(false)
                 .build();
+
+        record = healthRecordRepository.save(record);
+
+        if (request.getWeightKg() != null) {
+            dog.setCurrentWeightKg(request.getWeightKg());
+            dogProfileRepository.save(dog);
+        }
+
+        return toResponse(record);
+    }
+
+    @Override
+    @Transactional
+    public HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId) {
+        HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Health record not found with id: " + recordId));
+
+        if (!record.getExaminer().getUserId().equals(examinerId)) {
+            throw new BadRequestException("Không có quyền chỉnh sửa hồ sơ sức khỏe này");
+        }
+
+        if (request.getLocalUpdatedAt() != null
+                && record.getUpdatedAt() != null
+                && record.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
+            log.warn("[SYNC:CONFLICT] health_record id={} serverTime={} > localTime={}",
+                    recordId, record.getUpdatedAt(), request.getLocalUpdatedAt());
+            throw new SyncConflictException("Record modified on server", toResponse(record));
+        }
+
+        DogProfile dog = dogProfileRepository.findByDogIdAndIsDeletedFalse(request.getDogId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dog not found with id: " + request.getDogId()));
+        record.setDogProfile(dog);
+
+        if (request.getWeightKg() != null) record.setWeightKg(request.getWeightKg());
+        if (request.getTemperatureC() != null) record.setTemperatureC(request.getTemperatureC());
+        if (request.getFecesStatus() != null) record.setFecesStatus(FecesStatus.valueOf(request.getFecesStatus()));
+        if (request.getAppetiteLevel() != null) record.setAppetiteLevel(AppetiteLevel.valueOf(request.getAppetiteLevel()));
+        if (request.getActivityLevel() != null) record.setActivityLevel(DogActivityLevel.valueOf(request.getActivityLevel()));
+        if (request.getObservedSymptoms() != null) record.setObservedSymptoms(request.getObservedSymptoms());
+        if (request.getDiagnosis() != null) record.setDiagnosis(request.getDiagnosis());
+        if (request.getTreatmentGiven() != null) record.setTreatmentGiven(request.getTreatmentGiven());
+        if (request.getNextCheckupDate() != null) record.setNextCheckupDate(request.getNextCheckupDate());
+        if (request.getNotes() != null) record.setNotes(request.getNotes());
 
         record = healthRecordRepository.save(record);
 
@@ -132,6 +187,7 @@ public class HealthRecordServiceImpl implements HealthRecordService {
                 .nextCheckupDate(entity.getNextCheckupDate())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 }

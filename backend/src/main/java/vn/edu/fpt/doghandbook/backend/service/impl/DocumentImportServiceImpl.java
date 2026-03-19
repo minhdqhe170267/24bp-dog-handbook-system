@@ -9,12 +9,23 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import vn.edu.fpt.doghandbook.backend.dto.request.BreedRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.DiseaseRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.MedicationRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.TrainingExerciseRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportPreviewResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportTemplateResponse;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.service.BreedService;
+import vn.edu.fpt.doghandbook.backend.service.DiseaseService;
 import vn.edu.fpt.doghandbook.backend.service.DocumentImportService;
+import vn.edu.fpt.doghandbook.backend.service.MedicationService;
+import vn.edu.fpt.doghandbook.backend.service.NutritionService;
+import vn.edu.fpt.doghandbook.backend.service.TrainingService;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -27,7 +38,14 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
+@RequiredArgsConstructor
 public class DocumentImportServiceImpl implements DocumentImportService {
+
+    private final BreedService breedService;
+    private final DiseaseService diseaseService;
+    private final MedicationService medicationService;
+    private final NutritionService nutritionService;
+    private final TrainingService trainingService;
 
     private static final List<String> SUPPORTED_FILE_TYPES = List.of("XLSX", "XLS", "CSV");
 
@@ -134,14 +152,100 @@ public class DocumentImportServiceImpl implements DocumentImportService {
     }
 
     @Override
-    public ImportPreviewResponse confirm(String entityType, MultipartFile file) {
+    public ImportPreviewResponse confirm(String entityType, MultipartFile file, Integer userId) {
         ImportPreviewResponse previewResult = preview(entityType, file);
         if (previewResult.getErrorRows() > 0) {
             throw new BadRequestException(
                     "File chứa " + previewResult.getErrorRows() + " dòng lỗi. Vui lòng sửa và thử lại.");
         }
-        // TODO: Persist entities to database based on entityType
-        return previewResult;
+
+        String fileType = previewResult.getFileType();
+        List<Map<String, Object>> rows;
+        if ("CSV".equals(fileType)) {
+            rows = parseCsv(file).rows;
+        } else {
+            rows = parseExcel(file).rows;
+        }
+
+        int imported = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < rows.size(); i++) {
+            Map<String, Object> row = rows.get(i);
+            try {
+                persistRow(entityType.toUpperCase(), row, userId);
+                imported++;
+            } catch (Exception e) {
+                failed++;
+                errors.add("Dòng " + (i + 1) + ": " + e.getMessage());
+            }
+        }
+
+        return ImportPreviewResponse.builder()
+                .fileName(previewResult.getFileName())
+                .fileType(fileType)
+                .totalRows(rows.size())
+                .validRows(imported)
+                .errorRows(failed)
+                .previewData(List.of())
+                .columns(previewResult.getColumns())
+                .errors(errors)
+                .build();
+    }
+
+    private void persistRow(String entityType, Map<String, Object> row, Integer userId) {
+        switch (entityType) {
+            case "BREED" -> {
+                BreedRequest req = new BreedRequest();
+                req.setBreedName(str(row.get("breedName")));
+                req.setOrigin(str(row.get("origin")));
+                req.setSizeClassification(str(row.get("sizeClassification")));
+                req.setDescription(str(row.get("description")));
+                req.setTrainabilityLevel(str(row.get("trainabilityLevel")));
+                breedService.create(req, userId);
+            }
+            case "DISEASE" -> {
+                DiseaseRequest req = new DiseaseRequest();
+                req.setDiseaseName(str(row.get("diseaseName")));
+                req.setSeverityLevel(str(row.get("severityLevel")));
+                req.setDescription(str(row.get("description")));
+                req.setTreatmentGuidelines(str(row.get("treatment")));
+                diseaseService.create(req, userId);
+            }
+            case "MEDICATION" -> {
+                MedicationRequest req = MedicationRequest.builder()
+                        .medicationName(str(row.get("medicationName")))
+                        .dosageInstructions(str(row.get("dosageInstructions")))
+                        .sideEffects(str(row.get("sideEffects")))
+                        .build();
+                medicationService.create(req, userId);
+            }
+            case "EXERCISE" -> {
+                TrainingExerciseRequest req = new TrainingExerciseRequest();
+                req.setExerciseName(str(row.get("exerciseName")));
+                req.setDifficultyLevel(str(row.get("difficultyLevel")));
+                req.setInstructions(str(row.get("instructions")));
+                String duration = str(row.get("durationMinutes"));
+                if (duration != null) {
+                    req.setDurationMinutes((int) Double.parseDouble(duration));
+                }
+                trainingService.createExercise(req, userId);
+            }
+            case "NUTRITION" -> {
+                NutritionStandardRequest req = new NutritionStandardRequest();
+                req.setRationCode(str(row.get("rationCode")));
+                req.setRationName(str(row.get("rationName")));
+                req.setDescription(str(row.get("description")));
+                req.setActivityLevel(str(row.get("activityLevel")));
+                nutritionService.create(req, userId);
+            }
+            default -> throw new BadRequestException("Entity type không hỗ trợ import: " + entityType);
+        }
+    }
+
+    private String str(Object value) {
+        return value == null ? null : value.toString().isBlank() ? null : value.toString().trim();
     }
 
     private void validateFile(MultipartFile file) {

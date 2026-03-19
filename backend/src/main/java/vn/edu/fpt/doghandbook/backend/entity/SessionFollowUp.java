@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -36,6 +37,9 @@ public class SessionFollowUp {
     @Column(name = "followup_id")
     private Integer followupId;
 
+    @Column(name = "local_id", length = 36, unique = true)
+    private String localId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id", nullable = false)
     private HealthSession healthSession;
@@ -59,10 +63,20 @@ public class SessionFollowUp {
     @Column(name = "next_action", nullable = true)
     private String nextAction;
 
+    @Column(name = "updated_at", nullable = true)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
         if (this.followupDate == null) {
-            this.followupDate = LocalDateTime.now();
+            this.followupDate = now;
         }
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

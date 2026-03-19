@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,6 +44,9 @@ public class SyncQueue {
     @Column(name = "entity_type", nullable = false)
     private String entityType;
 
+    @Column(name = "local_id", length = 36)
+    private String localId;
+
     @Column(name = "entity_id")
     private Integer entityId;
 
@@ -71,8 +75,12 @@ public class SyncQueue {
     @Column(name = "synced_at", nullable = true)
     private LocalDateTime syncedAt;
 
+    @Column(name = "updated_at", nullable = true)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
         if (this.syncStatus == null) {
             this.syncStatus = SyncStatus.PENDING;
         }
@@ -80,7 +88,13 @@ public class SyncQueue {
             this.retryCount = 0;
         }
         if (this.queuedAt == null) {
-            this.queuedAt = LocalDateTime.now();
+            this.queuedAt = now;
         }
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

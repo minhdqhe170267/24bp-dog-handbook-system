@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 /**
  * Request payload for creating/updating a nutrition ration item.
@@ -57,13 +59,16 @@ public class NutritionRationUpsertRequest {
     @PositiveOrZero(message = "carbGrams must be 0 or greater")
     private Double carbGrams;
 
+    @Size(max = 5000, message = "preparationNotes must not exceed 5000 characters")
     private String preparationNotes;
+
+    @Size(max = 5000, message = "feedingInstructions must not exceed 5000 characters")
     private String feedingInstructions;
 
     @NotNull(message = "displayOrder is required")
     @Positive(message = "displayOrder must be greater than 0")
     private Integer displayOrder;
 
-    @Size(max = 20, message = "status is invalid")
+    @ValidEnum(enumClass = ContentStatus.class, message = "status không hợp lệ")
     private String status;
 }

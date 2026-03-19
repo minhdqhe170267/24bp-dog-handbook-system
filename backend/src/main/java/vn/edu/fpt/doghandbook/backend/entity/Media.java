@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.MediaType;
 
 import java.time.LocalDateTime;
@@ -37,9 +39,12 @@ public class Media {
     @Column(name = "media_id")
     private Integer mediaId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "content_id", nullable = true)
-    private Content content;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_type", nullable = false)
+    private ApprovableEntityType entityType;
+
+    @Column(name = "entity_id", nullable = false)
+    private Integer entityId;
 
     @Column(name = "filename", nullable = false)
     private String filename;
@@ -71,6 +76,9 @@ public class Media {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at", nullable = true)
+    private LocalDateTime updatedAt;
+
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
@@ -80,8 +88,9 @@ public class Media {
 
     @PrePersist
     protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
         if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
+            this.createdAt = now;
         }
         if (this.displayOrder <= 0) {
             this.displayOrder = 1;
@@ -89,5 +98,11 @@ public class Media {
         if (this.isDeleted == null) {
             this.isDeleted = false;
         }
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

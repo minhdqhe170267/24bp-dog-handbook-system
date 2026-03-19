@@ -4,12 +4,14 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ActivityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.HealthCondition;
+import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
 /**
  * Optional request payload for calculator verification from web-admin.
@@ -25,10 +27,10 @@ public class NutritionCalculatorVerifyRequest {
     @Positive(message = "standardId must be greater than 0")
     private Long standardId;
 
-    @Size(max = 20, message = "activityLevel is invalid")
+    @ValidEnum(enumClass = ActivityLevel.class, message = "activityLevel không hợp lệ")
     private String activityLevel;
 
-    @Size(max = 20, message = "healthCondition is invalid")
+    @ValidEnum(enumClass = HealthCondition.class, message = "healthCondition không hợp lệ")
     private String healthCondition;
 
     @DecimalMin(value = "-90.0", message = "kcalAdjustPercent must be >= -90")
