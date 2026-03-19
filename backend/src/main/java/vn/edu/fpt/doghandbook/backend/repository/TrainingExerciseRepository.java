@@ -16,6 +16,8 @@ public interface TrainingExerciseRepository extends JpaRepository<TrainingExerci
 
     Page<TrainingExercise> findByIsDeletedFalse(Pageable pageable);
 
+    Page<TrainingExercise> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
+
     Page<TrainingExercise> findByDifficultyLevelAndIsDeletedFalse(DifficultyLevel level, Pageable pageable);
 
     Page<TrainingExercise> findByExerciseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
