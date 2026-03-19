@@ -15,6 +15,8 @@ public interface NutritionStandardRepository extends JpaRepository<NutritionStan
 
     Page<NutritionStandard> findByIsDeletedFalse(Pageable pageable);
 
+    Page<NutritionStandard> findByStatusAndIsDeletedFalse(vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus status, Pageable pageable);
+
     Page<NutritionStandard> findByRationNameContainingIgnoreCaseAndIsDeletedFalse(
             String keyword,
             Pageable pageable
