@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface DiseaseRepository extends JpaRepository<Disease, Integer> {
 
+    Page<Disease> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
+
     long countByIsDeletedFalse();
 
     Page<Disease> findByDiseaseNameContainingIgnoreCase(String diseaseName, Pageable pageable);
