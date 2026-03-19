@@ -101,11 +101,18 @@ export interface WeightHistoryItem {
     changeKg?: number | null;
 }
 
+export interface WeightAssessmentRecommendation {
+    title: string;
+    detail: string;
+}
+
 export interface WeightAssessment {
     dogId: number;
     dogName?: string | null;
     dogCode?: string | null;
     breedName?: string | null;
+    handlerName?: string | null;
+    unitName?: string | null;
     currentWeightKg?: number | null;
     ageMonths?: number | null;
     gender?: string | null;
@@ -117,7 +124,108 @@ export interface WeightAssessment {
     weightChangeKg?: number | null;
     recentHistory?: WeightHistoryItem[] | null;
     recommendation?: string | null;
+    recommendations?: WeightAssessmentRecommendation[] | null;
     alertLevel?: 'NORMAL' | 'WARNING' | 'CRITICAL' | string | null;
+    lastAssessmentAt?: string | null;
+}
+
+export type HealthSessionStatus = 'ACTIVE' | 'MONITORING' | 'RESOLVED' | 'ESCALATED';
+export type HealthSessionSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+export type HealthSessionFollowUpStatus = 'IMPROVED' | 'SAME' | 'WORSE' | 'RESOLVED';
+
+export interface HealthSessionTimelineItem {
+    followUpId: number;
+    sessionId: number;
+    statusUpdate?: HealthSessionFollowUpStatus | string | null;
+    title?: string | null;
+    notes?: string | null;
+    nextAction?: string | null;
+    weightKg?: number | null;
+    temperatureC?: number | null;
+    pulseBpm?: number | null;
+    bloodPressureSystolic?: number | null;
+    spo2Percent?: number | null;
+    createdAt?: string | null;
+}
+
+export interface HealthSession {
+    sessionId: number;
+    dogId: number;
+    dogName?: string | null;
+    dogCode?: string | null;
+    dogBreedName?: string | null;
+    handlerName?: string | null;
+    unitName?: string | null;
+    issueSummary?: string | null;
+    status?: HealthSessionStatus | string | null;
+    severity?: HealthSessionSeverity | string | null;
+    startedAt?: string | null;
+    lastUpdatedAt?: string | null;
+    followUpDate?: string | null;
+    followUpCount?: number | null;
+    coverImageUrl?: string | null;
+    pulseBpm?: number | null;
+    bloodPressureSystolic?: number | null;
+    spo2Percent?: number | null;
+    isLiveSync?: boolean | null;
+    resolutionNotes?: string | null;
+    timeline?: HealthSessionTimelineItem[] | null;
+}
+
+export interface HealthSessionRequest {
+    dogId: number;
+    issueSummary: string;
+    severity?: HealthSessionSeverity | string | null;
+    followUpDate?: string | null;
+}
+
+export interface HealthSessionFollowUpRequest {
+    statusUpdate: HealthSessionFollowUpStatus | string;
+    weightKg?: number | null;
+    temperatureC?: number | null;
+    notes?: string | null;
+    nextAction?: string | null;
+}
+
+export interface HealthSessionResolveRequest {
+    resolutionNotes?: string | null;
+}
+
+export type FieldNoteScope = 'ALL' | 'MINE' | 'DOG';
+export type FieldNoteCategory = 'PATROL' | 'TRAINING' | 'MEDICAL' | 'EVENT' | 'SURVEILLANCE';
+
+export interface FieldNoteMediaItem {
+    mediaId: number;
+    url: string;
+    type?: 'IMAGE' | string | null;
+}
+
+export interface FieldNote {
+    noteId: number;
+    title: string;
+    content: string;
+    dogId?: number | null;
+    dogName?: string | null;
+    dogCode?: string | null;
+    ownerId?: number | null;
+    ownerName?: string | null;
+    unitName?: string | null;
+    location?: string | null;
+    recordedAt?: string | null;
+    photoCount?: number | null;
+    category?: FieldNoteCategory | string | null;
+    isOwner?: boolean | null;
+    media?: FieldNoteMediaItem[] | null;
+    tags?: string[] | null;
+}
+
+export interface FieldNoteRequest {
+    title: string;
+    content: string;
+    dogId?: number | null;
+    location?: string | null;
+    recordedAt?: string | null;
+    mediaUrls?: string[] | null;
 }
 
 export interface DogListResult {
