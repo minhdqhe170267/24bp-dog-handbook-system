@@ -114,6 +114,10 @@ public class BreedServiceImpl implements BreedService {
         DogBreed breed = dogBreedRepository.findByBreedIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Giống chó", "id", id));
 
+        if (breed.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
+
         if (!breed.getBreedName().equals(request.getBreedName())
                 && dogBreedRepository.existsByBreedNameAndIsDeletedFalse(request.getBreedName())) {
             throw new BadRequestException("Giống chó '" + request.getBreedName() + "' đã tồn tại");
@@ -134,6 +138,10 @@ public class BreedServiceImpl implements BreedService {
         breed.setMetadata(request.getMetadata());
         breed.setImageUrl(request.getImageUrl());
 
+        if (breed.getStatus() == ContentStatus.REJECTED) {
+            breed.setStatus(ContentStatus.DRAFT);
+        }
+
         return toBreedResponse(dogBreedRepository.save(breed));
     }
 
@@ -141,6 +149,9 @@ public class BreedServiceImpl implements BreedService {
     public void delete(Integer id) {
         DogBreed breed = dogBreedRepository.findByBreedIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Giống chó", "id", id));
+        if (breed.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         breed.setIsDeleted(true);
         breed.setDeletedAt(LocalDateTime.now());
         dogBreedRepository.save(breed);

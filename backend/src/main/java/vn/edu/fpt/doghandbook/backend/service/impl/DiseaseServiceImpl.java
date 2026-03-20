@@ -13,6 +13,7 @@ import vn.edu.fpt.doghandbook.backend.entity.Disease;
 import vn.edu.fpt.doghandbook.backend.entity.DiseaseSymptomMapping;
 import vn.edu.fpt.doghandbook.backend.entity.Symptom;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SeverityLevel;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
@@ -97,6 +98,10 @@ public class DiseaseServiceImpl implements DiseaseService {
         Disease disease = diseaseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Bệnh", "id", id));
 
+        if (disease.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
+
         disease.setDiseaseName(request.getDiseaseName());
         disease.setDescription(request.getDescription());
         disease.setSymptomSummary(request.getSymptomSummary());
@@ -105,6 +110,10 @@ public class DiseaseServiceImpl implements DiseaseService {
         disease.setSeverityLevel(parseSeverityLevel(request.getSeverityLevel()));
         disease.setIsContagious(request.getIsContagious() != null ? request.getIsContagious() : false);
         disease.setIncubationPeriod(request.getIncubationPeriod());
+
+        if (disease.getStatus() == ContentStatus.REJECTED) {
+            disease.setStatus(ContentStatus.DRAFT);
+        }
 
         disease = diseaseRepository.save(disease);
 
@@ -120,6 +129,9 @@ public class DiseaseServiceImpl implements DiseaseService {
     public void delete(Integer id) {
         Disease disease = diseaseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Bệnh", "id", id));
+        if (disease.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         disease.setIsDeleted(true);
         disease.setDeletedAt(LocalDateTime.now());
         diseaseRepository.save(disease);
