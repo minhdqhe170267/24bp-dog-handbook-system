@@ -40,8 +40,13 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         set({ syncProgress: label });
       });
 
+      const syncWasSkipped =
+        result.errors.includes('Offline') ||
+        result.errors.includes('Already syncing') ||
+        result.duration_ms === 0;
+
       set({
-        lastSyncAt: new Date().toISOString(),
+        lastSyncAt: syncWasSkipped ? get().lastSyncAt : new Date().toISOString(),
         lastResult: result,
         syncProgress: null,
       });
