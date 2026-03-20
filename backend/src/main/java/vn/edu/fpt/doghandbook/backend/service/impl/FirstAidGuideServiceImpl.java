@@ -94,7 +94,7 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
                 .doNotActions(trimToNull(request.getDoNotActions()))
                 .whenToSeekVet(trimToNull(request.getWhenToSeekVet()))
                 .imageUrl(trimToNull(request.getImageUrl()))
-                .status(resolveWritableStatus(request.getStatus(), actor, ContentStatus.DRAFT))
+                .status(ContentStatus.DRAFT)
                 .createdBy(actor)
                 .isDeleted(false)
                 .deletedAt(null)
@@ -107,7 +107,12 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
     @Transactional
     public FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId) {
         FirstAidGuide guide = getActiveGuideById(id);
-        User actor = getUserById(actorUserId);
+        getUserById(actorUserId);
+
+        if (guide.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
+
         String guideTitle = normalizeRequired(request.getGuideTitle(), "guideTitle");
         ensureUniqueGuideTitle(guideTitle, id);
 
@@ -119,24 +124,11 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
         guide.setDoNotActions(trimToNull(request.getDoNotActions()));
         guide.setWhenToSeekVet(trimToNull(request.getWhenToSeekVet()));
         guide.setImageUrl(trimToNull(request.getImageUrl()));
-        guide.setStatus(resolveWritableStatus(request.getStatus(), actor, guide.getStatus()));
 
-        return toResponse(firstAidGuideRepository.save(guide));
-    }
+        if (guide.getStatus() == ContentStatus.REJECTED) {
+            guide.setStatus(ContentStatus.DRAFT);
+        }
 
-    @Override
-    @Transactional
-    public FirstAidGuideResponse publish(Integer id) {
-        FirstAidGuide guide = getActiveGuideById(id);
-        guide.setStatus(ContentStatus.PUBLISHED);
-        return toResponse(firstAidGuideRepository.save(guide));
-    }
-
-    @Override
-    @Transactional
-    public FirstAidGuideResponse unpublish(Integer id) {
-        FirstAidGuide guide = getActiveGuideById(id);
-        guide.setStatus(ContentStatus.DRAFT);
         return toResponse(firstAidGuideRepository.save(guide));
     }
 
@@ -144,6 +136,9 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
     @Transactional
     public void delete(Integer id) {
         FirstAidGuide guide = getActiveGuideById(id);
+        if (guide.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         guide.setIsDeleted(true);
         guide.setDeletedAt(LocalDateTime.now());
         firstAidGuideRepository.save(guide);
@@ -188,22 +183,6 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
         if (exists) {
             throw new ConflictException("First aid guide with the same title already exists");
         }
-    }
-
-    private ContentStatus resolveWritableStatus(String value, User actor, ContentStatus defaultStatus) {
-        String normalized = trimToNull(value);
-        if (normalized == null) {
-            return defaultStatus;
-        }
-
-        ContentStatus requestedStatus = parseStatus(normalized);
-        if (requestedStatus != ContentStatus.DRAFT && requestedStatus != ContentStatus.PUBLISHED) {
-            throw new BadRequestException("Only DRAFT or PUBLISHED are supported for first-aid guides");
-        }
-        if (requestedStatus == ContentStatus.PUBLISHED && (actor == null || actor.getRole() != UserRole.ADMIN)) {
-            throw new BadRequestException("Only ADMIN can publish first-aid guide directly");
-        }
-        return requestedStatus;
     }
 
     private ContentStatus parseStatus(String value) {
