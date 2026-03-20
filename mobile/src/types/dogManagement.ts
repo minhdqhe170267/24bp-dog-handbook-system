@@ -51,7 +51,7 @@ export interface DogAssignmentRequest {
 }
 
 export interface HealthRecord {
-    recordId: number;
+    recordId: number | string;
     dogId: number;
     dogName?: string | null;
     dogCode?: string | null;
@@ -69,6 +69,8 @@ export interface HealthRecord {
     nextCheckupDate?: string | null;
     notes?: string | null;
     createdAt?: string | null;
+    updatedAt?: string | null;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'FAILED' | 'CONFLICT' | null;
 }
 
 export interface HealthRecordRequest {
@@ -134,8 +136,8 @@ export type HealthSessionSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
 export type HealthSessionFollowUpStatus = 'IMPROVED' | 'SAME' | 'WORSE' | 'RESOLVED';
 
 export interface HealthSessionTimelineItem {
-    followUpId: number;
-    sessionId: number;
+    followUpId: number | string;
+    sessionId: number | string;
     statusUpdate?: HealthSessionFollowUpStatus | string | null;
     title?: string | null;
     notes?: string | null;
@@ -149,11 +151,12 @@ export interface HealthSessionTimelineItem {
 }
 
 export interface HealthSession {
-    sessionId: number;
+    sessionId: number | string;
     dogId: number;
     dogName?: string | null;
     dogCode?: string | null;
     dogBreedName?: string | null;
+    trainerId?: number | null;
     handlerName?: string | null;
     unitName?: string | null;
     issueSummary?: string | null;
@@ -169,6 +172,8 @@ export interface HealthSession {
     spo2Percent?: number | null;
     isLiveSync?: boolean | null;
     resolutionNotes?: string | null;
+    resolvedAt?: string | null;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'FAILED' | 'CONFLICT' | null;
     timeline?: HealthSessionTimelineItem[] | null;
 }
 
@@ -201,7 +206,7 @@ export interface FieldNoteMediaItem {
 }
 
 export interface FieldNote {
-    noteId: number;
+    noteId: number | string;
     title: string;
     content: string;
     dogId?: number | null;
@@ -217,6 +222,7 @@ export interface FieldNote {
     isOwner?: boolean | null;
     media?: FieldNoteMediaItem[] | null;
     tags?: string[] | null;
+    syncStatus?: 'PENDING' | 'SYNCED' | 'FAILED' | 'CONFLICT' | null;
 }
 
 export interface FieldNoteRequest {
