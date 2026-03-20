@@ -14,9 +14,5 @@ public interface MedicationService {
 
     MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId);
 
-    MedicationResponse publish(Integer id);
-
-    MedicationResponse unpublish(Integer id);
-
     void delete(Integer id);
 }
