@@ -1,102 +1,184 @@
 import api, { ApiResponse, PageResponse, unwrapApiData } from './api';
 import { offlineFirstRead, isOnline, toPageResponse } from './offlineFirst';
-import { healthRecordDBService } from '../database/services';
-import { rowToApi } from './mappers';
+import { dogProfileDBService, healthRecordDBService } from '../database/services';
+import { useAuthStore } from '../stores/authStore';
+import { syncEngine } from '../sync/syncEngine';
+import type { HealthRecordRow } from '../database/types';
 import type { HealthRecord, HealthRecordRequest, WeightAssessment } from '../types/dogManagement';
 
-// HealthRecord Row → API: local_id maps to recordId for compatibility
-const HR_ROW_ALIASES: Record<string, string> = { local_id: 'recordId' };
+type HealthRecordApiDto = Omit<HealthRecord, 'recordId'> & { recordId: number };
+
+const parseServerId = (value: string | number): number | null => {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const mapRowToHealthRecord = async (row: HealthRecordRow): Promise<HealthRecord> => {
+  const currentUser = useAuthStore.getState().user;
+  const dog = await dogProfileDBService.getById(row.dog_id);
+  const recordId: string | number = row.server_id ?? row.local_id;
+
+  return {
+    recordId,
+    dogId: row.dog_id,
+    dogName: dog?.dog_name ?? null,
+    dogCode: dog?.dog_code ?? null,
+    examinerId: row.examiner_id,
+    examinerName: currentUser?.userId === row.examiner_id ? currentUser.fullName : null,
+    examinationDate: row.examination_date,
+    weightKg: row.weight_kg,
+    temperatureC: row.temperature_c,
+    fecesStatus: row.feces_status,
+    appetiteLevel: row.appetite_level,
+    activityLevel: row.activity_level,
+    observedSymptoms: row.observed_symptoms,
+    diagnosis: row.diagnosis,
+    treatmentGiven: row.treatment_given,
+    nextCheckupDate: row.next_checkup_date,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    syncStatus: row.sync_status,
+  };
+};
+
+const resolveLocalRow = async (recordId: string | number): Promise<HealthRecordRow | null> => {
+  if (typeof recordId === 'string') {
+    const localRow = await healthRecordDBService.getById(recordId);
+    if (localRow) {
+      return localRow;
+    }
+  }
+
+  const serverId = parseServerId(recordId);
+  if (serverId == null) {
+    return null;
+  }
+
+  return healthRecordDBService.getByServerId(serverId);
+};
+
+const mapApiToRow = (record: HealthRecordApiDto): Omit<HealthRecordRow, 'local_id' | 'sync_status' | 'is_deleted' | 'deleted_at'> & { server_id: number } => ({
+  server_id: record.recordId,
+  dog_id: record.dogId,
+  examiner_id: record.examinerId ?? 0,
+  examination_date: record.examinationDate ?? record.createdAt ?? new Date().toISOString(),
+  weight_kg: record.weightKg ?? null,
+  temperature_c: record.temperatureC ?? null,
+  feces_status: (record.fecesStatus ?? null) as HealthRecordRow['feces_status'],
+  appetite_level: (record.appetiteLevel ?? null) as HealthRecordRow['appetite_level'],
+  activity_level: (record.activityLevel ?? null) as HealthRecordRow['activity_level'],
+  observed_symptoms: record.observedSymptoms ?? null,
+  diagnosis: record.diagnosis ?? null,
+  treatment_given: record.treatmentGiven ?? null,
+  next_checkup_date: record.nextCheckupDate ?? null,
+  notes: record.notes ?? null,
+  created_at: record.createdAt ?? record.examinationDate ?? new Date().toISOString(),
+  updated_at: record.updatedAt ?? record.createdAt ?? record.examinationDate ?? new Date().toISOString(),
+});
+
+const saveRemoteRecordsToLocal = async (records: HealthRecord[]): Promise<void> => {
+  const serverRecords = records.filter(
+    (record): record is HealthRecordApiDto => typeof record.recordId === 'number',
+  );
+
+  if (serverRecords.length === 0) {
+    return;
+  }
+
+  await healthRecordDBService.upsertFromServer(serverRecords.map(mapApiToRow));
+};
 
 export const healthRecordService = {
-    // READ — offline-first from SQLite
-    getAll: (page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
-        offlineFirstRead<PageResponse<HealthRecord>>({
-            localFetch: async () => {
-                const rows = await healthRecordDBService.getAll();
-                return toPageResponse(rows.map((r) => rowToApi<HealthRecord>(r, HR_ROW_ALIASES)));
-            },
-            remoteFetch: async () => {
-                const res = (await api.get('/health-records', {
-                    params: { page, size },
-                })) as ApiResponse<PageResponse<HealthRecord>>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async () => {
-                // Server records have different PK scheme; skip bulk save
-                // Health records are primarily mobile-created
-            },
-            entityName: 'health-records',
-        }),
+  getAll: (page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
+    offlineFirstRead<PageResponse<HealthRecord>>({
+      localFetch: async () => {
+        const rows = await healthRecordDBService.getAll();
+        const records = await Promise.all(rows.map(mapRowToHealthRecord));
+        return toPageResponse(records);
+      },
+      remoteFetch: async () => {
+        const response = (await api.get('/health-records', {
+          params: { page, size },
+        })) as ApiResponse<PageResponse<HealthRecordApiDto>>;
+        return unwrapApiData(response);
+      },
+      saveToLocal: async (pageData) => {
+        await saveRemoteRecordsToLocal(pageData.content ?? []);
+      },
+      entityName: 'health-records',
+    }),
 
-    getByDog: (dogId: number, page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
-        offlineFirstRead<PageResponse<HealthRecord>>({
-            localFetch: async () => {
-                const rows = await healthRecordDBService.getByDog(dogId);
-                return toPageResponse(rows.map((r) => rowToApi<HealthRecord>(r, HR_ROW_ALIASES)));
-            },
-            remoteFetch: async () => {
-                const res = (await api.get(`/health-records/by-dog/${dogId}`, {
-                    params: { page, size },
-                })) as ApiResponse<PageResponse<HealthRecord>>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async () => {},
-            entityName: `health-records:dog:${dogId}`,
-        }),
+  getByDog: (dogId: number, page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
+    offlineFirstRead<PageResponse<HealthRecord>>({
+      localFetch: async () => {
+        const rows = await healthRecordDBService.getByDog(dogId);
+        const records = await Promise.all(rows.map(mapRowToHealthRecord));
+        return toPageResponse(records);
+      },
+      remoteFetch: async () => {
+        const response = (await api.get(`/health-records/by-dog/${dogId}`, {
+          params: { page, size },
+        })) as ApiResponse<PageResponse<HealthRecordApiDto>>;
+        return unwrapApiData(response);
+      },
+      saveToLocal: async (pageData) => {
+        await saveRemoteRecordsToLocal(pageData.content ?? []);
+      },
+      entityName: `health-records:dog:${dogId}`,
+    }),
 
-    getById: (recordId: number): Promise<HealthRecord> =>
-        offlineFirstRead<HealthRecord>({
-            localFetch: async () => {
-                // recordId from API is server_id; try finding by local_id (string) won't match
-                // For offline, we serve from getAll/getByDog instead
-                return null as any;
-            },
-            remoteFetch: async () => {
-                const res = (await api.get(`/health-records/${recordId}`)) as ApiResponse<HealthRecord>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async () => {},
-            entityName: `health-record:${recordId}`,
-        }),
+  getById: async (recordId: string | number): Promise<HealthRecord> => {
+    const localRow = await resolveLocalRow(recordId);
+    if (localRow) {
+      return mapRowToHealthRecord(localRow);
+    }
 
-    // WRITE — always save to SQLite + sync queue, try API if online
-    create: async (request: HealthRecordRequest): Promise<HealthRecord | string> => {
-        // 1. Save to SQLite + enqueue sync (never fails)
-        const localId = await healthRecordDBService.create({
-            dog_id: request.dogId,
-            examiner_id: 0, // Will be set by server from auth token
-            examination_date: new Date().toISOString(),
-            weight_kg: request.weightKg ?? null,
-            temperature_c: request.temperatureC ?? null,
-            feces_status: (request.fecesStatus as any) ?? 'NOT_CHECKED',
-            appetite_level: (request.appetiteLevel as any) ?? null,
-            activity_level: (request.activityLevel as any) ?? null,
-            observed_symptoms: request.observedSymptoms ?? null,
-            diagnosis: request.diagnosis ?? null,
-            treatment_given: request.treatmentGiven ?? null,
-            next_checkup_date: request.nextCheckupDate ?? null,
-            notes: request.notes ?? null,
-        });
+    const serverId = parseServerId(recordId);
+    if (serverId == null || !isOnline()) {
+      throw new Error('KhÃ´ng tÃ¬m tháº¥y há»“ sÆ¡ khÃ¡m trong bá»™ nhá»› cá»¥c bá»™');
+    }
 
-        // 2. Try immediate sync if online
-        if (isOnline()) {
-            try {
-                const res = (await api.post('/health-records', request)) as ApiResponse<HealthRecord>;
-                const serverRecord = unwrapApiData(res);
-                await healthRecordDBService.markSynced(localId, serverRecord.recordId);
-                console.log(`[SYNC] health_record ${localId}: synced immediately`);
-                return serverRecord;
-            } catch (err) {
-                console.log(`[SYNC] health_record ${localId}: queued for later sync`);
-            }
-        }
+    const response = (await api.get(`/health-records/${serverId}`)) as ApiResponse<HealthRecordApiDto>;
+    const remoteRecord = unwrapApiData(response);
+    await saveRemoteRecordsToLocal([remoteRecord]);
 
-        return localId;
-    },
+    const refreshedLocalRow = await healthRecordDBService.getByServerId(serverId);
+    return refreshedLocalRow ? mapRowToHealthRecord(refreshedLocalRow) : remoteRecord;
+  },
 
-    // Server-only computation — no offline support
-    assessWeight: async (dogId: number): Promise<WeightAssessment> => {
-        const res = (await api.get(`/weight-assessment/${dogId}`)) as ApiResponse<WeightAssessment>;
-        return unwrapApiData(res);
-    },
+  create: async (request: HealthRecordRequest): Promise<HealthRecord> => {
+    const user = useAuthStore.getState().user;
+    const localId = await healthRecordDBService.create({
+      dog_id: request.dogId,
+      examiner_id: user?.userId ?? 0,
+      examination_date: new Date().toISOString(),
+      weight_kg: request.weightKg ?? null,
+      temperature_c: request.temperatureC ?? null,
+      feces_status: (request.fecesStatus ?? null) as HealthRecordRow['feces_status'],
+      appetite_level: (request.appetiteLevel ?? null) as HealthRecordRow['appetite_level'],
+      activity_level: (request.activityLevel ?? null) as HealthRecordRow['activity_level'],
+      observed_symptoms: request.observedSymptoms ?? null,
+      diagnosis: request.diagnosis ?? null,
+      treatment_given: request.treatmentGiven ?? null,
+      next_checkup_date: request.nextCheckupDate ?? null,
+      notes: request.notes ?? null,
+    });
+
+    if (isOnline()) {
+      await syncEngine.quickPush();
+    }
+
+    const row = await healthRecordDBService.getById(localId);
+    if (!row) {
+      throw new Error('KhÃ´ng thá»ƒ lÆ°u há»“ sÆ¡ khÃ¡m');
+    }
+
+    return mapRowToHealthRecord(row);
+  },
+
+  assessWeight: async (dogId: number): Promise<WeightAssessment> => {
+    const response = (await api.get(`/weight-assessment/${dogId}`)) as ApiResponse<WeightAssessment>;
+    return unwrapApiData(response);
+  },
 };

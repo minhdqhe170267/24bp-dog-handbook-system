@@ -81,7 +81,7 @@ export default function HealthRecordDetailScreen() {
 
         const loadData = async () => {
             try {
-                const detail = await healthRecordService.getById(Number(id));
+                const detail = await healthRecordService.getById(id);
                 const [relatedDog, relatedAssignments] = detail.dogId
                     ? await Promise.all([dogService.getById(detail.dogId), assignmentService.getByDog(detail.dogId)])
                     : [null, []];

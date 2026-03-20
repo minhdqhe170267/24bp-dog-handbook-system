@@ -4,7 +4,7 @@
 // via POST /sync/push (backend processes each item independently)
 // ──────────────────────────────────────────────────────────────
 
-import apiClient from '../services/api';
+import apiClient, { ApiResponse, unwrapApiData } from '../services/api';
 import { syncQueueDBService } from '../database/services/syncQueueDBService';
 import { syncConflictDBService } from '../database/services/syncConflictDBService';
 import { fieldNoteDBService } from '../database/services/fieldNoteDBService';
@@ -37,6 +37,202 @@ const ENTITY_DB_SERVICE: Record<EntityType, {
   diagnosis_record: diagnosisRecordDBService,
 };
 
+interface HealthSessionFollowUpApiDto {
+  followupId: number;
+  followupDate?: string | null;
+  statusUpdate?: string | null;
+  notes?: string | null;
+  weightKg?: number | null;
+  temperatureC?: number | null;
+  nextAction?: string | null;
+}
+
+interface HealthSessionApiDto {
+  sessionId: number;
+  dogId: number;
+  trainerId?: number | null;
+  issueSummary?: string | null;
+  initialDiagnosisId?: number | null;
+  status?: string | null;
+  severity?: string | null;
+  startedAt?: string | null;
+  lastUpdateAt?: string | null;
+  followUpDate?: string | null;
+  resolutionNotes?: string | null;
+  resolvedAt?: string | null;
+  followUps?: HealthSessionFollowUpApiDto[] | null;
+}
+
+const parsePayload = (payload: string): Record<string, unknown> => {
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+};
+
+const isHealthSessionResolveItem = (item: SyncQueueRow): boolean => {
+  if (item.entity_type !== 'health_session' || item.action !== 'UPDATE') {
+    return false;
+  }
+
+  const payload = parsePayload(item.payload);
+  return `${payload.status ?? ''}`.toUpperCase() === 'RESOLVED' || payload.resolvedAt != null;
+};
+
+const requiresSpecialPush = (item: SyncQueueRow): boolean =>
+  item.entity_type === 'session_follow_up' || isHealthSessionResolveItem(item);
+
+const mapHealthSessionResponseToRow = (session: HealthSessionApiDto) => ({
+  server_id: session.sessionId,
+  dog_id: session.dogId,
+  trainer_id: session.trainerId ?? 0,
+  issue_summary: session.issueSummary ?? '',
+  initial_diagnosis_id: session.initialDiagnosisId ?? null,
+  status: (session.status ?? 'ACTIVE') as 'ACTIVE' | 'MONITORING' | 'RESOLVED' | 'ESCALATED',
+  severity: (session.severity ?? 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH',
+  started_at: session.startedAt ?? new Date().toISOString(),
+  last_update_at: session.lastUpdateAt ?? session.startedAt ?? new Date().toISOString(),
+  follow_up_date: session.followUpDate ?? null,
+  resolution_notes: session.resolutionNotes ?? null,
+  resolved_at: session.resolvedAt ?? null,
+  created_at: session.startedAt ?? new Date().toISOString(),
+  updated_at: session.lastUpdateAt ?? session.startedAt ?? new Date().toISOString(),
+});
+
+const mapSessionFollowUpResponseToRow = (
+  sessionLocalId: string,
+  followUp: HealthSessionFollowUpApiDto,
+) => ({
+  server_id: followUp.followupId,
+  session_local_id: sessionLocalId,
+  followup_date: followUp.followupDate ?? new Date().toISOString(),
+  status_update: (followUp.statusUpdate ?? 'SAME') as 'IMPROVED' | 'SAME' | 'WORSE' | 'RESOLVED',
+  notes: followUp.notes ?? null,
+  weight_kg: followUp.weightKg ?? null,
+  temperature_c: followUp.temperatureC ?? null,
+  next_action: followUp.nextAction ?? null,
+  created_at: followUp.followupDate ?? new Date().toISOString(),
+  updated_at: followUp.followupDate ?? new Date().toISOString(),
+});
+
+const upsertHealthSessionFromResponse = async (
+  localSessionId: string,
+  session: HealthSessionApiDto,
+): Promise<void> => {
+  await healthSessionDBService.markSynced(localSessionId, session.sessionId);
+  await healthSessionDBService.upsertFromServer([mapHealthSessionResponseToRow(session)]);
+
+  const sessionRow = await healthSessionDBService.getByServerId(session.sessionId);
+  if (!sessionRow || !session.followUps?.length) {
+    return;
+  }
+
+  await sessionFollowUpDBService.upsertFromServer(
+    session.followUps.map((followUp) => mapSessionFollowUpResponseToRow(sessionRow.local_id, followUp)),
+  );
+};
+
+const pushSessionFollowUpDirect = async (
+  item: SyncQueueRow,
+  pushResult: PushResult,
+): Promise<void> => {
+  const followUpRow = await sessionFollowUpDBService.getById(item.entity_id);
+  if (!followUpRow) {
+    await syncQueueDBService.markFailed(item.id, 'Session follow-up not found locally');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: follow-up missing locally`);
+    return;
+  }
+
+  const sessionRow = await healthSessionDBService.getById(followUpRow.session_local_id);
+  if (!sessionRow?.server_id) {
+    await syncQueueDBService.markFailed(item.id, 'Parent health session is not synced yet');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: parent session missing server id`);
+    return;
+  }
+
+  const payload = parsePayload(item.payload);
+  const response = (await apiClient.post(
+    `/health-sessions/${sessionRow.server_id}/follow-up`,
+    {
+      statusUpdate: `${payload.statusUpdate ?? followUpRow.status_update}`,
+      weightKg: payload.weightKg ?? followUpRow.weight_kg,
+      temperatureC: payload.temperatureC ?? followUpRow.temperature_c,
+      notes: payload.notes ?? followUpRow.notes,
+      nextAction: payload.nextAction ?? followUpRow.next_action,
+      localUpdatedAt: payload.localUpdatedAt ?? followUpRow.updated_at,
+    },
+  )) as ApiResponse<HealthSessionApiDto>;
+
+  const syncedSession = unwrapApiData(response);
+  const newestFollowUp = syncedSession.followUps?.[0];
+  if (!newestFollowUp?.followupId) {
+    await syncQueueDBService.markFailed(item.id, 'Server did not return follow-up id');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: missing follow-up id from server`);
+    return;
+  }
+
+  await sessionFollowUpDBService.markSynced(item.entity_id, newestFollowUp.followupId);
+  await upsertHealthSessionFromResponse(sessionRow.local_id, syncedSession);
+  await syncQueueDBService.markSynced(item.id);
+  pushResult.synced++;
+};
+
+const pushHealthSessionResolveDirect = async (
+  item: SyncQueueRow,
+  pushResult: PushResult,
+): Promise<void> => {
+  const sessionRow = await healthSessionDBService.getById(item.entity_id);
+  if (!sessionRow?.server_id) {
+    await syncQueueDBService.markFailed(item.id, 'Health session is not synced yet');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: session missing server id`);
+    return;
+  }
+
+  const payload = parsePayload(item.payload);
+  const response = (await apiClient.put(
+    `/health-sessions/${sessionRow.server_id}/resolve`,
+    {
+      resolutionNotes: payload.resolutionNotes ?? sessionRow.resolution_notes ?? null,
+    },
+  )) as ApiResponse<HealthSessionApiDto>;
+
+  await upsertHealthSessionFromResponse(sessionRow.local_id, unwrapApiData(response));
+  await syncQueueDBService.markSynced(item.id);
+  pushResult.synced++;
+};
+
+const pushSpecialItem = async (
+  item: SyncQueueRow,
+  pushResult: PushResult,
+): Promise<void> => {
+  try {
+    if (item.entity_type === 'session_follow_up') {
+      await pushSessionFollowUpDirect(item, pushResult);
+      return;
+    }
+
+    if (isHealthSessionResolveItem(item)) {
+      await pushHealthSessionResolveDirect(item, pushResult);
+      return;
+    }
+
+    await syncQueueDBService.markFailed(item.id, 'Unsupported special sync item');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: unsupported special sync item`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'unknown error';
+    await syncQueueDBService.markFailed(item.id, message);
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: ${message}`);
+  }
+};
+
 /**
  * Ensure payloadData JSON includes localUpdatedAt for conflict detection.
  * Backend checkConflict() reads getDateTime(payload, "localUpdatedAt", null).
@@ -56,6 +252,30 @@ const ensureLocalUpdatedAt = (payloadJson: string, action: string): string => {
   }
 };
 
+const getRequestEntityId = (item: SyncQueueRow, payloadData: string): number => {
+  if (item.action === 'CREATE') {
+    // Older backend schemas may still require sync_queue.entity_id to be non-null
+    // even for offline-created records that do not have a server id yet.
+    return 0;
+  }
+
+  const payload = parsePayload(payloadData);
+  const serverId = payload.serverId;
+
+  if (typeof serverId === 'number' && Number.isFinite(serverId)) {
+    return serverId;
+  }
+
+  if (typeof serverId === 'string') {
+    const parsed = Number.parseInt(serverId, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
+};
+
 /**
  * Build batch request items from sync_queue rows.
  * Maps mobile fields to backend SyncPushRequest contract:
@@ -67,12 +287,13 @@ const ensureLocalUpdatedAt = (payloadJson: string, action: string): string => {
  */
 const toBatchRequest = (items: SyncQueueRow[]): PushBatchRequest[] =>
   items.map(item => {
+    const payloadData = ensureLocalUpdatedAt(item.payload, item.action);
     const request: PushBatchRequest = {
       localId: item.entity_id,                                // UUID string
       entityType: item.entity_type,                            // snake_case
-      entityId: null,                                          // server resolves via localId
+      entityId: getRequestEntityId(item, payloadData),
       actionType: item.action,                                 // CREATE | UPDATE | DELETE
-      payloadData: ensureLocalUpdatedAt(item.payload, item.action), // JSON string with localUpdatedAt
+      payloadData,
     };
 
     if (__DEV__) {
@@ -207,6 +428,7 @@ export const pushLocalChanges = async (): Promise<PushResult> => {
   for (const item of pendingItems) {
     if (item.retry_count >= MAX_RETRIES) {
       console.warn(`[SYNC:PUSH] Skipping ${item.entity_type}/${item.entity_id} — max retries exceeded`);
+      await syncQueueDBService.markFailed(item.id, 'Max retries exceeded');
       result.failed++;
       result.errors.push(`${item.entity_type}/${item.entity_id}: max retries exceeded`);
     } else {
@@ -220,11 +442,34 @@ export const pushLocalChanges = async (): Promise<PushResult> => {
 
   console.log(`[SYNC:PUSH] Pushing ${pushable.length} items...`);
 
-  // Split into batches of MAX_BATCH_SIZE
-  for (let start = 0; start < pushable.length; start += MAX_BATCH_SIZE) {
-    const batch = pushable.slice(start, start + MAX_BATCH_SIZE);
-    await pushBatch(batch, result);
+  const genericBatch: SyncQueueRow[] = [];
+  const flushGenericBatch = async (): Promise<void> => {
+    if (genericBatch.length === 0) {
+      return;
+    }
+
+    for (let start = 0; start < genericBatch.length; start += MAX_BATCH_SIZE) {
+      const batch = genericBatch.slice(start, start + MAX_BATCH_SIZE);
+      await pushBatch(batch, result);
+    }
+
+    genericBatch.length = 0;
+  };
+
+  for (const item of pushable) {
+    if (requiresSpecialPush(item)) {
+      await flushGenericBatch();
+      await pushSpecialItem(item, result);
+      continue;
+    }
+
+    genericBatch.push(item);
+    if (genericBatch.length >= MAX_BATCH_SIZE) {
+      await flushGenericBatch();
+    }
   }
+
+  await flushGenericBatch();
 
   console.log(`[SYNC:PUSH] Done — synced: ${result.synced}, conflicts: ${result.conflicts}, failed: ${result.failed}`);
 

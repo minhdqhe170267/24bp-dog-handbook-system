@@ -42,10 +42,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="training"
         options={{
+          href: null,
           title: 'Huấn luyện',
           headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'fitness' : 'fitness-outline'} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="nutrition"
+        options={{
+          title: 'Dinh dưỡng',
+          headerShown: false,
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={24} color={color} />
           ),
         }}
       />

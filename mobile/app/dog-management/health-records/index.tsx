@@ -1,4 +1,4 @@
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { spacing } from '../../../src/constants/theme';
@@ -45,8 +45,8 @@ const toTime = (iso?: string | null) => {
 };
 
 const dedupe = (records: HealthRecord[]) => {
-    const map = new Map<number, HealthRecord>();
-    records.forEach((item) => map.set(item.recordId, item));
+    const map = new Map<string, HealthRecord>();
+    records.forEach((item) => map.set(String(item.recordId), item));
     return [...map.values()].sort((left, right) => toTime(right.examinationDate) - toTime(left.examinationDate));
 };
 
@@ -186,9 +186,11 @@ export default function HealthRecordTimelineScreen() {
         }
     }, [dogId, user?.userId]);
 
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    useFocusEffect(
+        React.useCallback(() => {
+            loadData();
+        }, [loadData])
+    );
 
     const filteredRecords = useMemo(() => {
         const term = deferredSearch.trim().toLowerCase();
