@@ -75,16 +75,6 @@ public class MedicationController {
         );
     }
 
-    @PutMapping("/{id}/publish")
-    public ApiResponse<MedicationResponse> publish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(medicationService.publish(id));
-    }
-
-    @PutMapping("/{id}/unpublish")
-    public ApiResponse<MedicationResponse> unpublish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(medicationService.unpublish(id));
-    }
-
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
         medicationService.delete(id);

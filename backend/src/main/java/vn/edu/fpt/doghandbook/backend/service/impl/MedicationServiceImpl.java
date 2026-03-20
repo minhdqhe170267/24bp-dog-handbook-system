@@ -94,7 +94,7 @@ public class MedicationServiceImpl implements MedicationService {
                 .contraindications(trimToNull(request.getContraindications()))
                 .storageRequirements(trimToNull(request.getStorageRequirements()))
                 .imageUrl(trimToNull(request.getImageUrl()))
-                .status(resolveWritableStatus(request.getStatus(), actor, ContentStatus.DRAFT))
+                .status(ContentStatus.DRAFT)
                 .createdBy(actor)
                 .isDeleted(false)
                 .deletedAt(null)
@@ -107,7 +107,12 @@ public class MedicationServiceImpl implements MedicationService {
     @Transactional
     public MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId) {
         Medication medication = getActiveMedicationById(id);
-        User actor = getUserById(actorUserId);
+        getUserById(actorUserId);
+
+        if (medication.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
+
         String medicationName = normalizeRequired(request.getMedicationName(), "medicationName");
         ensureUniqueMedicationName(medicationName, id);
 
@@ -119,24 +124,11 @@ public class MedicationServiceImpl implements MedicationService {
         medication.setContraindications(trimToNull(request.getContraindications()));
         medication.setStorageRequirements(trimToNull(request.getStorageRequirements()));
         medication.setImageUrl(trimToNull(request.getImageUrl()));
-        medication.setStatus(resolveWritableStatus(request.getStatus(), actor, medication.getStatus()));
 
-        return toResponse(medicationRepository.save(medication));
-    }
+        if (medication.getStatus() == ContentStatus.REJECTED) {
+            medication.setStatus(ContentStatus.DRAFT);
+        }
 
-    @Override
-    @Transactional
-    public MedicationResponse publish(Integer id) {
-        Medication medication = getActiveMedicationById(id);
-        medication.setStatus(ContentStatus.PUBLISHED);
-        return toResponse(medicationRepository.save(medication));
-    }
-
-    @Override
-    @Transactional
-    public MedicationResponse unpublish(Integer id) {
-        Medication medication = getActiveMedicationById(id);
-        medication.setStatus(ContentStatus.DRAFT);
         return toResponse(medicationRepository.save(medication));
     }
 
@@ -144,6 +136,9 @@ public class MedicationServiceImpl implements MedicationService {
     @Transactional
     public void delete(Integer id) {
         Medication medication = getActiveMedicationById(id);
+        if (medication.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         medication.setIsDeleted(true);
         medication.setDeletedAt(LocalDateTime.now());
         medicationRepository.save(medication);
@@ -188,22 +183,6 @@ public class MedicationServiceImpl implements MedicationService {
         if (exists) {
             throw new ConflictException("Medication with the same name already exists");
         }
-    }
-
-    private ContentStatus resolveWritableStatus(String value, User actor, ContentStatus defaultStatus) {
-        String normalized = trimToNull(value);
-        if (normalized == null) {
-            return defaultStatus;
-        }
-
-        ContentStatus requestedStatus = parseStatus(normalized);
-        if (requestedStatus != ContentStatus.DRAFT && requestedStatus != ContentStatus.PUBLISHED) {
-            throw new BadRequestException("Only DRAFT or PUBLISHED are supported for medications");
-        }
-        if (requestedStatus == ContentStatus.PUBLISHED && (actor == null || actor.getRole() != UserRole.ADMIN)) {
-            throw new BadRequestException("Only ADMIN can publish medication directly");
-        }
-        return requestedStatus;
     }
 
     private ContentStatus parseStatus(String value) {
