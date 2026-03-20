@@ -11,13 +11,15 @@ import { dogService } from '../../../src/services/dogService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
 import { DogAssignment, DogProfile, HealthRecord } from '../../../src/types/dogManagement';
 import {
+    dogManagementFonts,
     dogManagementUi,
     fallbackAssignments,
     fallbackDogs,
     fallbackHealthRecords,
     formatDate,
     formatDateTime,
-    pickDogImage,
+    resolveDogImageUrl,
+    stringifyTemperature,
     stringifyWeight,
 } from '../../../src/features/dog-management/ui';
 
@@ -41,6 +43,29 @@ const areLikelySamePerson = (left?: string | null, right?: string | null) => {
     return normalizedLeft === normalizedRight || normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
 };
 
+const shortEnum = (value?: string | null, kind?: 'appetite' | 'activity' | 'feces') => {
+    switch (`${kind}:${(value || '').toUpperCase()}`) {
+        case 'appetite:INCREASED':
+            return 'Tăng';
+        case 'appetite:DECREASED':
+            return 'Giảm';
+        case 'appetite:NONE':
+            return 'Bỏ ăn';
+        case 'activity:VERY_LOW':
+            return 'Rất ít';
+        case 'activity:LOW':
+            return 'Giảm vận động';
+        case 'activity:HYPERACTIVE':
+            return 'Tăng động';
+        case 'feces:ABNORMAL':
+            return 'Bất thường';
+        case 'feces:BLOOD_PRESENT':
+            return 'Có máu';
+        default:
+            return 'Bình thường';
+    }
+};
+
 export default function HealthRecordDetailScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -58,28 +83,28 @@ export default function HealthRecordDetailScreen() {
             try {
                 const detail = await healthRecordService.getById(Number(id));
                 const [relatedDog, relatedAssignments] = detail.dogId
-                    ? await Promise.all([
-                        dogService.getById(detail.dogId),
-                        assignmentService.getByDog(detail.dogId),
-                    ])
+                    ? await Promise.all([dogService.getById(detail.dogId), assignmentService.getByDog(detail.dogId)])
                     : [null, []];
+
                 if (!mounted) {
                     return;
                 }
+
                 setRecord(detail);
                 setDog(relatedDog);
                 setAssignment(relatedAssignments.find((item) => item.isActive !== false) || relatedAssignments[0] || null);
             } catch {
-                if (mounted) {
-                    const fallbackRecord = fallbackHealthRecords.find((item) => String(item.recordId) === String(id)) || fallbackHealthRecords[0];
-                    setRecord(fallbackRecord);
-                    setDog(fallbackDogs.find((item) => item.dogId === fallbackRecord.dogId) || fallbackDogs[0]);
-                    setAssignment(
-                        fallbackAssignments.find((item) => item.dogId === fallbackRecord.dogId && item.isActive !== false) ||
+                if (!mounted) {
+                    return;
+                }
+                const fallbackRecord = fallbackHealthRecords.find((item) => String(item.recordId) === String(id)) || fallbackHealthRecords[0];
+                setRecord(fallbackRecord);
+                setDog(fallbackDogs.find((item) => item.dogId === fallbackRecord.dogId) || fallbackDogs[0]);
+                setAssignment(
+                    fallbackAssignments.find((item) => item.dogId === fallbackRecord.dogId && item.isActive !== false) ||
                         fallbackAssignments.find((item) => item.dogId === fallbackRecord.dogId) ||
                         null
-                    );
-                }
+                );
             } finally {
                 if (mounted) {
                     setLoading(false);
@@ -98,7 +123,7 @@ export default function HealthRecordDetailScreen() {
 
     if (loading) {
         return (
-            <ScreenWrapper>
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
@@ -108,10 +133,10 @@ export default function HealthRecordDetailScreen() {
 
     if (!record) {
         return (
-            <ScreenWrapper>
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <View style={styles.centered}>
                     <Ionicons name="alert-circle-outline" size={38} color={colors.error} />
-                    <Text style={[styles.errorText, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
+                    <Text style={[styles.errorText, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         Không tìm thấy hồ sơ khám
                     </Text>
                 </View>
@@ -119,160 +144,122 @@ export default function HealthRecordDetailScreen() {
         );
     }
 
-    const samePersonAsTrainer = areLikelySamePerson(record.examinerName, assignment?.trainerName);
-    const personnelTitle = samePersonAsTrainer ? 'Người cập nhật hồ sơ' : 'Người khám';
-    const personnelName = record.examinerName || 'Chưa có thông tin người ghi nhận';
-    const personnelMeta = assignment?.trainerName && !samePersonAsTrainer ? `Chiến sĩ phụ trách: ${assignment.trainerName}` : 'Vai trò được hiển thị theo dữ liệu hiện có.';
+    const samePerson = areLikelySamePerson(record.examinerName, assignment?.trainerName);
+    const personnelLabel = samePerson ? 'Người cập nhật' : 'Người khám';
+    const imageSource = resolveDogImageUrl(dog?.imageUrl, record.dogId);
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
-            <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.headerRow}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.85}>
                         <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                        Chi tiết hồ sơ
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                        Chi tiết hồ sơ khám
                     </Text>
-                    <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
-                        <Ionicons name="share-social-outline" size={19} color={isDark ? colors.text : dogManagementUi.textStrong} />
-                    </TouchableOpacity>
+                    <View style={styles.iconSpacer} />
                 </View>
 
-                <View
-                    style={[
-                        styles.heroCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
-                            borderColor: isDark ? colors.border : dogManagementUi.border,
-                        },
-                    ]}
-                >
-                    <Image source={dog?.imageUrl || pickDogImage(record.dogId)} style={styles.heroImage} contentFit="cover" />
+                <View style={styles.heroCard}>
                     <View style={{ flex: 1 }}>
-                        <View style={styles.completedBadge}>
-                            <Text style={styles.completedBadgeText}>ĐÃ GHI NHẬN</Text>
+                        <Text style={[styles.heroOverline, { fontFamily: dogManagementFonts.bold }]}>ĐÃ GHI NHẬN</Text>
+                        <Text style={[styles.heroTitle, { fontFamily: dogManagementFonts.bold }]}>
+                            {record.dogName || dog?.dogName || 'Hồ sơ sức khỏe'}
+                        </Text>
+                        <Text style={[styles.heroMeta, { fontFamily: dogManagementFonts.medium }]}>
+                            {record.dogCode || dog?.dogCode || 'Chưa rõ mã'} • {formatDateTime(record.examinationDate)}
+                        </Text>
+                        <Text style={[styles.heroSubtitle, { fontFamily: dogManagementFonts.medium }]}>
+                            {personnelLabel}: {record.examinerName || 'Chưa ghi nhận'}
+                        </Text>
+                        <View style={styles.heroPill}>
+                            <Text style={[styles.heroPillText, { fontFamily: dogManagementFonts.bold }]}>
+                                {record.nextCheckupDate ? `Tái khám ${formatDate(record.nextCheckupDate)}` : 'Chưa đặt lịch tái khám'}
+                            </Text>
                         </View>
-                        <Text style={[styles.heroTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                            Hồ sơ khám sức khỏe
-                        </Text>
-                        <Text style={[styles.heroMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                            {formatDate(record.examinationDate)}
-                        </Text>
                     </View>
+                    <Image source={imageSource} style={styles.heroImage} contentFit="cover" />
                 </View>
 
                 <View style={styles.statRow}>
-                    <View
-                        style={[
-                            styles.statCard,
-                            {
-                                backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
-                                borderColor: isDark ? colors.border : dogManagementUi.border,
-                            },
-                        ]}
+                    {[
+                        { label: 'Cân nặng', value: stringifyWeight(record.weightKg) },
+                        { label: 'Nhiệt độ', value: stringifyTemperature(record.temperatureC) },
+                        { label: 'Tái khám', value: record.nextCheckupDate ? formatDate(record.nextCheckupDate) : 'Chưa đặt lịch' },
+                    ].map((item) => (
+                        <View key={item.label} style={[styles.statCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                            <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>{item.label}</Text>
+                            <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                    <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Meta hồ sơ</Text>
+                    {[
+                        { label: personnelLabel, value: record.examinerName || 'Chưa ghi nhận' },
+                        { label: 'Chiến sĩ phụ trách', value: assignment?.trainerName || 'Chưa ghi nhận' },
+                        { label: 'Cập nhật lúc', value: formatDateTime(record.createdAt || record.examinationDate) },
+                    ].map((item) => (
+                        <View key={item.label} style={styles.metaRow}>
+                            <Text style={[styles.metaLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>{item.label}</Text>
+                            <Text style={[styles.metaValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
+
+                <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                    <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Quan sát lâm sàng</Text>
+                    <View style={styles.tagRow}>
+                        {[
+                            { label: 'Ăn uống', value: shortEnum(record.appetiteLevel, 'appetite') },
+                            { label: 'Vận động', value: shortEnum(record.activityLevel, 'activity') },
+                            { label: 'Phân', value: shortEnum(record.fecesStatus, 'feces') },
+                        ].map((item) => (
+                            <View key={item.label} style={styles.tagChip}>
+                                <Text style={[styles.tagChipLabel, { fontFamily: dogManagementFonts.bold }]}>{item.label}</Text>
+                                <Text style={[styles.tagChipValue, { fontFamily: dogManagementFonts.medium }]}>{item.value}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    <Text style={[styles.blockLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Triệu chứng quan sát</Text>
+                    <Text style={[styles.blockValue, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
+                        {record.observedSymptoms || 'Chưa ghi nhận triệu chứng bất thường rõ rệt.'}
+                    </Text>
+                </View>
+
+                <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                    <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Chẩn đoán và xử trí</Text>
+                    <Text style={[styles.blockLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Chẩn đoán</Text>
+                    <Text style={[styles.blockValueStrong, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                        {record.diagnosis || 'Chưa ghi nhận chẩn đoán.'}
+                    </Text>
+                    <Text style={[styles.blockLabel, { marginTop: 12, color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Điều trị / xử trí</Text>
+                    <Text style={[styles.blockValue, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
+                        {record.treatmentGiven || 'Chưa có chỉ định xử trí cụ thể.'}
+                    </Text>
+                    <Text style={[styles.blockLabel, { marginTop: 12, color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Ghi chú thêm</Text>
+                    <Text style={[styles.blockValue, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
+                        {record.notes || 'Chưa có ghi chú bổ sung.'}
+                    </Text>
+                </View>
+
+                <View style={styles.actionRow}>
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => router.push(`/dog-management/dogs/${record.dogId}` as any)}
+                        style={[styles.secondaryButton, { backgroundColor: isDark ? colors.surface : '#EEF3F0', borderColor: isDark ? colors.border : '#DDE6E1' }]}
                     >
-                        <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>CÂN NẶNG</Text>
-                        <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                            {stringifyWeight(record.weightKg)}
-                        </Text>
-                    </View>
-                    <View
-                        style={[
-                            styles.statCard,
-                            {
-                                backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
-                                borderColor: isDark ? colors.border : dogManagementUi.border,
-                            },
-                        ]}
+                        <Text style={[styles.secondaryButtonText, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Xem hồ sơ chó</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => router.push(`/dog-management/assignments?dogId=${record.dogId}` as any)}
+                        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
                     >
-                        <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>NHIỆT ĐỘ</Text>
-                        <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                            {record.temperatureC ? `${record.temperatureC} °C` : 'Chưa cập nhật'}
-                        </Text>
-                    </View>
-                </View>
-
-                <View style={[styles.examinerCard, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.examinerTitle}>{personnelTitle}</Text>
-                    <Text style={styles.examinerName}>{personnelName}</Text>
-                    <Text style={styles.examinerMeta}>
-                        Hồ sơ: {record.dogName || dog?.dogName || 'N/A'} • {record.dogCode || dog?.dogCode || 'N/A'}
-                    </Text>
-                    <Text style={styles.examinerMeta}>{personnelMeta}</Text>
-                    <View style={styles.examinerActions}>
-                        <TouchableOpacity
-                            style={styles.examinerButton}
-                            activeOpacity={0.86}
-                            onPress={() => router.push(`/dog-management/dogs/${record.dogId}` as any)}
-                        >
-                            <Text style={styles.examinerButtonText}>Xem hồ sơ chó</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.examinerButton}
-                            activeOpacity={0.86}
-                            onPress={() => router.push('/dog-management/assignments' as any)}
-                        >
-                            <Text style={styles.examinerButtonText}>Xem phân công</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                <View
-                    style={[
-                        styles.infoCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
-                            borderColor: isDark ? colors.border : dogManagementUi.border,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                        Quan sát lâm sàng
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        • Ăn uống: {record.appetiteLevel || 'Chưa ghi nhận'}
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        • Vận động: {record.activityLevel || 'Chưa ghi nhận'}
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        • Phân: {record.fecesStatus || 'Chưa ghi nhận'}
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        • Triệu chứng: {record.observedSymptoms || 'Không phát hiện bất thường rõ rệt.'}
-                    </Text>
-                </View>
-
-                <View
-                    style={[
-                        styles.infoCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
-                            borderColor: isDark ? colors.border : dogManagementUi.border,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                        Chẩn đoán và hướng xử lý
-                    </Text>
-                    <Text style={[styles.infoTag, { color: '#1D6A43', backgroundColor: '#E8F5ED' }]}>CHẨN ĐOÁN CHÍNH</Text>
-                    <Text style={[styles.diagnosisText, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
-                        {record.diagnosis || 'Tình trạng ổn định, kiểm tra định kỳ.'}
-                    </Text>
-
-                    <Text style={[styles.infoTag, { color: '#0E5DA8', backgroundColor: '#E3F0FF', marginTop: 12 }]}>
-                        KHUYẾN NGHỊ
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        {record.treatmentGiven || 'Duy trì chế độ ăn cân bằng và đánh giá lại sau 2 tuần.'}
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        Tái khám: {record.nextCheckupDate ? formatDate(record.nextCheckupDate) : 'Chưa đặt lịch'}
-                    </Text>
-                    <Text style={[styles.paragraph, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
-                        Cập nhật hồ sơ: {formatDateTime(record.createdAt || record.examinationDate)}
-                    </Text>
+                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Xem phân công</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </ScreenWrapper>
@@ -282,167 +269,211 @@ export default function HealthRecordDetailScreen() {
 const styles = StyleSheet.create({
     centered: {
         flex: 1,
-        justifyContent: 'center',
         alignItems: 'center',
-        gap: spacing.sm,
+        justifyContent: 'center',
+        gap: 12,
     },
     errorText: {
         fontSize: 15,
-        fontWeight: '600',
+        lineHeight: 19,
+        textAlign: 'center',
+    },
+    scrollContent: {
+        paddingBottom: spacing.xl,
     },
     headerRow: {
         marginTop: spacing.sm,
         marginBottom: spacing.sm,
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
     },
     iconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
+        width: 42,
+        height: 42,
+        borderRadius: 21,
         alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#EEF3F0',
+    },
+    iconSpacer: {
+        width: 42,
+        height: 42,
     },
     headerTitle: {
         fontSize: 19,
-        fontWeight: '800',
+        lineHeight: 23,
     },
     heroCard: {
-        borderWidth: 1,
-        borderRadius: 20,
-        padding: 12,
+        borderRadius: 28,
+        padding: 18,
+        backgroundColor: '#173D2B',
+        marginBottom: 14,
         flexDirection: 'row',
-        gap: 10,
-        marginBottom: spacing.sm,
+        gap: 14,
+        alignItems: 'flex-end',
+    },
+    heroOverline: {
+        fontSize: 11,
+        lineHeight: 14,
+        letterSpacing: 0.8,
+        color: '#B7D7C5',
+    },
+    heroTitle: {
+        marginTop: 14,
+        fontSize: 28,
+        lineHeight: 33,
+        color: '#FFFFFF',
+    },
+    heroMeta: {
+        marginTop: 6,
+        fontSize: 13,
+        lineHeight: 18,
+        color: '#D9EBE0',
+    },
+    heroSubtitle: {
+        marginTop: 6,
+        fontSize: 13,
+        lineHeight: 19,
+        color: '#CDE6D8',
+    },
+    heroPill: {
+        alignSelf: 'flex-start',
+        marginTop: 14,
+        minHeight: 30,
+        borderRadius: 15,
+        paddingHorizontal: 12,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.16)',
+    },
+    heroPillText: {
+        fontSize: 11,
+        lineHeight: 14,
+        color: '#F3FBF7',
     },
     heroImage: {
         width: 96,
-        height: 96,
-        borderRadius: 16,
-    },
-    completedBadge: {
-        minHeight: 20,
-        borderRadius: 10,
-        alignSelf: 'flex-start',
-        backgroundColor: '#E8F5ED',
-        paddingHorizontal: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    completedBadgeText: {
-        fontSize: 10,
-        fontWeight: '800',
-        color: '#1D6A43',
-    },
-    heroTitle: {
-        fontSize: 28,
-        lineHeight: 32,
-        fontWeight: '800',
-    },
-    heroMeta: {
-        marginTop: 4,
-        fontSize: 12,
-        fontWeight: '600',
+        height: 116,
+        borderRadius: 22,
     },
     statRow: {
         flexDirection: 'row',
-        gap: 8,
-        marginBottom: spacing.sm,
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        rowGap: 10,
+        marginBottom: 14,
     },
     statCard: {
-        flex: 1,
+        width: '31.5%',
         borderWidth: 1,
-        borderRadius: 14,
-        padding: 10,
+        borderRadius: 20,
+        padding: 14,
+        minHeight: 100,
     },
     statLabel: {
         fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 0.3,
+        lineHeight: 13,
+        textTransform: 'uppercase',
     },
     statValue: {
-        marginTop: 7,
-        fontSize: 20,
-        lineHeight: 24,
-        fontWeight: '800',
-    },
-    examinerCard: {
-        borderRadius: 20,
-        padding: 14,
-        marginBottom: spacing.sm,
-    },
-    examinerTitle: {
-        color: '#CDE4D9',
-        fontSize: 11,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    examinerName: {
-        marginTop: 6,
-        color: '#FFFFFF',
-        fontSize: 27,
-        lineHeight: 32,
-        fontWeight: '800',
-    },
-    examinerMeta: {
-        marginTop: 4,
-        color: '#DDEFE6',
-        fontSize: 12,
-        lineHeight: 17,
-        fontWeight: '600',
-    },
-    examinerActions: {
-        marginTop: 12,
-        flexDirection: 'row',
-        gap: 8,
-    },
-    examinerButton: {
-        flex: 1,
-        minHeight: 34,
-        borderRadius: 17,
-        backgroundColor: '#F4FAF7',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    examinerButtonText: {
-        color: '#1F5A3A',
-        fontSize: 12,
-        fontWeight: '800',
-    },
-    infoCard: {
-        borderWidth: 1,
-        borderRadius: 16,
-        padding: 12,
-        marginBottom: spacing.sm,
-    },
-    sectionTitle: {
-        fontSize: 17,
-        fontWeight: '800',
-        marginBottom: 8,
-    },
-    paragraph: {
-        fontSize: 13,
-        lineHeight: 19,
-        fontWeight: '500',
-        marginBottom: 5,
-    },
-    infoTag: {
-        alignSelf: 'flex-start',
-        minHeight: 20,
-        borderRadius: 10,
-        paddingHorizontal: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontSize: 10,
-        fontWeight: '800',
-        marginBottom: 5,
-    },
-    diagnosisText: {
+        marginTop: 10,
         fontSize: 15,
         lineHeight: 20,
-        fontWeight: '700',
+    },
+    card: {
+        borderWidth: 1,
+        borderRadius: 24,
+        padding: 16,
+        marginBottom: 14,
+    },
+    cardTitle: {
+        fontSize: 20,
+        lineHeight: 24,
+        marginBottom: 14,
+    },
+    metaRow: {
+        marginBottom: 12,
+    },
+    metaLabel: {
+        fontSize: 10,
+        lineHeight: 13,
+        textTransform: 'uppercase',
+        marginBottom: 6,
+    },
+    metaValue: {
+        fontSize: 14,
+        lineHeight: 20,
+    },
+    tagRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 14,
+    },
+    tagChip: {
+        minHeight: 48,
+        borderRadius: 18,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: '#F1F5F3',
+        borderWidth: 1,
+        borderColor: '#E4ECE6',
+        justifyContent: 'center',
+    },
+    tagChipLabel: {
+        fontSize: 10,
+        lineHeight: 13,
+        color: '#6A8175',
+        textTransform: 'uppercase',
+    },
+    tagChipValue: {
+        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 16,
+        color: '#3D5549',
+    },
+    blockLabel: {
+        fontSize: 10,
+        lineHeight: 13,
+        textTransform: 'uppercase',
+        marginBottom: 6,
+    },
+    blockValue: {
+        fontSize: 14,
+        lineHeight: 21,
+    },
+    blockValueStrong: {
+        fontSize: 15,
+        lineHeight: 22,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    secondaryButton: {
+        flex: 1,
+        minHeight: 48,
+        borderRadius: 18,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondaryButtonText: {
+        fontSize: 13,
+        lineHeight: 16,
+    },
+    primaryButton: {
+        flex: 1,
+        minHeight: 48,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    primaryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        lineHeight: 16,
     },
 });
