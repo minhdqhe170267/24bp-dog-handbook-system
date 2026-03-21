@@ -27,7 +27,7 @@ const renderSuggestionStatusBadge = (status) => {
 };
 
 const statusOptions = [
-    { value: 'all', label: 'Tất cả' },
+    { value: 'all', label: 'Tất cả trạng thái' },
     { value: 'PENDING', label: getSuggestionStatusLabel('PENDING') },
     { value: 'SUBMITTED', label: getSuggestionStatusLabel('SUBMITTED') },
     { value: 'UNDER_REVIEW', label: getSuggestionStatusLabel('UNDER_REVIEW') },
@@ -130,8 +130,8 @@ const SuggestionsPage = () => {
 
     return (
         <div className="animate-fade-in">
-            <PageHeader title="Đề xuất nội dung" description="Quản lý các đề xuất nội dung từ huấn luyện viên"
-                breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Đề xuất nội dung' }]} />
+            <PageHeader title="Nội dung đề xuất" description="Quản lý các đề xuất nội dung từ huấn luyện viên"
+                breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Nội dung đề xuất' }]} />
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <div className="relative w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -143,7 +143,7 @@ const SuggestionsPage = () => {
                         className="h-9 w-full pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
                     />
                 </div>
-                <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
+                <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả trạng thái" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
                 <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
