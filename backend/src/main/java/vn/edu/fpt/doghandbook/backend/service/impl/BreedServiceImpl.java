@@ -207,11 +207,16 @@ public class BreedServiceImpl implements BreedService {
     @Override
     @Transactional(readOnly = true)
     public List<DevelopmentStageResponse> getDevelopmentStages(Integer breedId) {
-        dogBreedRepository.findByBreedIdAndIsDeletedFalse(breedId)
-                .orElseThrow(() -> new ResourceNotFoundException("Giống chó", "id", breedId));
+        List<DevelopmentStage> stages;
+        if (breedId == null) {
+            stages = developmentStageRepository.findByIsDeletedFalseOrderByDogBreedBreedIdAscStageOrderAsc();
+        } else {
+            dogBreedRepository.findByBreedIdAndIsDeletedFalse(breedId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Giống chó", "id", breedId));
+            stages = developmentStageRepository.findByDogBreedBreedIdAndIsDeletedFalseOrderByStageOrder(breedId);
+        }
 
-        return developmentStageRepository
-                .findByDogBreedBreedIdAndIsDeletedFalseOrderByStageOrder(breedId)
+        return stages
                 .stream()
                 .map(this::toDevelopmentStageResponse)
                 .toList();

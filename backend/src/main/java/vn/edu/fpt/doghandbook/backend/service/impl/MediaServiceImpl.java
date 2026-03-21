@@ -42,6 +42,7 @@ public class MediaServiceImpl implements MediaService {
     private final MediaRepository mediaRepository;
     private final ContentRepository contentRepository;
     private final DogBreedRepository dogBreedRepository;
+    private final DogProfileRepository dogProfileRepository;
     private final NutritionStandardRepository nutritionStandardRepository;
     private final TrainingExerciseRepository trainingExerciseRepository;
     private final TrainingRoadmapRepository trainingRoadmapRepository;
@@ -174,6 +175,7 @@ public class MediaServiceImpl implements MediaService {
         boolean exists = switch (type) {
             case CONTENT -> contentRepository.findById(id).filter(e -> !Boolean.TRUE.equals(e.getIsDeleted())).isPresent();
             case DOG_BREED -> dogBreedRepository.findByBreedIdAndIsDeletedFalse(id).isPresent();
+            case DOG_PROFILE -> dogProfileRepository.findByDogIdAndIsDeletedFalse(id).isPresent();
             case NUTRITION_STANDARD -> nutritionStandardRepository.findById(id).isPresent();
             case TRAINING_EXERCISE -> trainingExerciseRepository.findById(id).isPresent();
             case TRAINING_ROADMAP -> trainingRoadmapRepository.findById(id).isPresent();

@@ -9,6 +9,8 @@ public interface DevelopmentStageRepository extends JpaRepository<DevelopmentSta
 
     List<DevelopmentStage> findByDogBreedBreedIdAndIsDeletedFalseOrderByStageOrder(Integer breedId);
 
+    List<DevelopmentStage> findByIsDeletedFalseOrderByDogBreedBreedIdAscStageOrderAsc();
+
     org.springframework.data.domain.Page<DevelopmentStage> findByStatusAndIsDeletedFalse(
             vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus status,
             org.springframework.data.domain.Pageable pageable);

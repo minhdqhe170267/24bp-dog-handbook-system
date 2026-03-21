@@ -38,6 +38,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/media/*/file").permitAll()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
+                        .requestMatchers("/audit-logs/**").hasRole("ADMIN")
+                        .requestMatchers("/system-settings/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/dogs", "/dogs/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/dogs").hasRole("ADMIN")
@@ -100,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers("/sync/**").hasAnyRole("ADMIN", "TRAINER")
 
                         .requestMatchers("/import/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+                        .requestMatchers("/export/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(
                                 "/field-notes/**", "/reports/**",
