@@ -1,13 +1,15 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.DashboardStatsResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.TrainerDashboardStatsResponse;
 import vn.edu.fpt.doghandbook.backend.service.DashboardService;
-
-import java.util.List;
-import java.util.Map;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 @RestController
 @RequestMapping("/dashboard")
@@ -22,14 +24,8 @@ public class DashboardController {
     }
 
     @GetMapping("/trainer-stats")
-    public ApiResponse<?> getTrainerStats() {
-        return ApiResponse.success(Map.of(
-                "assignedDogs", List.of(
-                        Map.of("dogId", 1, "dogName", "Rex", "breedName", "Berger Đức"),
-                        Map.of("dogId", 2, "dogName", "Max", "breedName", "Malinois")
-                ),
-                "totalFieldNotes", 15,
-                "totalReports", 8
-        ));
+    public ApiResponse<TrainerDashboardStatsResponse> getTrainerStats(Authentication authentication) {
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
+        return ApiResponse.success(dashboardService.getTrainerStats(trainerId));
     }
 }
