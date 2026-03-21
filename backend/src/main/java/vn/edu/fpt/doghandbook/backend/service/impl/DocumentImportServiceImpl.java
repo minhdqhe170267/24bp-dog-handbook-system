@@ -19,6 +19,10 @@ import vn.edu.fpt.doghandbook.backend.dto.request.NutritionStandardRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.TrainingExerciseRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportPreviewResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ImportTemplateResponse;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ActivityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.DifficultyLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SeverityLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.SizeClassification;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.service.BreedService;
 import vn.edu.fpt.doghandbook.backend.service.DiseaseService;
@@ -105,8 +109,8 @@ public class DocumentImportServiceImpl implements DocumentImportService {
                 .templateName("Dinh dưỡng")
                 .entityType("NUTRITION")
                 .description("Import tiêu chuẩn dinh dưỡng")
-                .requiredColumns(List.of("rationCode", "rationName"))
-                .optionalColumns(List.of("description", "activityLevel"))
+                .requiredColumns(List.of("rationCode", "rationName", "activityLevel", "breedId"))
+                .optionalColumns(List.of("description"))
                 .supportedFileTypes(SUPPORTED_FILE_TYPES)
                 .build());
 
@@ -234,6 +238,10 @@ public class DocumentImportServiceImpl implements DocumentImportService {
             }
             case "NUTRITION" -> {
                 NutritionStandardRequest req = new NutritionStandardRequest();
+                String breedIdStr = str(row.get("breedId"));
+                if (breedIdStr != null) {
+                    req.setBreedId((int) Double.parseDouble(breedIdStr));
+                }
                 req.setRationCode(str(row.get("rationCode")));
                 req.setRationName(str(row.get("rationName")));
                 req.setDescription(str(row.get("description")));
@@ -283,6 +291,7 @@ public class DocumentImportServiceImpl implements DocumentImportService {
     private List<String> validateRows(List<Map<String, Object>> rows, ImportTemplateResponse template) {
         List<String> errors = new ArrayList<>();
         List<String> required = template.getRequiredColumns();
+        String entityType = template.getEntityType();
 
         for (int i = 0; i < rows.size(); i++) {
             Map<String, Object> row = rows.get(i);
@@ -292,8 +301,28 @@ public class DocumentImportServiceImpl implements DocumentImportService {
                     errors.add("Dòng " + (i + 1) + ": thiếu giá trị bắt buộc '" + col + "'");
                 }
             }
+            // Validate enum values
+            validateEnumField(errors, row, i, entityType, "BREED", "sizeClassification", SizeClassification.class);
+            validateEnumField(errors, row, i, entityType, "DISEASE", "severityLevel", SeverityLevel.class);
+            validateEnumField(errors, row, i, entityType, "EXERCISE", "difficultyLevel", DifficultyLevel.class);
+            validateEnumField(errors, row, i, entityType, "NUTRITION", "activityLevel", ActivityLevel.class);
         }
         return errors;
+    }
+
+    private <E extends Enum<E>> void validateEnumField(List<String> errors, Map<String, Object> row,
+                                                        int rowIndex, String currentEntityType,
+                                                        String targetEntityType, String fieldName,
+                                                        Class<E> enumClass) {
+        if (!currentEntityType.equalsIgnoreCase(targetEntityType)) return;
+        Object value = row.get(fieldName);
+        if (value == null || value.toString().isBlank()) return;
+        try {
+            Enum.valueOf(enumClass, value.toString().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            errors.add("Dòng " + (rowIndex + 1) + ": giá trị '" + fieldName + "' không hợp lệ: '" + value
+                    + "'. Giá trị hợp lệ: " + java.util.Arrays.toString(enumClass.getEnumConstants()));
+        }
     }
 
     private ParsedData parseExcel(MultipartFile file) {
