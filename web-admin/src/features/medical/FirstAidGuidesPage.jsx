@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import StatusBadge from '../../components/shared/StatusBadge';
+import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
 import {
   Modal,
   FormField,
@@ -13,7 +15,10 @@ import {
 } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { firstAidGuideService } from '../../services/firstAidGuideService';
-import { Plus, Pencil, Trash2, Eye, Search } from 'lucide-react';
+import { Plus, Pencil, EyeOff, Eye, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const EMPTY_FORM = {
   guideTitle: '',
@@ -29,7 +34,10 @@ const EMPTY_FORM = {
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
   { value: 'DRAFT', label: 'Nháp' },
+  { value: 'PENDING', label: 'Chờ duyệt' },
+  { value: 'APPROVED', label: 'Đã duyệt' },
   { value: 'PUBLISHED', label: 'Đã xuất bản' },
+  { value: 'REJECTED', label: 'Từ chối' },
 ];
 
 const formatDateTime = (value) => {
@@ -51,6 +59,7 @@ const getDateTimeParts = (value) => {
 };
 
 const FirstAidGuidesPage = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +72,14 @@ const FirstAidGuidesPage = () => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+  const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+  const canPublish = user?.role === 'ADMIN';
 
   const fetchData = async (page = 0, size = pagination.pageSize) => {
     setLoading(true);
@@ -136,11 +153,73 @@ const FirstAidGuidesPage = () => {
     if (!deleteId) return;
     try {
       await firstAidGuideService.delete(deleteId);
-      toast.success('Xóa thành công');
+      toast.success('Đã ẩn hướng dẫn sơ cứu');
       setDeleteId(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error('Lỗi khi xóa sơ cứu');
+      toast.error('Lỗi khi ẩn hướng dẫn sơ cứu');
+    }
+  };
+
+  const getGuideId = (row) => row.guideId || row.id;
+  const getStatus = (row) => String(row.status || '').toUpperCase();
+
+  const handleSubmitForReview = async (row) => {
+    const id = getGuideId(row);
+    if (!id) return;
+    try {
+      await approvalService.submit(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
+      toast.success('Đã gửi duyệt');
+      fetchData(pagination.page, pagination.pageSize);
+    } catch (err) {
+      console.error('Submit first aid guide for review error:', err);
+      toast.error(err?.message || 'Không thể gửi duyệt');
+    }
+  };
+
+  const handlePublish = async (row) => {
+    const id = getGuideId(row);
+    if (!id) return;
+    try {
+      await approvalService.publish(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
+      toast.success('Đã xuất bản');
+      fetchData(pagination.page, pagination.pageSize);
+    } catch (err) {
+      console.error('Publish first aid guide error:', err);
+      toast.error(err?.message || 'Không thể xuất bản');
+    }
+  };
+
+  const handleUnpublish = async (row) => {
+    const id = getGuideId(row);
+    if (!id) return;
+    try {
+      await approvalService.unpublish(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
+      toast.success('Đã gỡ xuất bản');
+      fetchData(pagination.page, pagination.pageSize);
+    } catch (err) {
+      console.error('Unpublish first aid guide error:', err);
+      toast.error(err?.message || 'Không thể gỡ xuất bản');
+    }
+  };
+
+  const openHistory = async (row) => {
+    const id = getGuideId(row);
+    if (!id) return;
+
+    setHistoryTarget({ title: row?.guideTitle || '-', typeLabel: 'Sơ cứu' });
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryRecords([]);
+    try {
+      const res = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
+      const payload = res?.data || res || [];
+      setHistoryRecords(Array.isArray(payload) ? payload : payload.content || []);
+    } catch (err) {
+      console.error('Fetch first aid approval history error:', err);
+      setHistoryRecords([]);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -155,18 +234,9 @@ const FirstAidGuidesPage = () => {
   };
 
   const openEdit = (row) => {
-    setEditing(row);
-    setFormData({
-      guideTitle: row.guideTitle || '',
-      emergencyType: row.emergencyType || '',
-      description: row.description || '',
-      immediateSteps: row.immediateSteps || '',
-      requiredMaterials: row.requiredMaterials || '',
-      doNotActions: row.doNotActions || '',
-      whenToSeekVet: row.whenToSeekVet || '',
-      imageUrl: row.imageUrl || '',
-    });
-    setModalOpen(true);
+    const id = getGuideId(row);
+    if (!id) return;
+    navigate(`/medical/${id}/edit`);
   };
 
   const openCreate = () => {
@@ -210,12 +280,22 @@ const FirstAidGuidesPage = () => {
     {
       key: 'actions',
       header: 'Thao tác',
-      className: 'w-36',
+      className: 'w-48',
       render: (row) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openDetail(row)}><Eye className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.guideId)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(row)}><History className="h-4 w-4 text-muted-foreground" /></Button>
+          {canEdit && <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>}
+          {canDelete && <Button variant="ghost" size="sm" title="Ẩn" onClick={() => setDeleteId(getGuideId(row))}><EyeOff className="h-4 w-4 text-destructive" /></Button>}
+          {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(row)) && (
+            <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(row)}><Send className="h-4 w-4 text-amber-600" /></Button>
+          )}
+          {canPublish && getStatus(row) === 'APPROVED' && (
+            <Button variant="ghost" size="sm" title="Xuất bản" onClick={() => handlePublish(row)}><Globe className="h-4 w-4 text-emerald-600" /></Button>
+          )}
+          {canPublish && getStatus(row) === 'PUBLISHED' && (
+            <Button variant="ghost" size="sm" title="Gỡ xuất bản" onClick={() => handleUnpublish(row)}><Undo2 className="h-4 w-4 text-muted-foreground" /></Button>
+          )}
         </div>
       ),
     },
@@ -227,7 +307,7 @@ const FirstAidGuidesPage = () => {
         title="Quản lý Sơ cứu"
         description="Danh sách hướng dẫn sơ cứu cho các tình huống khẩn cấp"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Sơ cứu' }]}
-        actions={<Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo hướng dẫn sơ cứu</Button>}
+        actions={canEdit ? <Button onClick={() => navigate('/medical/create')} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo hướng dẫn sơ cứu</Button> : null}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -272,7 +352,7 @@ const FirstAidGuidesPage = () => {
               ['Không nên làm', detailData.doNotActions],
               ['Khi nào cần bác sĩ', detailData.whenToSeekVet],
               ['Ảnh minh họa', detailData.imageUrl],
-              ['Trạng thái', detailData.status],
+              ['Trạng thái', getStatusLabel(detailData.status)],
               ['Người tạo', detailData.createdByName],
               ['Ngày tạo', formatDateTime(detailData.createdAt)],
               ['Cập nhật', formatDateTime(detailData.updatedAt)],
@@ -368,10 +448,18 @@ const FirstAidGuidesPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Xóa hướng dẫn sơ cứu"
-        description="Bạn có chắc chắn muốn xóa hướng dẫn này?"
+        title="Ẩn hướng dẫn sơ cứu"
+        description="Bạn có chắc chắn muốn ẩn hướng dẫn này?"
         onConfirm={handleDelete}
-        confirmLabel="Xóa"
+        confirmLabel="Ẩn"
+      />
+      <ApprovalHistoryModal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        loading={historyLoading}
+        records={historyRecords}
+        entityTitle={historyTarget.title}
+        entityTypeLabel={historyTarget.typeLabel}
       />
     </div>
   );

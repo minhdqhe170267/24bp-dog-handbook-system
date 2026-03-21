@@ -1,5 +1,6 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../utils/utils';
 
 const Modal = ({ open, onClose, title, children, footer, width = 600 }) => {
@@ -74,17 +75,119 @@ const FormTextarea = ({ className = '', rows = 3, ...props }) => (
     />
 );
 
-const FormSelect = ({ options = [], className = '', placeholder, ...props }) => (
-    <select
-        className={cn('w-full h-10 px-3 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card cursor-pointer', className)}
-        {...props}
-    >
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-    </select>
-);
+const FormSelect = ({
+    options = [],
+    className = '',
+    placeholder = 'Chọn...',
+    value,
+    onChange,
+    disabled = false,
+    name,
+    id,
+    ...props
+}) => {
+    const ref = useRef(null);
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (ref.current && !ref.current.contains(event.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const normalizedValue = value ?? '';
+    const selectedOption = useMemo(
+        () => options.find((option) => String(option.value) === String(normalizedValue)),
+        [options, normalizedValue]
+    );
+    const selectedLabel = selectedOption?.label || placeholder;
+
+    const emitChange = (nextValue) => {
+        if (!onChange) return;
+        onChange({
+            target: {
+                value: nextValue,
+                name,
+                id,
+            },
+        });
+    };
+
+    return (
+        <div ref={ref} className={cn('relative', className)}>
+            <button
+                type="button"
+                id={id}
+                disabled={disabled}
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                className={cn(
+                    'w-full h-10 px-3 border border-input rounded-lg text-sm outline-none transition-all bg-card cursor-pointer',
+                    'flex items-center justify-between gap-2 text-left',
+                    'hover:border-accent/50 focus:border-accent/50 focus:ring-2 focus:ring-accent/10',
+                    open && 'ring-2 ring-accent/10 border-accent/50',
+                    disabled && 'opacity-60 cursor-not-allowed'
+                )}
+                onClick={() => !disabled && setOpen((prev) => !prev)}
+            >
+                <span className={cn('truncate', !selectedOption && 'text-muted-foreground')}>{selectedLabel}</span>
+                <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', open && 'rotate-180')} />
+            </button>
+
+            {open && !disabled && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-card shadow-elevated py-1">
+                    {placeholder && (
+                        <button
+                            type="button"
+                            className={cn(
+                                'w-full px-3 py-2 text-sm text-left transition-colors flex items-center gap-2',
+                                normalizedValue === '' ? 'text-accent bg-accent/5' : 'text-muted-foreground hover:bg-muted/50'
+                            )}
+                            onClick={() => {
+                                emitChange('');
+                                setOpen(false);
+                            }}
+                        >
+                            <span className={cn('h-4 w-4 flex items-center justify-center', normalizedValue !== '' && 'invisible')}>
+                                <Check className="h-3.5 w-3.5 text-accent" />
+                            </span>
+                            <span className="truncate">{placeholder}</span>
+                        </button>
+                    )}
+                    {options.map((opt) => {
+                        const optionValue = opt.value ?? '';
+                        const isSelected = String(optionValue) === String(normalizedValue);
+                        return (
+                            <button
+                                key={String(opt.value)}
+                                type="button"
+                                className={cn(
+                                    'w-full px-3 py-2 text-sm text-left transition-colors flex items-center gap-2',
+                                    isSelected ? 'text-accent bg-accent/5' : 'text-foreground hover:bg-muted/50'
+                                )}
+                                onClick={() => {
+                                    emitChange(optionValue);
+                                    setOpen(false);
+                                }}
+                            >
+                                <span className={cn('h-4 w-4 flex items-center justify-center', !isSelected && 'invisible')}>
+                                    <Check className="h-3.5 w-3.5 text-accent" />
+                                </span>
+                                <span className="truncate">{opt.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            <input type="hidden" name={name} value={normalizedValue} {...props} />
+        </div>
+    );
+};
 
 const FormNumberInput = ({ className = '', ...props }) => (
     <input

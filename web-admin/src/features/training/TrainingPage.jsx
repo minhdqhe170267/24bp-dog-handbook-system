@@ -5,7 +5,7 @@ import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormNumberInput,
 import { useToast } from '../../components/ui/Toast';
 import { trainingService } from '../../services/trainingService';
 import { breedService } from '../../services/breedService';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, EyeOff } from 'lucide-react';
 import { cn } from '../../utils/utils';
 
 const TrainingPage = () => {
@@ -65,8 +65,8 @@ const MethodsTab = () => {
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi xóa'); }
+    try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi ẩn'); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -79,7 +79,7 @@ const MethodsTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -100,7 +100,7 @@ const MethodsTab = () => {
           <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
     </div>
   );
 };
@@ -137,8 +137,8 @@ const ExercisesTab = () => {
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi xóa'); }
+    try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi ẩn'); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -152,7 +152,7 @@ const ExercisesTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -182,7 +182,7 @@ const ExercisesTab = () => {
           <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
     </div>
   );
 };
@@ -219,8 +219,8 @@ const RoadmapsTab = () => {
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi xóa'); }
+    try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error('Lỗi khi ẩn'); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -235,7 +235,7 @@ const RoadmapsTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -261,7 +261,7 @@ const RoadmapsTab = () => {
           <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
     </div>
   );
 };

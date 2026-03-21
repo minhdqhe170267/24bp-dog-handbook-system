@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
+import { Plus, Eye, Pencil, EyeOff, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
+import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import { useAuth } from '../../hooks/useAuth';
 
 const sizeLabels = { SMALL: 'Nhỏ', MEDIUM: 'Trung bình', LARGE: 'Lớn', GIANT: 'Khổng lồ' };
 const trainLabels = { LOW: 'Thấp', MEDIUM: 'Trung bình', HIGH: 'Cao', VERY_HIGH: 'Rất cao' };
@@ -18,9 +22,12 @@ const sizeOptions = [
   { value: 'GIANT', label: 'Khổng lồ' },
 ];
 const statusOptions = [
-  { value: 'all', label: 'Tất cả' },
+  { value: 'all', label: 'Tất cả trạng thái' },
   { value: 'DRAFT', label: 'Nháp' },
+  { value: 'PENDING', label: 'Chờ duyệt' },
+  { value: 'APPROVED', label: 'Đã duyệt' },
   { value: 'PUBLISHED', label: 'Đã xuất bản' },
+  { value: 'REJECTED', label: 'Từ chối' },
 ];
 
 const detailFields = [
@@ -46,6 +53,7 @@ const editFields = [
 ];
 
 const BreedsPage = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [sizeFilter, setSizeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -58,6 +66,14 @@ const BreedsPage = () => {
   const [editItem, setEditItem] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState([]);
+  const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+  const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+  const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+  const canPublish = user?.role === 'ADMIN';
 
   const toBreedPayload = (formData) => ({
     breedName: formData.breedName?.trim() || '',
@@ -94,8 +110,67 @@ const BreedsPage = () => {
   useEffect(() => { fetchData(); }, [page, pageSize, search, sizeFilter, statusFilter]);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa giống chó này?')) return;
+    if (!window.confirm('Bạn có chắc chắn muốn ẩn giống chó này?')) return;
     try { await api.delete(`/breeds/${id}`); fetchData(); } catch (err) { console.error('Delete error:', err); }
+  };
+
+  const getBreedId = (row) => row.breedId || row.id;
+  const getStatus = (row) => String(row.status || '').toUpperCase();
+
+  const handleSubmitForReview = async (row) => {
+    const id = getBreedId(row);
+    if (!id) return;
+    try {
+      await approvalService.submit(APPROVAL_ENTITY_TYPES.DOG_BREED, id);
+      fetchData();
+    } catch (err) {
+      console.error('Submit breed for review error:', err);
+      alert(err?.message || 'Không thể gửi duyệt');
+    }
+  };
+
+  const handlePublish = async (row) => {
+    const id = getBreedId(row);
+    if (!id) return;
+    try {
+      await approvalService.publish(APPROVAL_ENTITY_TYPES.DOG_BREED, id);
+      fetchData();
+    } catch (err) {
+      console.error('Publish breed error:', err);
+      alert(err?.message || 'Không thể xuất bản');
+    }
+  };
+
+  const handleUnpublish = async (row) => {
+    const id = getBreedId(row);
+    if (!id) return;
+    try {
+      await approvalService.unpublish(APPROVAL_ENTITY_TYPES.DOG_BREED, id);
+      fetchData();
+    } catch (err) {
+      console.error('Unpublish breed error:', err);
+      alert(err?.message || 'Không thể gỡ xuất bản');
+    }
+  };
+
+  const openHistory = async (row) => {
+    const id = getBreedId(row);
+    if (!id) return;
+
+    setHistoryTarget({ title: row?.breedName || '-', typeLabel: 'Giống chó' });
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryRecords([]);
+    try {
+      const res = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.DOG_BREED, id);
+      const payload = res?.data || res || [];
+      setHistoryRecords(Array.isArray(payload) ? payload : payload.content || []);
+    } catch (err) {
+      console.error('Fetch breed approval history error:', err);
+      setHistoryRecords([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const handleEdit = async (formData) => {
@@ -159,8 +234,24 @@ const BreedsPage = () => {
       key: 'actions', header: 'Thao tác', render: (r) => (
         <div className="flex items-center gap-1">
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => setEditItem(r)}><Pencil className="h-4 w-4" /></button>
-          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(r.breedId)}><Trash2 className="h-4 w-4 text-destructive" /></button>
+          <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
+          {canEdit && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/breeds/${getBreedId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
+          {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Ẩn" onClick={() => handleDelete(getBreedId(r))}><EyeOff className="h-4 w-4 text-destructive" /></button>}
+          {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
+            <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
+              <Send className="h-4 w-4 text-amber-600" />
+            </button>
+          )}
+          {canPublish && getStatus(r) === 'APPROVED' && (
+            <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xuất bản" onClick={() => handlePublish(r)}>
+              <Globe className="h-4 w-4 text-emerald-600" />
+            </button>
+          )}
+          {canPublish && getStatus(r) === 'PUBLISHED' && (
+            <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gỡ xuất bản" onClick={() => handleUnpublish(r)}>
+              <Undo2 className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
         </div>
       )
     },
@@ -170,7 +261,7 @@ const BreedsPage = () => {
     <div className="animate-fade-in">
       <PageHeader title="Dữ liệu Giống chó" description="Quản lý thông tin các giống chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Giống chó' }]}
-        actions={<button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo giống chó</button>} />
+        actions={canEdit ? <button onClick={() => navigate('/breeds/create')} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo giống chó</button> : null} />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative">
@@ -180,7 +271,7 @@ const BreedsPage = () => {
             className="h-9 pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors w-64" />
         </div>
         <FilterSelect value={sizeFilter} onChange={(v) => { setSizeFilter(v); setPage(0); }} options={sizeOptions} placeholder="Tất cả kích thước" />
-        <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả" />
+        <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả trạng thái" />
       </div>
 
       {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
@@ -201,6 +292,15 @@ const BreedsPage = () => {
       <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm giống chó" size="lg">
         <EditForm fields={editFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
       </DetailModal>
+
+      <ApprovalHistoryModal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        loading={historyLoading}
+        records={historyRecords}
+        entityTitle={historyTarget.title}
+        entityTypeLabel={historyTarget.typeLabel}
+      />
     </div>
   );
 };

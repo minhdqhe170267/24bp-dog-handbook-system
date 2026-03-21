@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
+import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
+import { Eye, Search, History } from 'lucide-react';
 import api from '../../services/api';
-import { useAuth } from '../../hooks/useAuth';
+import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import { getContentTypeLabel } from '../../utils/enumLabels';
 
 const typeOptions = [
     { value: 'all', label: 'Tất cả loại' },
@@ -18,7 +20,7 @@ const typeOptions = [
 ];
 
 const statusOptions = [
-    { value: 'all', label: 'Tất cả' },
+    { value: 'all', label: 'Tất cả trạng thái' },
     { value: 'DRAFT', label: 'Nháp' },
     { value: 'PENDING', label: 'Chờ duyệt' },
     { value: 'APPROVED', label: 'Đã duyệt' },
@@ -36,9 +38,10 @@ const ContentListPage = () => {
     const [contents, setContents] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
-    const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
-    const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyRecords, setHistoryRecords] = useState([]);
+    const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
 
     const fetchContents = async () => {
         setLoading(true);
@@ -66,26 +69,35 @@ const ContentListPage = () => {
         fetchContents();
     }, [page, pageSize, search, typeFilter, statusFilter]);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Bạn có chắc chắn muốn xóa nội dung này?')) return;
-        try {
-            await api.delete(`/contents/${id}`);
-            fetchContents();
-        } catch (err) {
-            console.error('Delete error:', err);
-        }
-    };
-
     const getContentId = (row) => row.contentId || row.id;
     const openView = (row) => {
         const id = getContentId(row);
         if (!id) return;
         navigate(`/content/${id}`);
     };
-    const openEdit = (row) => {
+
+    const openHistory = async (row) => {
         const id = getContentId(row);
         if (!id) return;
-        navigate(`/content/${id}/edit`);
+
+        setHistoryTarget({
+            title: row.title || row.contentTitle || '-',
+            typeLabel: 'Bài viết',
+        });
+        setHistoryOpen(true);
+        setHistoryLoading(true);
+        setHistoryRecords([]);
+
+        try {
+            const res = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.CONTENT, id);
+            const payload = res?.data || res || [];
+            setHistoryRecords(Array.isArray(payload) ? payload : payload.content || []);
+        } catch (err) {
+            console.error('Fetch content approval history error:', err);
+            setHistoryRecords([]);
+        } finally {
+            setHistoryLoading(false);
+        }
     };
 
     const getDateTimeParts = (value) => {
@@ -112,7 +124,7 @@ const ContentListPage = () => {
 
     const columns = [
         { key: 'title', header: 'Tiêu đề', render: (r) => <span className="font-medium">{r.title || r.contentTitle || '-'}</span> },
-        { key: 'contentType', header: 'Loại', render: (r) => r.contentType || r.content_type || '-' },
+        { key: 'contentType', header: 'Loại', render: (r) => getContentTypeLabel(r.contentType || r.content_type) },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'author', header: 'Tác giả', render: (r) => r.authorName || r.author?.fullName || r.author?.full_name || '-' },
         { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt || r.updated_at) },
@@ -126,20 +138,13 @@ const ContentListPage = () => {
                     >
                         <Eye className="h-4 w-4" />
                     </button>
-                    {canEdit && (
-                        <button
-                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                            title="Sửa"
-                            onClick={() => openEdit(r)}
-                        >
-                            <Pencil className="h-4 w-4" />
-                        </button>
-                    )}
-                    {canDelete && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => handleDelete(getContentId(r))}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </button>
-                    )}
+                    <button
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Lịch sử duyệt"
+                        onClick={() => openHistory(r)}
+                    >
+                        <History className="h-4 w-4 text-muted-foreground" />
+                    </button>
                 </div>
             )
         },
@@ -151,15 +156,6 @@ const ContentListPage = () => {
                 title="Quản lý Nội dung"
                 description="Quản lý tất cả nội dung trong hệ thống"
                 breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Nội dung' }]}
-                actions={canEdit ? (
-                    <Link
-                        to="/content/create"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors no-underline"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Tạo nội dung mới
-                    </Link>
-                ) : null}
             />
 
             <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -188,7 +184,7 @@ const ContentListPage = () => {
                     value={statusFilter}
                     onChange={(v) => { setStatusFilter(v); setPage(0); }}
                     options={statusOptions}
-                    placeholder="Tất cả"
+                    placeholder="Tất cả trạng thái"
                 />
             </div>
 
@@ -206,6 +202,15 @@ const ContentListPage = () => {
                     emptyMessage="Chưa có nội dung nào"
                 />
             )}
+
+            <ApprovalHistoryModal
+                open={historyOpen}
+                onClose={() => setHistoryOpen(false)}
+                loading={historyLoading}
+                records={historyRecords}
+                entityTitle={historyTarget.title}
+                entityTypeLabel={historyTarget.typeLabel}
+            />
         </div>
     );
 };
