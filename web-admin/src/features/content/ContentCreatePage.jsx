@@ -2,11 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import {
-    Save,
+    ArrowLeft,
     Eye,
-    Pencil,
-    Send,
-    Globe,
     Bold,
     Italic,
     Heading1,
@@ -19,14 +16,13 @@ import {
     Redo,
     Upload,
     Loader2,
-    Trash2,
+    EyeOff,
     Image as ImageIcon,
     Video,
     X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../../services/api';
-import { useAuth } from '../../hooks/useAuth';
 
 const contentTypeLabels = {
     BREED_INFO: 'Giống chó',
@@ -49,20 +45,19 @@ const MAX_MEDIA_FILES = 10;
 const ContentCreatePage = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useAuth();
     const { id } = useParams();
     const parsedRouteId = Number(id);
     const contentIdFromRoute = Number.isInteger(parsedRouteId) ? parsedRouteId : null;
     const isEditMode = Boolean(contentIdFromRoute) && location.pathname.endsWith('/edit');
     const isViewMode = Boolean(contentIdFromRoute) && !isEditMode;
-    const canEditContent = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
-    const isReadonlyMode = isViewMode || !canEditContent;
+    const isReadonlyMode = true;
     const fileInputRef = useRef(null);
     const [contentType, setContentType] = useState('');
     const [category, setCategory] = useState('');
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
     const [tags, setTags] = useState('');
+    const [contentStatus, setContentStatus] = useState('DRAFT');
     const [contentId, setContentId] = useState(null);
     const [mediaFiles, setMediaFiles] = useState([]);
     const [failedPreviews, setFailedPreviews] = useState({});
@@ -72,7 +67,6 @@ const ContentCreatePage = () => {
     const [loadingContent, setLoadingContent] = useState(false);
     const [activeMediaPreview, setActiveMediaPreview] = useState(null);
     const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
-    const canPublish = canEditContent && user?.role !== 'CONTENT_EDITOR';
     const normalizeApiBase = (value) => {
         if (!value) return '/api/v1';
         const normalized = value.trim().replace(/\/+$/, '');
@@ -152,12 +146,6 @@ const ContentCreatePage = () => {
     };
 
     useEffect(() => {
-        if (isEditMode && !canEditContent && contentIdFromRoute) {
-            navigate(`/content/${contentIdFromRoute}`, { replace: true });
-        }
-    }, [isEditMode, canEditContent, contentIdFromRoute, navigate]);
-
-    useEffect(() => {
         let active = true;
 
         const fetchContentById = async () => {
@@ -176,6 +164,7 @@ const ContentCreatePage = () => {
                 setTitle(detail.title || '');
                 setBody(detail.body || '');
                 setTags(detail.tags || '');
+                setContentStatus((detail.status || 'DRAFT').toUpperCase());
 
                 await fetchMediaByContent(resolvedId);
             } catch (err) {
@@ -193,27 +182,6 @@ const ContentCreatePage = () => {
         };
     }, [contentIdFromRoute, navigate]);
 
-    const saveOrUpdateContent = async () => {
-        if (!ensureValidContent()) {
-            throw new Error('Thiếu thông tin bắt buộc');
-        }
-
-        const payload = buildPayload();
-
-        if (contentId) {
-            await api.put(`/contents/${contentId}`, payload);
-            return contentId;
-        }
-
-        const created = await api.post('/contents', payload);
-        const newId = created?.data?.contentId || created?.contentId;
-        if (!newId) {
-            throw new Error('Không lấy được contentId sau khi tạo nội dung');
-        }
-        setContentId(newId);
-        return newId;
-    };
-
     const isSupportedMedia = (file) =>
         file?.type?.startsWith('image/') || file?.type?.startsWith('video/');
 
@@ -227,62 +195,7 @@ const ContentCreatePage = () => {
     };
 
     const handleUploadFiles = async (fileList) => {
-        if (isReadonlyMode) return;
-        const picked = Array.from(fileList || []);
-        if (!picked.length) return;
-
-        const supported = picked.filter(isSupportedMedia);
-        if (!supported.length) {
-            alert('Chỉ hỗ trợ file ảnh và video');
-            return;
-        }
-
-        const slotsLeft = MAX_MEDIA_FILES - mediaFiles.length;
-        if (slotsLeft <= 0) {
-            alert(`Tối đa ${MAX_MEDIA_FILES} file media`);
-            return;
-        }
-
-        const queue = supported.slice(0, slotsLeft);
-        if (supported.length > slotsLeft) {
-            alert(`Chỉ upload ${slotsLeft} file đầu tiên vì giới hạn ${MAX_MEDIA_FILES} file`);
-        }
-
-        const tempItems = queue.map((file, idx) => ({
-            tempId: `local-${Date.now()}-${idx}`,
-            fileName: file.name,
-            filename: file.name,
-            mediaType: file.type?.startsWith('video/') ? 'VIDEO' : 'IMAGE',
-            fileSizeBytes: file.size,
-            fileUrl: URL.createObjectURL(file),
-        }));
-        setMediaFiles((prev) => [...prev, ...tempItems]);
-
-        setUploading(true);
-        try {
-            const entityId = await saveOrUpdateContent();
-
-            for (const file of queue) {
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('entityType', 'CONTENT');
-                formData.append('entityId', String(entityId));
-                await api.post('/media/upload', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                });
-            }
-
-            await fetchMediaByContent(entityId);
-            revokeBlobUrls(tempItems);
-        } catch (err) {
-            setMediaFiles((prev) => prev.filter((item) => !tempItems.some((temp) => temp.tempId === item.tempId)));
-            revokeBlobUrls(tempItems);
-            alert(getErrorMessage(err, 'Lỗi upload media'));
-        } finally {
-            setUploading(false);
-        }
+        return;
     };
 
     const handleFileInputChange = async (e) => {
@@ -303,32 +216,7 @@ const ContentCreatePage = () => {
             await api.delete(`/media/${mediaId}`);
             setMediaFiles((prev) => prev.filter((m) => m.mediaId !== mediaId));
         } catch (err) {
-            alert(getErrorMessage(err, 'Lỗi xóa media'));
-        }
-    };
-
-    const handleSave = async (status) => {
-        if (isReadonlyMode) return;
-        if (status === 'PUBLISHED' && !canPublish) {
-            alert('Bạn không có quyền xuất bản nội dung');
-            return;
-        }
-        setSaving(true);
-        try {
-            const id = await saveOrUpdateContent();
-
-            if (status === 'PENDING') {
-                await api.put(`/contents/${id}/submit`);
-            } else if (status === 'PUBLISHED') {
-                await api.put(`/contents/${id}/publish`);
-            }
-
-            navigate('/content');
-        } catch (err) {
-            console.error('Save error:', err);
-            alert(getErrorMessage(err, 'Lỗi khi lưu nội dung'));
-        } finally {
-            setSaving(false);
+            alert(getErrorMessage(err, 'Lỗi ẩn media'));
         }
     };
 
@@ -510,7 +398,7 @@ const ContentCreatePage = () => {
                         <div className="bg-card rounded-xl border border-border/60 p-6">
                             <label className="text-sm font-medium text-foreground block mb-3">Media</label>
                             <div
-                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isReadonlyMode ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'} ${dragging ? 'border-accent bg-accent/5' : 'border-border'}`}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isReadonlyMode ? 'cursor-default opacity-90' : 'cursor-pointer'} ${dragging ? 'border-accent bg-accent/5' : 'border-border'}`}
                                 onClick={() => {
                                     if (!isReadonlyMode) fileInputRef.current?.click();
                                 }}
@@ -527,8 +415,12 @@ const ContentCreatePage = () => {
                                 ) : (
                                     <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                                 )}
-                                <p className="text-sm text-foreground font-medium">Kéo thả file vào đây hoặc nhấp để chọn</p>
-                                <p className="text-xs text-accent mt-1">Hỗ trợ ảnh và video. Tối đa {MAX_MEDIA_FILES} file.</p>
+                                <p className="text-sm text-foreground font-medium">
+                                    {isReadonlyMode ? 'Media đính kèm (chỉ xem)' : 'Kéo thả file vào đây hoặc nhấp để chọn'}
+                                </p>
+                                <p className="text-xs text-accent mt-1">
+                                    {isReadonlyMode ? 'Ảnh và video đã upload cho nội dung này.' : `Hỗ trợ ảnh và video. Tối đa ${MAX_MEDIA_FILES} file.`}
+                                </p>
                                 {contentId && (
                                     <p className="text-xs text-muted-foreground mt-2">Đã liên kết nội dung ID: {contentId}</p>
                                 )}
@@ -614,15 +506,17 @@ const ContentCreatePage = () => {
                                                 >
                                                     <Eye className="h-4 w-4 text-muted-foreground" />
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteMedia(media.mediaId)}
-                                                    className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
-                                                    title="Xoa media"
-                                                    disabled={isReadonlyMode || !media.mediaId}
-                                                >
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </button>
+                                                {!isReadonlyMode && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteMedia(media.mediaId)}
+                                                        className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
+                                                        title="Ẩn media"
+                                                        disabled={!media.mediaId}
+                                                    >
+                                                        <EyeOff className="h-4 w-4 text-destructive" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     )})}
@@ -637,52 +531,13 @@ const ContentCreatePage = () => {
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }}>
                         <div className="bg-card rounded-xl border border-border/60 p-6 space-y-3">
                             <h3 className="font-semibold text-sm text-foreground">Hành động</h3>
-                            {isReadonlyMode ? (
-                                <>
-                                    {canEditContent && (
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(`/content/${contentIdFromRoute}/edit`)}
-                                            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
-                                        >
-                                            <Pencil className="h-4 w-4" /> Chỉnh sửa
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate('/content')}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
-                                    >
-                                        <Eye className="h-4 w-4" /> Quay lại danh sách
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={() => handleSave('DRAFT')}
-                                        disabled={saving || uploading}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card disabled:opacity-50"
-                                    >
-                                        <Save className="h-4 w-4" /> Lưu nháp
-                                    </button>
-                                    <button
-                                        onClick={() => handleSave('PENDING')}
-                                        disabled={saving || uploading}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
-                                    >
-                                        <Send className="h-4 w-4" /> Gửi duyệt
-                                    </button>
-                                    {canPublish && (
-                                        <button
-                                            onClick={() => handleSave('PUBLISHED')}
-                                            disabled={saving || uploading}
-                                            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
-                                        >
-                                            <Globe className="h-4 w-4" /> Xuất bản
-                                        </button>
-                                    )}
-                                </>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => navigate('/content')}
+                                className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors text-foreground cursor-pointer bg-card"
+                            >
+                                <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
+                            </button>
                         </div>
                     </motion.div>
                 </div>
