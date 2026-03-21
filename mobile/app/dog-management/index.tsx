@@ -73,8 +73,8 @@ const hubActions: HubAction[] = [
 ];
 
 const dedupeRecords = (records: HealthRecord[]) => {
-    const map = new Map<number, HealthRecord>();
-    records.forEach((record) => map.set(record.recordId, record));
+    const map = new Map<string, HealthRecord>();
+    records.forEach((record) => map.set(String(record.recordId), record));
     return [...map.values()].sort((left, right) => {
         const leftTime = new Date(left.examinationDate || 0).getTime() || 0;
         const rightTime = new Date(right.examinationDate || 0).getTime() || 0;

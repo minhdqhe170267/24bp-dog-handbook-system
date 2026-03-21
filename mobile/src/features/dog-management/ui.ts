@@ -337,8 +337,8 @@ export const sortByDateDesc = <T>(items: T[], getValue: (item: T) => string | nu
 export const findFallbackDog = (dogId: number) => fallbackDogs.find((item) => item.dogId === dogId) || null;
 export const findFallbackWeightAssessment = (dogId: number) =>
     fallbackWeightAssessments.find((item) => item.dogId === dogId) || null;
-export const findFallbackHealthSession = (sessionId: number) =>
-    fallbackHealthSessions.find((item) => item.sessionId === sessionId) || null;
+export const findFallbackHealthSession = (sessionId: number | string) =>
+    fallbackHealthSessions.find((item) => String(item.sessionId) === String(sessionId)) || null;
 export const findFallbackFieldNote = (noteId: number) =>
     fallbackFieldNotes.find((item) => item.noteId === noteId) || null;
 

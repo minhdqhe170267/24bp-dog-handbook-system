@@ -149,13 +149,7 @@ export default function NewHealthRecordScreen() {
             Alert.alert('Thành công', 'Đã lưu hồ sơ khám mới.', [
                 {
                     text: 'OK',
-                    onPress: () => {
-                        if (created?.recordId) {
-                            router.replace(`/dog-management/health-records/${created.recordId}` as any);
-                            return;
-                        }
-                        router.replace(`/dog-management/health-records?dogId=${selectedDogId}` as any);
-                    },
+                    onPress: () => router.replace(`/dog-management/health-records/${String(created.recordId)}` as any),
                 },
             ]);
         } catch (error: any) {

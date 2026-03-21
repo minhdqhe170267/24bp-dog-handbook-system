@@ -28,7 +28,7 @@ const homeActions: HomeAction[] = [
   { id: 'training', title: 'Huấn luyện', icon: 'flag', route: '/(tabs)/training' },
   { id: 'dog-hub', title: 'Hồ sơ chó', icon: 'paw', route: '/dog-management' },
   { id: 'health', title: 'Sức khỏe', icon: 'medkit', route: '/(tabs)/health' },
-  { id: 'tasks', title: 'Nhiệm vụ', icon: 'clipboard', route: '/dog-management/assignments' },
+  { id: 'nutrition', title: 'Dinh dưỡng', icon: 'restaurant', route: '/(tabs)/nutrition' },
   { id: 'reports', title: 'Báo cáo', icon: 'bar-chart', message: 'Màn báo cáo sẽ được bổ sung ở bước tiếp theo.' },
   { id: 'breeds', title: 'Giống chó', icon: 'search', route: '/(tabs)/breeds' },
 ];
