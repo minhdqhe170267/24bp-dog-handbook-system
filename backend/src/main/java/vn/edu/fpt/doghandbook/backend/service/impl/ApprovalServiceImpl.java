@@ -130,6 +130,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         return switch (entityType) {
             case CONTENT -> toPendingList(contentRepository.findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable), entityType);
             case DOG_BREED -> toPendingList(dogBreedRepository.findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable), entityType);
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(entityType);
             case NUTRITION_STANDARD -> toPendingList(nutritionStandardRepository.findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable), entityType);
             case TRAINING_EXERCISE -> toPendingList(trainingExerciseRepository.findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable), entityType);
             case TRAINING_ROADMAP -> toPendingList(trainingRoadmapRepository.findByStatusAndIsDeletedFalse(ContentStatus.PENDING, pageable), entityType);
@@ -147,6 +148,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         return switch (type) {
             case CONTENT -> findContent(id).getStatus();
             case DOG_BREED -> findBreed(id).getStatus();
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
             case NUTRITION_STANDARD -> findNutrition(id).getStatusEnum();
             case TRAINING_EXERCISE -> findExercise(id).getStatus();
             case TRAINING_ROADMAP -> findRoadmap(id).getStatus();
@@ -162,6 +164,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         switch (type) {
             case CONTENT -> { Content e = findContent(id); e.setStatus(status); contentRepository.save(e); }
             case DOG_BREED -> { DogBreed e = findBreed(id); e.setStatus(status); dogBreedRepository.save(e); }
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
             case NUTRITION_STANDARD -> { NutritionStandard e = findNutrition(id); e.setStatusEnum(status); nutritionStandardRepository.save(e); }
             case TRAINING_EXERCISE -> { TrainingExercise e = findExercise(id); e.setStatus(status); trainingExerciseRepository.save(e); }
             case TRAINING_ROADMAP -> { TrainingRoadmap e = findRoadmap(id); e.setStatus(status); trainingRoadmapRepository.save(e); }
@@ -177,6 +180,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         switch (type) {
             case CONTENT -> { Content e = findContent(id); e.setPublishedAt(publishedAt); contentRepository.save(e); }
             case DOG_BREED -> { DogBreed e = findBreed(id); e.setPublishedAt(publishedAt); dogBreedRepository.save(e); }
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
             case NUTRITION_STANDARD -> { NutritionStandard e = findNutrition(id); e.setPublishedAt(publishedAt); nutritionStandardRepository.save(e); }
             case TRAINING_EXERCISE -> { TrainingExercise e = findExercise(id); e.setPublishedAt(publishedAt); trainingExerciseRepository.save(e); }
             case TRAINING_ROADMAP -> { TrainingRoadmap e = findRoadmap(id); e.setPublishedAt(publishedAt); trainingRoadmapRepository.save(e); }
@@ -193,6 +197,7 @@ public class ApprovalServiceImpl implements ApprovalService {
             return switch (type) {
                 case CONTENT -> findContent(id).getTitle();
                 case DOG_BREED -> findBreed(id).getBreedName();
+                case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
                 case NUTRITION_STANDARD -> findNutrition(id).getRationName();
                 case TRAINING_EXERCISE -> findExercise(id).getExerciseName();
                 case TRAINING_ROADMAP -> findRoadmap(id).getRoadmapName();
@@ -291,6 +296,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         return switch (type) {
             case CONTENT -> ((Content) entity).getContentId();
             case DOG_BREED -> ((DogBreed) entity).getBreedId();
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
             case NUTRITION_STANDARD -> ((NutritionStandard) entity).getStandardId();
             case TRAINING_EXERCISE -> ((TrainingExercise) entity).getExerciseId();
             case TRAINING_ROADMAP -> ((TrainingRoadmap) entity).getRoadmapId();
@@ -306,6 +312,7 @@ public class ApprovalServiceImpl implements ApprovalService {
         return switch (type) {
             case CONTENT -> ((Content) entity).getTitle();
             case DOG_BREED -> ((DogBreed) entity).getBreedName();
+            case DOG_PROFILE -> throw unsupportedApprovalEntityType(type);
             case NUTRITION_STANDARD -> ((NutritionStandard) entity).getRationName();
             case TRAINING_EXERCISE -> ((TrainingExercise) entity).getExerciseName();
             case TRAINING_ROADMAP -> ((TrainingRoadmap) entity).getRoadmapName();
@@ -330,6 +337,10 @@ public class ApprovalServiceImpl implements ApprovalService {
 
     private String trimToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    private BadRequestException unsupportedApprovalEntityType(ApprovableEntityType type) {
+        return new BadRequestException("entityType không hỗ trợ workflow duyệt nội dung: " + type.name());
     }
 
     private Integer safeUserId(User user) {
