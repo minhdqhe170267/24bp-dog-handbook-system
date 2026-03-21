@@ -32,7 +32,8 @@ public class AuditAspect {
 
     @AfterReturning(
             pointcut = "execution(* vn.edu.fpt.doghandbook.backend.service.impl.*.update*(..)) && " +
-                    "!target(vn.edu.fpt.doghandbook.backend.service.impl.AuditLogServiceImpl)",
+                    "!target(vn.edu.fpt.doghandbook.backend.service.impl.AuditLogServiceImpl) && " +
+                    "!target(vn.edu.fpt.doghandbook.backend.service.impl.SystemSettingServiceImpl)",
             returning = "result"
     )
     public void afterUpdate(JoinPoint joinPoint, Object result) {
