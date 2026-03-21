@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../utils/utils';
+import { formatDetailEnumValue } from '../../utils/enumLabels';
 
 const DetailModal = ({ open, onClose, title, children, size = 'md' }) => {
     const overlayRef = useRef(null);
@@ -45,7 +46,10 @@ export const DetailView = ({ fields, data }) => {
     if (!data) return null;
     return (
         <div className="space-y-3">
-            {fields.map((f) => (
+            {fields.map((f) => {
+                const rawValue = data[f.key];
+                const displayValue = formatDetailEnumValue(f.key, rawValue);
+                return (
                 <div key={f.key} className={f.type === 'textarea' ? '' : 'flex items-start gap-2'}>
                     <span className="text-sm font-medium text-muted-foreground min-w-[140px] flex-shrink-0">{f.label}:</span>
                     {f.type === 'textarea' ? (
@@ -53,10 +57,11 @@ export const DetailView = ({ fields, data }) => {
                     ) : f.render ? (
                         <span className="text-sm text-foreground">{f.render(data)}</span>
                     ) : (
-                        <span className="text-sm text-foreground">{data[f.key] || '-'}</span>
+                        <span className="text-sm text-foreground">{displayValue}</span>
                     )}
                 </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

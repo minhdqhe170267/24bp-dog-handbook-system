@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, Pencil, Plus, EyeOff } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
@@ -15,6 +16,7 @@ import { useToast } from '../../components/ui/Toast';
 import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { dogService } from '../../services/dogService';
 import { userService } from '../../services/userService';
+import { getAssignmentTypeLabel } from '../../utils/enumLabels';
 
 const assignmentTypeOptions = [
   { value: 'PRIMARY', label: 'Chính' },
@@ -51,6 +53,7 @@ const formatDate = (value) => {
 };
 
 const DogAssignmentsPage = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -162,16 +165,8 @@ const DogAssignmentsPage = () => {
   };
 
   const openEdit = (row) => {
-    setEditing(row);
-    setFormData({
-      dogId: row.dogId ? String(row.dogId) : '',
-      trainerId: row.trainerId ? String(row.trainerId) : '',
-      assignmentType: row.assignmentType || 'PRIMARY',
-      startDate: row.startDate || '',
-      endDate: row.endDate || '',
-      notes: row.notes || '',
-    });
-    setModalOpen(true);
+    if (!row?.assignmentId) return;
+    navigate(`/assignments/${row.assignmentId}/edit`);
   };
 
   const openDetail = async (row) => {
@@ -290,8 +285,8 @@ const DogAssignmentsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Sửa">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)} title="Hủy phân công">
-            <Trash2 className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)} title="Ngừng hiệu lực">
+            <EyeOff className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -305,7 +300,7 @@ const DogAssignmentsPage = () => {
         description="Gán chó nghiệp vụ cho huấn luyện viên theo đợt công tác"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Phân công chó' }]}
         actions={(
-          <Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none" disabled={lookupLoading}>
+          <Button onClick={() => navigate('/assignments/create')} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none" disabled={lookupLoading}>
             <Plus className="h-4 w-4" />
             Tạo phân công
           </Button>
@@ -374,7 +369,7 @@ const DogAssignmentsPage = () => {
               ['Mã phân công', detailData.assignmentId],
               ['Chó', `${detailData.dogCode || '---'} - ${detailData.dogName || '—'}`],
               ['Huấn luyện viên', `${detailData.trainerName || '—'} (${detailData.trainerUsername || '—'})`],
-              ['Loại phân công', detailData.assignmentType || '—'],
+              ['Loại phân công', getAssignmentTypeLabel(detailData.assignmentType)],
               ['Ngày bắt đầu', formatDate(detailData.startDate)],
               ['Ngày kết thúc', formatDate(detailData.endDate)],
               ['Trạng thái', detailData.isActive ? 'Đang hiệu lực' : 'Đã hủy'],

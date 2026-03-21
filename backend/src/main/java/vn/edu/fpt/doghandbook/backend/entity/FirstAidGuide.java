@@ -69,6 +69,9 @@ public class FirstAidGuide {
     @Column(name = "status", nullable = false)
     private ContentStatus status = ContentStatus.DRAFT;
 
+    @Column(name = "published_at", nullable = true)
+    private LocalDateTime publishedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = true)
     @NotFound(action = NotFoundAction.IGNORE)

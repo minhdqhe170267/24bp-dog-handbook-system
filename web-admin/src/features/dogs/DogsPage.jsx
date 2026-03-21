@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, Pencil, Plus, Search, EyeOff } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -16,6 +17,7 @@ import {
 import { useToast } from '../../components/ui/Toast';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -105,6 +107,7 @@ const getDateTimeParts = (value) => {
 };
 
 const DogsPage = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [dogs, setDogs] = useState([]);
   const [breeds, setBreeds] = useState([]);
@@ -173,21 +176,8 @@ const DogsPage = () => {
   };
 
   const openEdit = (row) => {
-    setEditing(row);
-    setFormData({
-      dogName: row.dogName || '',
-      breedId: row.breedId ? String(row.breedId) : '',
-      gender: row.gender || 'MALE',
-      dateOfBirth: toDateInput(row.dateOfBirth),
-      currentWeightKg: row.currentWeightKg ?? '',
-      heightCm: row.heightCm ?? '',
-      color: row.color || '',
-      microchipId: row.microchipId || '',
-      status: row.status || 'ACTIVE',
-      imageUrl: row.imageUrl || '',
-      notes: row.notes || '',
-    });
-    setModalOpen(true);
+    if (!row?.dogId) return;
+    navigate(`/dogs/${row.dogId}/edit`);
   };
 
   const openDetail = async (row) => {
@@ -230,10 +220,10 @@ const DogsPage = () => {
       const payload = buildPayload();
       if (editing) {
         await dogService.update(editing.dogId, payload);
-        toast.success('Cập nhật chó thành công');
+        toast.success('Cập nhật hồ sơ chó thành công');
       } else {
         await dogService.create(payload);
-        toast.success('Tạo chó thành công');
+        toast.success('Tạo hồ sơ chó thành công');
       }
       setModalOpen(false);
       setEditing(null);
@@ -248,11 +238,11 @@ const DogsPage = () => {
     if (!deleteId) return;
     try {
       await dogService.delete(deleteId);
-      toast.success('Xóa chó thành công');
+      toast.success('Đã ẩn hồ sơ chó');
       setDeleteId(null);
       fetchDogs(pagination.page, pagination.pageSize);
     } catch (error) {
-      toast.error(error?.message || 'Không thể xóa chó');
+      toast.error(error?.message || 'Không thể ẩn hồ sơ chó');
     }
   };
 
@@ -303,8 +293,8 @@ const DogsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Sửa">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Xóa">
-            <Trash2 className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Ẩn">
+            <EyeOff className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -325,13 +315,13 @@ const DogsPage = () => {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Quản lý chó"
+        title="Hồ sơ chó"
         description="Quản lý hồ sơ từng chó nghiệp vụ trong hệ thống"
-        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Quản lý chó' }]}
+        breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Hồ sơ chó' }]}
         actions={(
-          <Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none">
+          <Button onClick={() => navigate('/dogs/create')} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none">
             <Plus className="h-4 w-4" />
-            Tạo chó
+            Tạo hồ sơ chó
           </Button>
         )}
       />
@@ -470,7 +460,7 @@ const DogsPage = () => {
               ['Chiều cao', detailData.heightCm == null ? '—' : `${detailData.heightCm} cm`],
               ['Màu lông', detailData.color || '—'],
               ['Microchip ID', detailData.microchipId || '—'],
-              ['Trạng thái', detailData.status || '—'],
+              ['Trạng thái', getStatusLabel(detailData.status)],
               ['Ảnh', detailData.imageUrl || '—'],
               ['Ngày tạo', detailData.createdAt || '—'],
               ['Cập nhật', detailData.updatedAt || '—'],
@@ -488,10 +478,10 @@ const DogsPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Xóa hồ sơ chó"
-        description="Bạn có chắc chắn muốn xóa hồ sơ chó này không?"
+        title="Ẩn hồ sơ chó"
+        description="Bạn có chắc chắn muốn ẩn hồ sơ chó này không?"
         onConfirm={handleDelete}
-        confirmLabel="Xóa"
+        confirmLabel="Ẩn"
       />
     </div>
   );

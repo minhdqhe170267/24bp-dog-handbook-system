@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Eye, Lock, LockOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, Lock, LockOpen, Pencil, Plus, Search, EyeOff } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -25,7 +26,7 @@ const roleLabelMap = {
 
 const roleFilterOptions = [
   { value: 'all', label: 'Tất cả vai trò' },
-  ...roleOptions,
+  ...roleOptions.filter((role) => role.value !== 'ADMIN'),
 ];
 
 const userStatusFilterOptions = [
@@ -78,6 +79,7 @@ const RoleBadge = ({ role }) => {
 };
 
 const UserManagementPage = () => {
+  const navigate = useNavigate();
   const toast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -98,12 +100,16 @@ const UserManagementPage = () => {
     setLoading(true);
     try {
       const res = await userService.getAll(page, size, search);
-      const list = (res.data?.content || []).map((item) => ({ ...item, id: item.userId }));
+      const rawList = res.data?.content || [];
+      const hiddenAdminCount = rawList.filter((item) => String(item?.role || '').toUpperCase() === 'ADMIN').length;
+      const list = rawList
+        .filter((item) => String(item?.role || '').toUpperCase() !== 'ADMIN')
+        .map((item) => ({ ...item, id: item.userId }));
       setUsers(list);
       setPagination((prev) => ({
         ...prev,
         page,
-        total: res.data?.totalElements || 0,
+        total: Math.max(0, (res.data?.totalElements || 0) - hiddenAdminCount),
       }));
     } catch (err) {
       toast.error('Lỗi tải danh sách người dùng');
@@ -125,18 +131,8 @@ const UserManagementPage = () => {
   };
 
   const openEdit = (row) => {
-    setEditing(row);
-    setFormData({
-      username: row.username || '',
-      password: '',
-      fullName: row.fullName || '',
-      email: row.email || '',
-      phone: row.phone || '',
-      role: row.role || '',
-      militaryRank: row.militaryRank || '',
-      unit: row.unit || '',
-    });
-    setModalOpen(true);
+    if (!row?.userId) return;
+    navigate(`/system/users/${row.userId}/edit`);
   };
 
   const openDetail = async (row) => {
@@ -200,11 +196,11 @@ const UserManagementPage = () => {
     if (!deleteId) return;
     try {
       await userService.delete(deleteId);
-      toast.success('Xóa người dùng thành công');
+      toast.success('Đã ẩn người dùng');
       setDeleteId(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error(err?.message || 'Không thể xóa người dùng');
+      toast.error(err?.message || 'Không thể ẩn người dùng');
     }
   };
 
@@ -257,8 +253,8 @@ const UserManagementPage = () => {
           <Button variant="ghost" size="sm" onClick={() => setLockTarget(row)} title={row.isLocked ? 'Mở khóa' : 'Khóa'}>
             {row.isLocked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.userId)} title="Xóa">
-            <Trash2 className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.userId)} title="Ẩn">
+            <EyeOff className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -266,6 +262,7 @@ const UserManagementPage = () => {
   ];
 
   const filteredUsers = users.filter((user) => {
+    if (String(user?.role || '').toUpperCase() === 'ADMIN') return false;
     const matchRole = roleFilter === 'all' || user.role === roleFilter;
     const normalizedStatus = user.isLocked ? 'LOCKED' : 'ACTIVE';
     const matchStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
@@ -284,7 +281,7 @@ const UserManagementPage = () => {
           { label: 'Quản lý người dùng' },
         ]}
         actions={
-          <Button onClick={openCreate} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none">
+          <Button onClick={() => navigate('/system/users/create')} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none">
             <Plus className="h-4 w-4" />
             Tạo người dùng
           </Button>
@@ -419,10 +416,10 @@ const UserManagementPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Xóa người dùng"
-        description="Bạn có chắc chắn muốn xóa người dùng này không?"
+        title="Ẩn người dùng"
+        description="Bạn có chắc chắn muốn ẩn người dùng này không?"
         onConfirm={handleDelete}
-        confirmLabel="Xóa"
+        confirmLabel="Ẩn"
       />
 
       <ConfirmDialog

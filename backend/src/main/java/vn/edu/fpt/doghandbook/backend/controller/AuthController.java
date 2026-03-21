@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -21,9 +22,11 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ApiResponse<?> login(@Valid @RequestBody LoginRequest request) {
+    public ApiResponse<?> login(@Valid @RequestBody LoginRequest request,
+                                HttpServletRequest httpRequest) {
         try {
-            LoginResponse loginResponse = authService.login(request);
+            String ipAddress = getClientIp(httpRequest);
+            LoginResponse loginResponse = authService.login(request, ipAddress);
             return ApiResponse.success(loginResponse, "Đăng nhập thành công");
         } catch (BadRequestException e) {
             return ApiResponse.error(e.getMessage());
@@ -48,7 +51,12 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<?> logout() {
+    public ApiResponse<?> logout(Authentication authentication, HttpServletRequest httpRequest) {
+        CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
+        Integer userId = customUserDetails.getUser().getUserId();
+        String ipAddress = getClientIp(httpRequest);
+
+        authService.logout(userId, ipAddress);
         return ApiResponse.success(null, "Đăng xuất thành công. Vui lòng xóa token phía client.");
     }
 
@@ -60,5 +68,13 @@ public class AuthController {
 
         authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
         return ApiResponse.success(null, "Đổi mật khẩu thành công");
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

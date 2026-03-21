@@ -13,6 +13,8 @@ public interface TrainingRoadmapRepository extends JpaRepository<TrainingRoadmap
 
     Page<TrainingRoadmap> findByIsDeletedFalse(Pageable pageable);
 
+    Page<TrainingRoadmap> findByStatusAndIsDeletedFalse(vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus status, Pageable pageable);
+
     @Query("SELECT tr FROM TrainingRoadmap tr WHERE tr.isDeleted = false "
             + "AND tr.dogBreed.breedId = :breedId")
     List<TrainingRoadmap> findByBreedBreedIdAndIsDeletedFalse(@Param("breedId") Integer breedId);

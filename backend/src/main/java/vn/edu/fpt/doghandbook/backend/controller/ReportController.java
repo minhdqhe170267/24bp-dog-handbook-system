@@ -5,12 +5,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.request.OperationReportRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.OperationReportResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.service.OperationReportService;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -36,8 +36,7 @@ public class ReportController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             Authentication authentication) {
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Integer trainerId = userDetails.getUser().getUserId();
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(operationReportService.getByTrainer(trainerId, page, size));
     }
 
@@ -50,7 +49,8 @@ public class ReportController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<OperationReportResponse> create(
             @Valid @RequestBody OperationReportRequest request,
-            @RequestParam Integer trainerId) {
+            Authentication authentication) {
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(operationReportService.create(request, trainerId));
     }
 
@@ -58,14 +58,16 @@ public class ReportController {
     public ApiResponse<OperationReportResponse> update(
             @PathVariable Integer id,
             @Valid @RequestBody OperationReportRequest request,
-            @RequestParam Integer trainerId) {
+            Authentication authentication) {
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(operationReportService.update(id, request, trainerId));
     }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(
             @PathVariable Integer id,
-            @RequestParam Integer trainerId) {
+            Authentication authentication) {
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
         operationReportService.delete(id, trainerId);
         return ApiResponse.success(null);
     }

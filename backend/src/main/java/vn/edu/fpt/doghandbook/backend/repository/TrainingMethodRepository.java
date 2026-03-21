@@ -9,5 +9,7 @@ public interface TrainingMethodRepository extends JpaRepository<TrainingMethod, 
 
     Page<TrainingMethod> findByIsDeletedFalse(Pageable pageable);
 
+    Page<TrainingMethod> findByStatusAndIsDeletedFalse(vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus status, Pageable pageable);
+
     Page<TrainingMethod> findByMethodNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
 }

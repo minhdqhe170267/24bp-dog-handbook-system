@@ -3,23 +3,41 @@ import type * as SQLite from 'expo-sqlite';
 interface Migration {
   version: number;
   description: string;
-  sql: string[];
+  run: (db: SQLite.SQLiteDatabase) => void;
 }
+
+const getColumnNames = (db: SQLite.SQLiteDatabase, tableName: string): Set<string> => {
+  const rows = db.getAllSync<{ name: string }>(`PRAGMA table_info(${tableName});`);
+  return new Set(rows.map((row) => row.name));
+};
+
+const addColumnIfMissing = (
+  db: SQLite.SQLiteDatabase,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): void => {
+  const existingColumns = getColumnNames(db, tableName);
+  if (existingColumns.has(columnName)) {
+    return;
+  }
+
+  db.execSync(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+};
 
 /**
  * Migrations array — append-only. Never modify existing entries.
- * Each migration bumps PRAGMA user_version by 1.
+ * Each migration bumps PRAGMA user_version by 1 after success.
  */
 const migrations: Migration[] = [
-  // Version 1 is the initial schema created by schema.ts.
   {
     version: 2,
     description: 'Add trainerName, dogName, dogCode to dog_assignment',
-    sql: [
-      'ALTER TABLE dog_assignment ADD COLUMN trainer_name TEXT;',
-      'ALTER TABLE dog_assignment ADD COLUMN dog_name TEXT;',
-      'ALTER TABLE dog_assignment ADD COLUMN dog_code TEXT;',
-    ],
+    run: (db) => {
+      addColumnIfMissing(db, 'dog_assignment', 'trainer_name', 'TEXT');
+      addColumnIfMissing(db, 'dog_assignment', 'dog_name', 'TEXT');
+      addColumnIfMissing(db, 'dog_assignment', 'dog_code', 'TEXT');
+    },
   },
 ];
 
@@ -27,31 +45,28 @@ const migrations: Migration[] = [
  * Reads current PRAGMA user_version, runs any migrations above that version.
  */
 export const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
-  const row = db.getFirstSync<{ user_version: number }>(
-    'PRAGMA user_version;'
-  );
+  const row = db.getFirstSync<{ user_version: number }>('PRAGMA user_version;');
   const currentVersion = row?.user_version ?? 0;
 
-  // Set to 1 if this is a fresh database (tables just created by schema.ts)
-  if (currentVersion === 0) {
-    db.execSync('PRAGMA user_version = 1;');
+  const pending = migrations.filter((migration) => migration.version > currentVersion);
+  if (pending.length === 0) {
+    if (currentVersion === 0) {
+      const latestVersion = migrations.at(-1)?.version ?? 1;
+      db.execSync(`PRAGMA user_version = ${latestVersion};`);
+    }
+    return;
   }
-
-  const pending = migrations.filter((m) => m.version > currentVersion);
-  if (pending.length === 0) return;
 
   for (const migration of pending) {
     try {
       db.execSync('BEGIN TRANSACTION;');
-      for (const stmt of migration.sql) {
-        db.execSync(stmt);
-      }
+      migration.run(db);
       db.execSync(`PRAGMA user_version = ${migration.version};`);
       db.execSync('COMMIT;');
     } catch (error) {
       db.execSync('ROLLBACK;');
       throw new Error(
-        `Migration v${migration.version} (${migration.description}) failed: ${error}`
+        `Migration v${migration.version} (${migration.description}) failed: ${error}`,
       );
     }
   }

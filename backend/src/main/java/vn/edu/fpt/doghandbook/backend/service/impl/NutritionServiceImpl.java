@@ -15,6 +15,7 @@ import vn.edu.fpt.doghandbook.backend.entity.DogBreed;
 import vn.edu.fpt.doghandbook.backend.entity.NutritionStandard;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
@@ -102,6 +103,11 @@ public class NutritionServiceImpl implements NutritionService {
     @Transactional
     public NutritionStandardResponse update(Integer id, NutritionStandardRequest request) {
         NutritionStandard entity = getActiveEntityById(id);
+
+        if (entity.getStatusEnum() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
+
         String newCode = normalizeRequired(request.getRationCode(), "rationCode");
         String currentCode = entity.getRationCode();
 
@@ -114,6 +120,10 @@ public class NutritionServiceImpl implements NutritionService {
         DogBreed breed = getBreedIfPresent(request.getBreedId());
         applyRequest(entity, request, breed);
 
+        if (entity.getStatusEnum() == ContentStatus.REJECTED) {
+            entity.setStatusEnum(ContentStatus.DRAFT);
+        }
+
         return toResponse(nutritionStandardRepository.save(entity));
     }
 
@@ -121,6 +131,9 @@ public class NutritionServiceImpl implements NutritionService {
     @Transactional
     public void delete(Integer id) {
         NutritionStandard entity = getActiveEntityById(id);
+        if (entity.getStatusEnum() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         entity.setIsDeleted(true);
         entity.setDeletedAt(LocalDateTime.now());
         nutritionStandardRepository.save(entity);

@@ -87,7 +87,13 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public TrainingMethodResponse updateMethod(Integer id, TrainingMethodRequest request) {
         TrainingMethod entity = getActiveMethodById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
         applyMethodRequest(entity, request);
+        if (entity.getStatus() == ContentStatus.REJECTED) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
         return toMethodResponse(trainingMethodRepository.save(entity));
     }
 
@@ -95,6 +101,9 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public void deleteMethod(Integer id) {
         TrainingMethod entity = getActiveMethodById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         entity.setIsDeleted(true);
         entity.setDeletedAt(LocalDateTime.now());
         trainingMethodRepository.save(entity);
@@ -139,7 +148,13 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public TrainingExerciseResponse updateExercise(Integer id, TrainingExerciseRequest request) {
         TrainingExercise entity = getActiveExerciseById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
         applyExerciseRequest(entity, request);
+        if (entity.getStatus() == ContentStatus.REJECTED) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
         return toExerciseResponse(trainingExerciseRepository.save(entity));
     }
 
@@ -147,6 +162,9 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public void deleteExercise(Integer id) {
         TrainingExercise entity = getActiveExerciseById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         entity.setIsDeleted(true);
         entity.setDeletedAt(LocalDateTime.now());
         trainingExerciseRepository.save(entity);
@@ -183,7 +201,13 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public TrainingRoadmapResponse updateRoadmap(Integer id, TrainingRoadmapRequest request) {
         TrainingRoadmap entity = getActiveRoadmapById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
+        }
         applyRoadmapRequest(entity, request);
+        if (entity.getStatus() == ContentStatus.REJECTED) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
         return toRoadmapResponse(trainingRoadmapRepository.save(entity), List.of());
     }
 
@@ -191,6 +215,9 @@ public class TrainingServiceImpl implements TrainingService {
     @Transactional
     public void deleteRoadmap(Integer id) {
         TrainingRoadmap entity = getActiveRoadmapById(id);
+        if (entity.getStatus() == ContentStatus.PUBLISHED) {
+            throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
+        }
         entity.setIsDeleted(true);
         entity.setDeletedAt(LocalDateTime.now());
         trainingRoadmapRepository.save(entity);

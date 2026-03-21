@@ -78,16 +78,6 @@ public class FirstAidController {
         );
     }
 
-    @PutMapping("/{id}/publish")
-    public ApiResponse<FirstAidGuideResponse> publish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(firstAidGuideService.publish(id));
-    }
-
-    @PutMapping("/{id}/unpublish")
-    public ApiResponse<FirstAidGuideResponse> unpublish(@PathVariable("id") Integer id) {
-        return ApiResponse.success(firstAidGuideService.unpublish(id));
-    }
-
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable("id") Integer id) {
         firstAidGuideService.delete(id);

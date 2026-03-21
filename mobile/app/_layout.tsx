@@ -1,21 +1,143 @@
-import { useState, useEffect, useRef } from 'react';
-import { ActivityIndicator, View, Text, AppState } from 'react-native';
-import { Stack, Redirect, useSegments } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, AppState, Easing, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Redirect, Stack, useSegments } from 'expo-router';
+import { OfflineBanner } from '../src/components/OfflineBanner';
+import { initDatabase } from '../src/database/schema';
 import { useAuthStore } from '../src/stores/authStore';
 import { useNetworkStore } from '../src/stores/networkStore';
 import { useSyncStore } from '../src/stores/syncStore';
-import { initDatabase } from '../src/database/schema';
-import { syncScheduler } from '../src/sync/syncScheduler';
 import { syncEngine } from '../src/sync/syncEngine';
-import { OfflineBanner } from '../src/components/OfflineBanner';
+import { syncScheduler } from '../src/sync/syncScheduler';
+
+const extractSyncRatio = (progressText: string | null): number | null => {
+  if (!progressText) {
+    return null;
+  }
+
+  const match = progressText.match(/\((\d+)\/(\d+)\)/);
+  if (!match) {
+    return null;
+  }
+
+  const current = Number(match[1]);
+  const total = Number(match[2]);
+
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  return Math.min(Math.max(current / total, 0), 1);
+};
+
+function InitialSyncScreen({ syncProgress }: { syncProgress: string | null }) {
+  const ratio = extractSyncRatio(syncProgress);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const fillWidth = useRef(new Animated.Value(0)).current;
+  const shimmerTranslate = useRef(new Animated.Value(0)).current;
+  const shimmerLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (trackWidth <= 0) {
+      return undefined;
+    }
+
+    if (ratio === null) {
+      fillWidth.setValue(0);
+      shimmerTranslate.setValue(-trackWidth * 0.35);
+      shimmerLoop.current?.stop();
+      shimmerLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerTranslate, {
+            toValue: trackWidth,
+            duration: 1100,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerTranslate, {
+            toValue: -trackWidth * 0.35,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      shimmerLoop.current.start();
+
+      return () => {
+        shimmerLoop.current?.stop();
+        shimmerLoop.current = null;
+      };
+    }
+
+    shimmerLoop.current?.stop();
+    shimmerLoop.current = null;
+
+    Animated.timing(fillWidth, {
+      toValue: trackWidth * ratio,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    return undefined;
+  }, [fillWidth, ratio, shimmerTranslate, trackWidth]);
+
+  useEffect(() => {
+    return () => {
+      shimmerLoop.current?.stop();
+    };
+  }, []);
+
+  return (
+    <View style={styles.initialSyncContainer}>
+      <View style={styles.initialSyncContent}>
+        <View style={styles.logoWrapper}>
+          <Ionicons name="paw" size={64} color="#FFFFFF" />
+        </View>
+        <Text style={styles.initialSyncTitle}>Đang tải dữ liệu lần đầu</Text>
+        <Text style={styles.initialSyncSubtitle}>Vui lòng giữ kết nối mạng</Text>
+
+        <View
+          style={styles.progressTrack}
+          onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+        >
+          {ratio === null ? (
+            <Animated.View
+              style={[
+                styles.progressShimmer,
+                {
+                  width: Math.max(trackWidth * 0.35, 64),
+                  transform: [{ translateX: shimmerTranslate }],
+                },
+              ]}
+            />
+          ) : (
+            <Animated.View
+              style={[
+                styles.progressFill,
+                {
+                  width: fillWidth,
+                },
+              ]}
+            />
+          )}
+        </View>
+
+        <Text style={styles.initialSyncProgressText}>
+          {syncProgress || 'Đang chuẩn bị dữ liệu...'}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const [initialSyncInProgress, setInitialSyncInProgress] = useState(false);
   const { isAuthenticated, hydrateAuth } = useAuthStore();
-  const startListening = useNetworkStore((s) => s.startListening);
-  const isConnected = useNetworkStore((s) => s.isConnected);
-  const syncProgress = useSyncStore((s) => s.syncProgress);
+  const startListening = useNetworkStore((state) => state.startListening);
+  const isConnected = useNetworkStore((state) => state.isConnected);
+  const syncProgress = useSyncStore((state) => state.syncProgress);
   const segments = useSegments();
   const inAuthGroup = segments[0] === '(auth)';
   const schedulerStarted = useRef(false);
@@ -23,11 +145,8 @@ export default function RootLayout() {
   useEffect(() => {
     const bootstrap = async () => {
       try {
-        // 1. Initialize SQLite (must complete before hydrating auth)
         await initDatabase();
         console.log('[DB] SQLite initialized successfully');
-
-        // 2. Restore auth session from SecureStore + SQLite
         await hydrateAuth();
       } catch (err) {
         console.error('[BOOT] Bootstrap failed:', err);
@@ -36,22 +155,22 @@ export default function RootLayout() {
       }
     };
 
-    bootstrap();
-  }, []);
+    void bootstrap();
+  }, [hydrateAuth]);
 
-  // Start network listener (separate effect to avoid blocking bootstrap)
   useEffect(() => {
     const unsubscribe = startListening();
     return unsubscribe;
-  }, []);
+  }, [startListening]);
 
-  // Start sync scheduler + initial sync after auth
   useEffect(() => {
-    if (!appReady || !isAuthenticated || schedulerStarted.current) return;
+    if (!appReady || !isAuthenticated || schedulerStarted.current) {
+      return undefined;
+    }
+
     schedulerStarted.current = true;
 
     const startSync = async () => {
-      // Check if initial sync needed
       const needsInitial = await syncEngine.isInitialSyncNeeded();
 
       if (needsInitial && isConnected) {
@@ -65,19 +184,17 @@ export default function RootLayout() {
         }
       }
 
-      // Start periodic sync scheduler
       syncScheduler.start();
     };
 
-    startSync();
+    void startSync();
 
     return () => {
       syncScheduler.stop();
       schedulerStarted.current = false;
     };
-  }, [appReady, isAuthenticated]);
+  }, [appReady, isAuthenticated, isConnected]);
 
-  // Pause/resume scheduler on app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && isAuthenticated) {
@@ -92,43 +209,94 @@ export default function RootLayout() {
 
   if (!appReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={styles.bootLoadingContainer}>
         <ActivityIndicator size="large" />
       </View>
     );
   }
 
-  // Show initial sync progress screen
   if (initialSyncInProgress) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 16, fontSize: 16, textAlign: 'center', color: '#333' }}>
-          {syncProgress || 'Đang tải dữ liệu...'}
-        </Text>
-        <Text style={{ marginTop: 8, fontSize: 13, color: '#888', textAlign: 'center' }}>
-          Cần tải dữ liệu lần đầu để sử dụng ngoại tuyến
-        </Text>
-      </View>
-    );
+    return <InitialSyncScreen syncProgress={syncProgress} />;
   }
 
   return (
     <>
       <OfflineBanner />
 
-      {/* Auth guard: redirect based on auth state */}
-      {!isAuthenticated && !inAuthGroup && (
-        <Redirect href="/(auth)/login" />
-      )}
-      {isAuthenticated && inAuthGroup && (
-        <Redirect href="/(tabs)" />
-      )}
+      {!isAuthenticated && !inAuthGroup ? <Redirect href="/(auth)/login" /> : null}
+      {isAuthenticated && inAuthGroup ? <Redirect href="/(tabs)" /> : null}
 
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="sync" />
       </Stack>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  bootLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialSyncContainer: {
+    flex: 1,
+    backgroundColor: '#1B4332',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  initialSyncContent: {
+    alignItems: 'center',
+  },
+  logoWrapper: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  initialSyncTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  initialSyncSubtitle: {
+    fontSize: 14,
+    color: '#A7F3D0',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2D6A4F',
+    overflow: 'hidden',
+    marginTop: 28,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#52B788',
+  },
+  progressShimmer: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 3,
+    backgroundColor: '#52B788',
+  },
+  initialSyncProgressText: {
+    marginTop: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+});

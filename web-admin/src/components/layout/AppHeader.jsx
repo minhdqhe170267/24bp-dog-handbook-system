@@ -7,8 +7,9 @@ import { cn } from '../../utils/utils';
 
 const searchItems = [
     { label: 'Dashboard', href: '/dashboard', keywords: ['tổng quan', 'dashboard'] },
+    { label: 'Hồ sơ cá nhân', href: '/profile', keywords: ['hồ sơ', 'profile', 'cá nhân'] },
     { label: 'Giống chó', href: '/breeds', keywords: ['giống', 'chó', 'breed'] },
-    { label: 'Quản lý chó', href: '/dogs', keywords: ['quản lý chó', 'hồ sơ chó', 'dogs'] },
+    { label: 'Hồ sơ chó', href: '/dogs', keywords: ['quản lý chó', 'hồ sơ chó', 'dogs'] },
     { label: 'Phân công chó', href: '/assignments', keywords: ['phân công', 'assign', 'trainer'] },
     { label: 'Bệnh', href: '/diseases', keywords: ['bệnh', 'disease'] },
     { label: 'Thuốc', href: '/medications', keywords: ['thuốc', 'medication'] },
@@ -17,7 +18,8 @@ const searchItems = [
     { label: 'Bài tập', href: '/training/exercises', keywords: ['bài tập', 'exercise'] },
     { label: 'Lộ trình', href: '/training/roadmaps', keywords: ['lộ trình', 'roadmap'] },
     { label: 'Sơ cứu', href: '/medical', keywords: ['y tế', 'medical', 'sơ cứu'] },
-    { label: 'Triệu chứng', href: '/medical/symptoms', keywords: ['triệu chứng', 'symptom', 'checker'] },
+    { label: 'Nội dung đề xuất', href: '/suggestions', keywords: ['nội dung đề xuất', 'đề xuất nội dung', 'suggestions'] },
+    { label: 'Import dữ liệu', href: '/import-data', keywords: ['import', 'nhập dữ liệu', 'excel', 'csv'] },
     { label: 'Quản lý người dùng', href: '/system/users', keywords: ['người dùng', 'user', 'users'] },
     { label: 'Cài đặt hệ thống', href: '/system/settings', keywords: ['cài đặt', 'settings', 'hệ thống'] },
     { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', keywords: ['nhật ký', 'audit', 'log'] },
@@ -166,7 +168,13 @@ const AppHeader = () => {
                                     </div>
                                 </div>
                                 <div className="py-1">
-                                    <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left">
+                                    <button
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                                        onClick={() => {
+                                            setDropdownOpen(false);
+                                            navigate('/profile');
+                                        }}
+                                    >
                                         <User className="h-4 w-4" />
                                         Hồ sơ cá nhân
                                     </button>

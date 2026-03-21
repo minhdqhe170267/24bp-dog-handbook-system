@@ -9,6 +9,7 @@ import { FileText, Clock, Users, Lightbulb, PenSquare, CheckCircle, BarChart3, A
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import api from '../../services/api';
+import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 
 const statusColors = {
   PUBLISHED: 'hsl(142, 76%, 36%)',
@@ -34,6 +35,19 @@ const contentTypeLabels = {
   FIRST_AID: 'Sơ cứu',
 };
 
+const approvalEntityTypeLabels = {
+  CONTENT: 'Bài viết',
+  DOG_BREED: 'Giống chó',
+  NUTRITION_STANDARD: 'Dinh dưỡng',
+  TRAINING_EXERCISE: 'Bài tập',
+  TRAINING_ROADMAP: 'Lộ trình',
+  TRAINING_METHOD: 'Phương pháp',
+  DEVELOPMENT_STAGE: 'Giai đoạn phát triển',
+  DISEASE: 'Bệnh',
+  MEDICATION: 'Thuốc',
+  FIRST_AID_GUIDE: 'Sơ cứu',
+};
+
 const roleDescriptions = {
   ADMIN: 'Tổng quan vận hành hệ thống và quản trị dữ liệu',
   CONTENT_EDITOR: 'Theo dõi nội dung do bạn biên tập và trạng thái xuất bản',
@@ -47,9 +61,9 @@ const quickActionsByRole = {
     { icon: ClipboardList, label: 'Nhật ký kiểm tra', href: '/system/audit-logs', desc: 'Theo dõi hoạt động kiểm tra' },
   ],
   CONTENT_EDITOR: [
-    { icon: PenSquare, label: 'Tạo nội dung', href: '/content/create', desc: 'Soạn nội dung mới' },
-    { icon: FileText, label: 'Danh sách nội dung', href: '/content', desc: 'Xem và chỉnh sửa bài viết' },
-    { icon: Lightbulb, label: 'Đề xuất nội dung', href: '/suggestions', desc: 'Theo dõi đề xuất từ trainer' },
+    { icon: FileText, label: 'Danh sách nội dung', href: '/content', desc: 'Xem danh sách và chi tiết bài viết' },
+    { icon: PenSquare, label: 'Quản lý giống chó', href: '/breeds', desc: 'Biên tập dữ liệu giống chó' },
+    { icon: Lightbulb, label: 'Nội dung đề xuất', href: '/suggestions', desc: 'Theo dõi đề xuất từ trainer' },
   ],
   REVIEWER: [
     { icon: CheckCircle, label: 'Duyệt nội dung', href: '/approval', desc: 'Xử lý hàng chờ duyệt' },
@@ -98,6 +112,11 @@ const buildStatusMap = (items) => {
 };
 
 const getContentTimestamp = (item) => item.updatedAt || item.updated_at || item.createdAt || item.created_at || null;
+const getPendingTitle = (item) => item?.entityTitle || item?.title || item?.contentTitle || '-';
+const getPendingTypeLabel = (item) => {
+  if (item?.entityType) return approvalEntityTypeLabels[item.entityType] || item.entityType;
+  return getTypeLabel(item?.contentType || item?.content_type);
+};
 
 const toReviewerDisplayStatus = (status) => {
   const normalized = normalizeStatus(status);
@@ -299,11 +318,22 @@ const DashboardPage = () => {
 
           if (role === 'ADMIN') {
             try {
-              const pendingRes = await api.get('/contents/pending-reviews?page=0&size=10');
-              const pendingPage = pendingRes.data || pendingRes || {};
-              const pendingData = Array.isArray(pendingPage.content) ? pendingPage.content : [];
-              const pendingTotal = Number(pendingPage.totalElements ?? pendingData.length);
-              setPendingContent(pendingData);
+              const pendingRes = await approvalService.getPending('ALL', 0, 10);
+              const pendingPayload = pendingRes?.data || pendingRes || {};
+              const pendingData = Array.isArray(pendingPayload) ? pendingPayload : pendingPayload.content || [];
+              const pendingTotal = Number(
+                Array.isArray(pendingPayload)
+                  ? pendingData.length
+                  : pendingPayload.totalElements ?? pendingData.length
+              );
+              setPendingContent(
+                pendingData.map((row) => ({
+                  ...row,
+                  entityId: row.entityId || row.id,
+                  entityTitle: row.entityTitle || row.title || '-',
+                  entityType: row.entityType || APPROVAL_ENTITY_TYPES.CONTENT,
+                }))
+              );
 
               setStats((prev) => ({
                 ...prev,
@@ -422,8 +452,8 @@ const DashboardPage = () => {
   ];
 
   const pendingColumns = [
-    { key: 'title', header: 'Tiêu đề', render: (row) => <span className="font-medium">{row.title || row.contentTitle || '-'}</span> },
-    { key: 'content_type', header: 'Loại', render: (row) => getTypeLabel(row.contentType || row.content_type) },
+    { key: 'title', header: 'Tiêu đề', render: (row) => <span className="font-medium">{getPendingTitle(row)}</span> },
+    { key: 'content_type', header: 'Loại', render: (row) => getPendingTypeLabel(row) },
     {
       key: 'status',
       header: 'Trạng thái',

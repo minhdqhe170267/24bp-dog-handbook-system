@@ -4,9 +4,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../utils/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    LayoutDashboard, Dog, Bug, Pill, Apple, Dumbbell, Stethoscope, UserCheck,
+    LayoutDashboard, Dog, Pill, Apple, Dumbbell, Stethoscope, UserCheck,
     ChevronDown, ChevronLeft, BookOpen, Route, HeartPulse,
-    FileText, FilePlus, CheckCircle, Lightbulb,
+    FileText, CheckCircle, Lightbulb, Upload,
     Settings, ClipboardList, Users,
 } from 'lucide-react';
 
@@ -16,12 +16,18 @@ const allNavItems = [
     {
         label: 'Quản lý Nội dung', icon: FileText, roles: ['ADMIN', 'CONTENT_EDITOR', 'REVIEWER'], children: [
             { label: 'Danh sách nội dung', href: '/content', icon: FileText },
-            { label: 'Tạo nội dung mới', href: '/content/create', icon: FilePlus, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Duyệt nội dung', href: '/approval', icon: CheckCircle, roles: ['ADMIN', 'REVIEWER'] },
+            { label: 'Nội dung đề xuất', href: '/suggestions', icon: Lightbulb, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Import dữ liệu', href: '/import-data', icon: Upload, roles: ['ADMIN', 'CONTENT_EDITOR'] },
         ]
     },
-    { label: 'Giống chó', icon: Dog, href: '/breeds', roles: ['ADMIN', 'CONTENT_EDITOR'] },
-    { label: 'Quản lý chó', icon: Dog, href: '/dogs', roles: ['ADMIN'] },
-    { label: 'Phân công chó', icon: UserCheck, href: '/assignments', roles: ['ADMIN'] },
+    {
+        label: 'Quản lý chó', icon: Dog, children: [
+            { label: 'Giống chó', href: '/breeds', icon: Dog, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Hồ sơ chó', href: '/dogs', icon: Dog, roles: ['ADMIN'] },
+            { label: 'Phân công chó', href: '/assignments', icon: UserCheck, roles: ['ADMIN'] },
+        ]
+    },
     {
         label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
             { label: 'Bài tập', href: '/training/exercises', icon: BookOpen },
@@ -34,7 +40,6 @@ const allNavItems = [
         label: 'Sức khỏe', icon: Stethoscope, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
             { label: 'Bệnh', href: '/diseases', icon: HeartPulse },
             { label: 'Thuốc', href: '/medications', icon: Pill },
-            { label: 'Triệu chứng', href: '/medical/symptoms', icon: Bug },
             { label: 'Sơ cứu', href: '/medical', icon: Stethoscope },
         ]
     },
@@ -45,8 +50,6 @@ const allNavItems = [
             { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', icon: ClipboardList },
         ]
     },
-    { label: 'Duyệt nội dung', icon: CheckCircle, href: '/approval', roles: ['ADMIN', 'REVIEWER'] },
-    { label: 'Đề xuất nội dung', icon: Lightbulb, href: '/suggestions', roles: ['ADMIN', 'CONTENT_EDITOR'] },
 ];
 
 const filterByRole = (items, role) => {
@@ -63,7 +66,7 @@ const filterByRole = (items, role) => {
 
 const AppSidebar = () => {
     const [collapsed, setCollapsed] = useState(false);
-    const [openGroups, setOpenGroups] = useState(['Huấn luyện', 'Sức khỏe', 'Quản lý Nội dung', 'Quản trị Hệ thống']);
+    const [openGroups, setOpenGroups] = useState(['Quản lý Nội dung', 'Quản lý chó', 'Huấn luyện', 'Sức khỏe', 'Quản trị Hệ thống']);
     const location = useLocation();
     const { user } = useAuth();
     const navItems = useMemo(() => filterByRole(allNavItems, user?.role), [user?.role]);
