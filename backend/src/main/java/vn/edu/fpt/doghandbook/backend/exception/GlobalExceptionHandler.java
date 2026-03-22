@@ -2,7 +2,6 @@ package vn.edu.fpt.doghandbook.backend.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 
-import java.util.Objects;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -27,21 +26,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(ex.getErrorCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(ex.getErrorCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException ex) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(ex.getErrorCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(SyncConflictException.class)
@@ -51,6 +50,7 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.<Object>builder()
                         .success(false)
+                        .errorCode(ex.getErrorCode().name())
                         .message(ex.getMessage())
                         .data(ex.getServerData())
                         .timestamp(java.time.LocalDateTime.now())
@@ -59,50 +59,70 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
+        List<ApiResponse.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> ApiResponse.FieldError.builder()
+                        .field(fe.getField())
+                        .message(fe.getDefaultMessage())
+                        .build())
+                .collect(Collectors.toList());
+
+        String summary = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
+
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(message));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, summary, fieldErrors));
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
-        String message = ex.getParameterValidationResults().stream()
-                .flatMap(result -> result.getResolvableErrors().stream())
-                .map(MessageSourceResolvable::getDefaultMessage)
-                .filter(Objects::nonNull)
+        List<ApiResponse.FieldError> fieldErrors = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .filter(err -> err.getDefaultMessage() != null)
+                        .map(err -> {
+                            String field = (err instanceof FieldError fe) ? fe.getField() : result.getMethodParameter().getParameterName();
+                            return ApiResponse.FieldError.builder()
+                                    .field(field)
+                                    .message(err.getDefaultMessage())
+                                    .build();
+                        }))
+                .collect(Collectors.toList());
+
+        String summary = fieldErrors.stream()
+                .map(ApiResponse.FieldError::getMessage)
                 .collect(Collectors.joining(", "));
 
-        if (message.isBlank()) {
-            message = "Dữ liệu đầu vào không hợp lệ";
+        if (summary.isBlank()) {
+            summary = ErrorCode.VALIDATION_ERROR.getDefaultMessage();
         }
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(message));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, summary, fieldErrors));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingParameter(MissingServletRequestParameterException ex) {
+        String message = "Thiếu tham số bắt buộc: " + ex.getParameterName();
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getParameterName() + " is required"));
+                .body(ApiResponse.error(ErrorCode.MISSING_PARAMETER, message));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("Không tìm thấy endpoint: " + ex.getResourcePath()));
+                .body(ApiResponse.error(ErrorCode.ENDPOINT_NOT_FOUND,
+                        "Không tìm thấy endpoint: " + ex.getResourcePath()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("You do not have permission to perform this action"));
+                .body(ApiResponse.error(ErrorCode.ACCESS_DENIED));
     }
 
     @ExceptionHandler(Exception.class)
@@ -110,6 +130,6 @@ public class GlobalExceptionHandler {
         log.error("Unhandled exception", ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An unexpected error occurred"));
+                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR));
     }
 }
