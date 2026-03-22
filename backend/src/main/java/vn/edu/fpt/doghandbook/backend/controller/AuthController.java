@@ -11,6 +11,7 @@ import vn.edu.fpt.doghandbook.backend.dto.request.LoginRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.LoginResponse;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.service.AuthService;
 
@@ -64,9 +65,13 @@ public class AuthController {
     public ApiResponse<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
                                          Authentication authentication) {
         CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        Integer userId = customUserDetails.getUser().getUserId();
+        User currentUser = customUserDetails.getUser();
 
-        authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            return ApiResponse.error("Chỉ admin mới có quyền đổi mật khẩu");
+        }
+
+        authService.changePassword(currentUser.getUserId(), request.getNewPassword());
         return ApiResponse.success(null, "Đổi mật khẩu thành công");
     }
 
