@@ -13,9 +13,14 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.WeightAssessment;
 import vn.edu.fpt.doghandbook.backend.entity.enums.DogGender;
 import vn.edu.fpt.doghandbook.backend.entity.enums.WeightStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
+import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
+import vn.edu.fpt.doghandbook.backend.repository.DogAssignmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.WeightAssessmentRepository;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 import vn.edu.fpt.doghandbook.backend.service.WeightAssessmentService;
 
 import java.math.BigDecimal;
@@ -32,6 +37,8 @@ public class WeightAssessmentServiceImpl implements WeightAssessmentService {
     private final DogProfileRepository dogProfileRepository;
     private final HealthRecordRepository healthRecordRepository;
     private final WeightAssessmentRepository weightAssessmentRepository;
+    private final DogAssignmentRepository dogAssignmentRepository;
+    private final NotificationService notificationService;
 
     @Override
     public WeightAssessmentResponse assess(Integer dogId) {
@@ -134,6 +141,40 @@ public class WeightAssessmentServiceImpl implements WeightAssessmentService {
                 .followUpWeeks(alertLevel.equals("CRITICAL") ? 1 : alertLevel.equals("WARNING") ? 2 : 4)
                 .build();
         weightAssessmentRepository.save(entity);
+
+        if (weightStatus != WeightStatus.NORMAL) {
+            String alertLabel = switch (weightStatus) {
+                case SEVERELY_UNDERWEIGHT -> "thiếu cân nghiêm trọng";
+                case UNDERWEIGHT -> "thiếu cân";
+                case OVERWEIGHT -> "thừa cân";
+                case OBESE -> "béo phì";
+                default -> "bất thường";
+            };
+            String title = "Cảnh báo cân nặng: " + dog.getDogName();
+            String message = dog.getDogName() + " (" + dog.getDogCode() + ") " + alertLabel
+                    + " - " + currentWeight + "kg (lệch " + deviation + "%)";
+
+            // Trainer-only: notify trainers assigned to this dog
+            for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dogId)) {
+                notificationService.notifyUser(
+                        a.getTrainer(), currentUser,
+                        NotificationType.WEIGHT_ABNORMAL,
+                        title, message,
+                        "WEIGHT_ASSESSMENT", entity.getAssessmentId()
+                );
+            }
+
+            // Severe → escalate to Admin
+            boolean isCritical = (weightStatus == WeightStatus.SEVERELY_UNDERWEIGHT || weightStatus == WeightStatus.OBESE);
+            if (isCritical) {
+                notificationService.notifyRole(
+                        UserRole.ADMIN, currentUser,
+                        NotificationType.WEIGHT_ABNORMAL_CRITICAL,
+                        title, message,
+                        "WEIGHT_ASSESSMENT", entity.getAssessmentId()
+                );
+            }
+        }
 
         return WeightAssessmentResponse.builder()
                 .dogId(dogId)
