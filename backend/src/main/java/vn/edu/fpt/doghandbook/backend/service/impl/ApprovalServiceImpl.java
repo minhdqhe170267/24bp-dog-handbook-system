@@ -14,10 +14,13 @@ import vn.edu.fpt.doghandbook.backend.entity.*;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovalDecision;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.*;
 import vn.edu.fpt.doghandbook.backend.service.ApprovalService;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -42,14 +45,26 @@ public class ApprovalServiceImpl implements ApprovalService {
     private final DiseaseRepository diseaseRepository;
     private final MedicationRepository medicationRepository;
     private final FirstAidGuideRepository firstAidGuideRepository;
+    private final NotificationService notificationService;
 
     @Override
-    public void submitForReview(ApprovableEntityType entityType, Integer entityId) {
+    public void submitForReview(ApprovableEntityType entityType, Integer entityId, Integer senderId) {
         ContentStatus currentStatus = getStatus(entityType, entityId);
         if (currentStatus != ContentStatus.DRAFT && currentStatus != ContentStatus.REJECTED) {
             throw new BadRequestException("Chỉ có thể gửi duyệt khi trạng thái là DRAFT hoặc REJECTED");
         }
         setStatus(entityType, entityId, ContentStatus.PENDING);
+
+        String entityTitle = getEntityTitle(entityType, entityId);
+        User sender = userRepository.findById(senderId).orElse(null);
+        String senderName = sender != null ? sender.getFullName() : "Người dùng";
+        notificationService.notifyRole(
+                UserRole.REVIEWER, sender,
+                NotificationType.CONTENT_SUBMITTED,
+                "Nội dung mới cần duyệt",
+                senderName + " đã gửi \"" + entityTitle + "\" cần duyệt",
+                entityType.name(), entityId
+        );
     }
 
     @Override
@@ -90,27 +105,91 @@ public class ApprovalServiceImpl implements ApprovalService {
             setStatus(entityType, entityId, ContentStatus.REJECTED);
         }
 
+        User author = getEntityAuthor(entityType, entityId);
+        if (author != null && !author.getUserId().equals(reviewerId)) {
+            String entityTitle = getEntityTitle(entityType, entityId);
+            NotificationType notifType = switch (decision) {
+                case APPROVED -> NotificationType.CONTENT_APPROVED;
+                case REJECTED -> NotificationType.CONTENT_REJECTED;
+                case REVISION_REQUESTED -> NotificationType.CONTENT_REVISION_REQUESTED;
+                default -> null;
+            };
+            if (notifType != null) {
+                String action = switch (decision) {
+                    case APPROVED -> "đã duyệt";
+                    case REJECTED -> "đã từ chối";
+                    case REVISION_REQUESTED -> "yêu cầu chỉnh sửa";
+                    default -> "";
+                };
+                notificationService.notifyUser(
+                        author, reviewer, notifType,
+                        "Kết quả duyệt nội dung",
+                        reviewer.getFullName() + " " + action + " \"" + entityTitle + "\"",
+                        entityType.name(), entityId
+                );
+            }
+        }
+
         return toResponse(record);
     }
 
     @Override
-    public void publish(ApprovableEntityType entityType, Integer entityId) {
+    public void publish(ApprovableEntityType entityType, Integer entityId, Integer senderId) {
         ContentStatus currentStatus = getStatus(entityType, entityId);
         if (currentStatus != ContentStatus.APPROVED) {
             throw new BadRequestException("Chỉ có thể xuất bản khi trạng thái là APPROVED");
         }
         setStatus(entityType, entityId, ContentStatus.PUBLISHED);
         setPublishedAt(entityType, entityId, LocalDateTime.now());
+
+        String entityTitle = getEntityTitle(entityType, entityId);
+        User sender = userRepository.findById(senderId).orElse(null);
+        String senderName = sender != null ? sender.getFullName() : "Quản trị viên";
+
+        // Notify author
+        User author = getEntityAuthor(entityType, entityId);
+        if (author != null && !author.getUserId().equals(senderId)) {
+            notificationService.notifyUser(
+                    author, sender,
+                    NotificationType.CONTENT_PUBLISHED,
+                    "Nội dung đã xuất bản",
+                    "\"" + entityTitle + "\" đã được xuất bản bởi " + senderName,
+                    entityType.name(), entityId
+            );
+        }
+
+        // Notify all trainers (for mobile sync)
+        notificationService.notifyRole(
+                UserRole.TRAINER, sender,
+                NotificationType.CONTENT_PUBLISHED,
+                "Nội dung mới",
+                "\"" + entityTitle + "\" vừa được xuất bản",
+                entityType.name(), entityId
+        );
     }
 
     @Override
-    public void unpublish(ApprovableEntityType entityType, Integer entityId) {
+    public void unpublish(ApprovableEntityType entityType, Integer entityId, Integer senderId) {
         ContentStatus currentStatus = getStatus(entityType, entityId);
         if (currentStatus != ContentStatus.PUBLISHED) {
             throw new BadRequestException("Chỉ có thể gỡ xuất bản khi trạng thái là PUBLISHED");
         }
         setStatus(entityType, entityId, ContentStatus.DRAFT);
         setPublishedAt(entityType, entityId, null);
+
+        User sender = userRepository.findById(senderId).orElse(null);
+        User author = getEntityAuthor(entityType, entityId);
+        if (author != null && !author.getUserId().equals(senderId)) {
+            String entityTitle = getEntityTitle(entityType, entityId);
+            String senderName = sender != null ? sender.getFullName() : "Quản trị viên";
+            notificationService.notifyUser(
+                    author, sender,
+                    NotificationType.CONTENT_UNPUBLISHED,
+                    "Nội dung đã gỡ xuất bản",
+                    "\"" + entityTitle + "\" đã bị gỡ xuất bản bởi " + senderName,
+                    entityType.name(), entityId
+            );
+        }
     }
 
     @Override
@@ -189,6 +268,26 @@ public class ApprovalServiceImpl implements ApprovalService {
             case DISEASE -> { Disease e = findDisease(id); e.setPublishedAt(publishedAt); diseaseRepository.save(e); }
             case MEDICATION -> { Medication e = findMedication(id); e.setPublishedAt(publishedAt); medicationRepository.save(e); }
             case FIRST_AID_GUIDE -> { FirstAidGuide e = findFirstAid(id); e.setPublishedAt(publishedAt); firstAidGuideRepository.save(e); }
+        }
+    }
+
+    private User getEntityAuthor(ApprovableEntityType type, Integer id) {
+        try {
+            return switch (type) {
+                case CONTENT -> findContent(id).getAuthor();
+                case DOG_BREED -> findBreed(id).getCreatedBy();
+                case DOG_PROFILE -> null;
+                case NUTRITION_STANDARD -> findNutrition(id).getCreatedBy();
+                case TRAINING_EXERCISE -> findExercise(id).getCreatedBy();
+                case TRAINING_ROADMAP -> findRoadmap(id).getCreatedBy();
+                case TRAINING_METHOD -> findMethod(id).getCreatedBy();
+                case DEVELOPMENT_STAGE -> findDevStage(id).getCreatedBy();
+                case DISEASE -> findDisease(id).getCreatedBy();
+                case MEDICATION -> findMedication(id).getCreatedBy();
+                case FIRST_AID_GUIDE -> findFirstAid(id).getCreatedBy();
+            };
+        } catch (Exception e) {
+            return null;
         }
     }
 

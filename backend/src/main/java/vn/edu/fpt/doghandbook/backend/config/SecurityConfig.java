@@ -37,7 +37,10 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/login", "/error", "/uploads/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/*/file").permitAll()
+
+                        .requestMatchers("/notifications/**").authenticated()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
                         .requestMatchers("/audit-logs/**").hasRole("ADMIN")

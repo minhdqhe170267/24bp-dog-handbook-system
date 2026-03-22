@@ -35,9 +35,11 @@ public class ApprovalController {
     @PutMapping("/{entityType}/{entityId}/submit")
     public ApiResponse<Void> submitForReview(
             @PathVariable("entityType") String entityType,
-            @PathVariable("entityId") Integer entityId
+            @PathVariable("entityId") Integer entityId,
+            Authentication authentication
     ) {
-        approvalService.submitForReview(parseEntityType(entityType), entityId);
+        approvalService.submitForReview(parseEntityType(entityType), entityId,
+                AuthenticationUtils.extractUserId(authentication));
         return ApiResponse.success(null, "Đã gửi duyệt thành công");
     }
 
@@ -57,18 +59,22 @@ public class ApprovalController {
     @PutMapping("/{entityType}/{entityId}/publish")
     public ApiResponse<Void> publish(
             @PathVariable("entityType") String entityType,
-            @PathVariable("entityId") Integer entityId
+            @PathVariable("entityId") Integer entityId,
+            Authentication authentication
     ) {
-        approvalService.publish(parseEntityType(entityType), entityId);
+        approvalService.publish(parseEntityType(entityType), entityId,
+                AuthenticationUtils.extractUserId(authentication));
         return ApiResponse.success(null, "Đã xuất bản thành công");
     }
 
     @PutMapping("/{entityType}/{entityId}/unpublish")
     public ApiResponse<Void> unpublish(
             @PathVariable("entityType") String entityType,
-            @PathVariable("entityId") Integer entityId
+            @PathVariable("entityId") Integer entityId,
+            Authentication authentication
     ) {
-        approvalService.unpublish(parseEntityType(entityType), entityId);
+        approvalService.unpublish(parseEntityType(entityType), entityId,
+                AuthenticationUtils.extractUserId(authentication));
         return ApiResponse.success(null, "Đã gỡ xuất bản thành công");
     }
 
