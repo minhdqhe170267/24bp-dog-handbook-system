@@ -55,6 +55,7 @@ import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SyncQueueRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.repository.WeightAssessmentRepository;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 import vn.edu.fpt.doghandbook.backend.service.SyncService;
 
 import java.math.BigDecimal;
@@ -95,6 +96,7 @@ public class SyncServiceImpl implements SyncService {
     private final DiagnosisRecordRepository diagnosisRecordRepository;
     private final DogProfileRepository dogProfileRepository;
     private final DiseaseRepository diseaseRepository;
+    private final NotificationService notificationService;
 
     @Override
     public SyncResponse getUpdatedContent(LocalDateTime lastSyncAt, Integer userId) {
@@ -204,7 +206,9 @@ public class SyncServiceImpl implements SyncService {
         // --- dogAssignments: filtered by current user ---
         data.put("dogAssignments", fetchDogAssignments(syncWindow, userId));
 
-        // TODO: abnormalSigns — entity AbnormalSign does not exist yet
+        // --- notifications for this user since last sync ---
+        data.put("notifications", notificationService.getNotificationsSince(
+                userId, syncWindow.lastSyncAt()));
 
         return SyncResponse.builder()
                 .data(data)

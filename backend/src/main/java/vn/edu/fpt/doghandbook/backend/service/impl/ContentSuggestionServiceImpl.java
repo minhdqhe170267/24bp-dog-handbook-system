@@ -14,14 +14,17 @@ import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.ContentSuggestion;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingExercise;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.TrainingExerciseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.ContentSuggestionService;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +46,7 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
     private final ContentSuggestionRepository contentSuggestionRepository;
     private final UserRepository userRepository;
     private final TrainingExerciseRepository trainingExerciseRepository;
+    private final NotificationService notificationService;
 
     @Override
     public PageResponse<ContentSuggestionResponse> getAll(int page, int size, String status) {
@@ -92,7 +96,18 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
                 .submittedAt(LocalDateTime.now())
                 .build();
 
-        return toResponse(contentSuggestionRepository.save(entity));
+        ContentSuggestion saved = contentSuggestionRepository.save(entity);
+
+        // Notify all CONTENT_EDITORs about new suggestion
+        notificationService.notifyRole(
+                UserRole.CONTENT_EDITOR, trainer,
+                NotificationType.SUGGESTION_SUBMITTED,
+                "Góp ý mới từ huấn luyện viên",
+                trainer.getFullName() + " đã gửi góp ý: \"" + entity.getTitle() + "\"",
+                "CONTENT_SUGGESTION", saved.getSuggestionId()
+        );
+
+        return toResponse(saved);
     }
 
     @Override
@@ -112,7 +127,21 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
         entity.setReviewedBy(reviewer);
         entity.setReviewedAt(LocalDateTime.now());
 
-        return toResponse(contentSuggestionRepository.save(entity));
+        ContentSuggestion saved = contentSuggestionRepository.save(entity);
+
+        // Notify the trainer who submitted the suggestion
+        User trainer = entity.getTrainer();
+        if (trainer != null && !trainer.getUserId().equals(reviewerId)) {
+            notificationService.notifyUser(
+                    trainer, reviewer,
+                    NotificationType.SUGGESTION_REVIEWED,
+                    "Phản hồi góp ý",
+                    reviewer.getFullName() + " đã phản hồi góp ý \"" + entity.getTitle() + "\": " + status.name(),
+                    "CONTENT_SUGGESTION", saved.getSuggestionId()
+            );
+        }
+
+        return toResponse(saved);
     }
 
     @Override
