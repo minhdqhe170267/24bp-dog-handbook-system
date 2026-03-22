@@ -1,0 +1,12 @@
+package vn.edu.fpt.doghandbook.backend.entity.enums;
+
+public enum NotificationType {
+    CONTENT_SUBMITTED,
+    CONTENT_APPROVED,
+    CONTENT_REJECTED,
+    CONTENT_REVISION_REQUESTED,
+    CONTENT_PUBLISHED,
+    CONTENT_UNPUBLISHED,
+    SUGGESTION_SUBMITTED,
+    SUGGESTION_REVIEWED
+}
