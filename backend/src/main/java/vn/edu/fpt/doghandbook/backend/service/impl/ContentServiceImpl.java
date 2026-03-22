@@ -11,24 +11,24 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.fpt.doghandbook.backend.dto.request.ContentRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ContentResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
-import vn.edu.fpt.doghandbook.backend.entity.Content;
-import vn.edu.fpt.doghandbook.backend.entity.Media;
-import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.dto.response.UnifiedContentResponse;
+import vn.edu.fpt.doghandbook.backend.entity.*;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ApprovableEntityType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
-import vn.edu.fpt.doghandbook.backend.repository.ContentRepository;
-import vn.edu.fpt.doghandbook.backend.repository.MediaRepository;
-import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.repository.*;
 import vn.edu.fpt.doghandbook.backend.service.ContentService;
 import vn.edu.fpt.doghandbook.backend.util.MediaUrlResolver;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +39,13 @@ public class ContentServiceImpl implements ContentService {
     private final MediaRepository mediaRepository;
     private final UserRepository userRepository;
     private final MediaUrlResolver mediaUrlResolver;
+    private final DogBreedRepository dogBreedRepository;
+    private final MedicationRepository medicationRepository;
+    private final FirstAidGuideRepository firstAidGuideRepository;
+    private final DiseaseRepository diseaseRepository;
+    private final TrainingExerciseRepository trainingExerciseRepository;
+    private final TrainingMethodRepository trainingMethodRepository;
+    private final NutritionStandardRepository nutritionStandardRepository;
 
     @Override
     public PageResponse<ContentResponse> getAll(int page, int size, String search, String type, String status) {
@@ -160,6 +167,162 @@ public class ContentServiceImpl implements ContentService {
             mediaRepository.saveAll(mediaFiles);
         }
         contentRepository.save(content);
+    }
+
+    @Override
+    public PageResponse<UnifiedContentResponse> getAllUnified(int page, int size, String search, String entityType, String status) {
+        if (page < 0) throw new BadRequestException("page must be greater than or equal to 0");
+        if (size <= 0) throw new BadRequestException("size must be greater than 0");
+
+        String normalizedSearch = trimToNull(search);
+        String normalizedEntityType = trimToNull(entityType);
+        String normalizedStatus = trimToNull(status);
+
+        List<UnifiedContentResponse> allItems = new ArrayList<>();
+
+        if (shouldInclude(normalizedEntityType, "CONTENT")) {
+            contentRepository.findByIsDeletedFalse(PageRequest.of(0, Integer.MAX_VALUE)).getContent()
+                    .forEach(c -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(c.getContentId())
+                            .entityType("CONTENT")
+                            .title(c.getTitle())
+                            .description(c.getSummary())
+                            .status(c.getStatus() != null ? c.getStatus().name() : null)
+                            .authorName(resolveUserFullName(c.getAuthor()))
+                            .createdAt(c.getCreatedAt())
+                            .updatedAt(c.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "DOG_BREED")) {
+            dogBreedRepository.findAll()
+                    .forEach(b -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(b.getBreedId())
+                            .entityType("DOG_BREED")
+                            .title(b.getBreedName())
+                            .description(b.getDescription())
+                            .status(b.getStatus() != null ? b.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(b.getCreatedBy()))
+                            .createdAt(b.getCreatedAt())
+                            .updatedAt(b.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "MEDICATION")) {
+            medicationRepository.findAll()
+                    .forEach(m -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(m.getMedicationId())
+                            .entityType("MEDICATION")
+                            .title(m.getMedicationName())
+                            .description(m.getDescription())
+                            .status(m.getStatus() != null ? m.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(m.getCreatedBy()))
+                            .createdAt(m.getCreatedAt())
+                            .updatedAt(m.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "FIRST_AID_GUIDE")) {
+            firstAidGuideRepository.findAll()
+                    .forEach(f -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(f.getGuideId())
+                            .entityType("FIRST_AID_GUIDE")
+                            .title(f.getGuideTitle())
+                            .description(f.getDescription())
+                            .status(f.getStatus() != null ? f.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(f.getCreatedBy()))
+                            .createdAt(f.getCreatedAt())
+                            .updatedAt(f.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "DISEASE")) {
+            diseaseRepository.findAll()
+                    .forEach(d -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(d.getDiseaseId())
+                            .entityType("DISEASE")
+                            .title(d.getDiseaseName())
+                            .description(d.getDescription())
+                            .status(d.getStatus() != null ? d.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(d.getCreatedBy()))
+                            .createdAt(d.getCreatedAt())
+                            .updatedAt(d.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "TRAINING_EXERCISE")) {
+            trainingExerciseRepository.findAll()
+                    .forEach(te -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(te.getExerciseId())
+                            .entityType("TRAINING_EXERCISE")
+                            .title(te.getExerciseName())
+                            .description(te.getDescription())
+                            .status(te.getStatus() != null ? te.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(te.getCreatedBy()))
+                            .createdAt(te.getCreatedAt())
+                            .updatedAt(te.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "TRAINING_METHOD")) {
+            trainingMethodRepository.findAll()
+                    .forEach(tm -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(tm.getMethodId())
+                            .entityType("TRAINING_METHOD")
+                            .title(tm.getMethodName())
+                            .description(tm.getDescription())
+                            .status(tm.getStatus() != null ? tm.getStatus().name() : null)
+                            .authorName(resolveCreatedByName(tm.getCreatedBy()))
+                            .createdAt(tm.getCreatedAt())
+                            .updatedAt(tm.getUpdatedAt())
+                            .build()));
+        }
+
+        if (shouldInclude(normalizedEntityType, "NUTRITION_STANDARD")) {
+            nutritionStandardRepository.findAll()
+                    .forEach(ns -> allItems.add(UnifiedContentResponse.builder()
+                            .entityId(ns.getStandardId())
+                            .entityType("NUTRITION_STANDARD")
+                            .title(ns.getRationName())
+                            .description(ns.getDescription())
+                            .status(ns.getStatus())
+                            .authorName(resolveCreatedByName(ns.getCreatedBy()))
+                            .createdAt(ns.getCreatedAt())
+                            .updatedAt(ns.getUpdatedAt())
+                            .build()));
+        }
+
+        List<UnifiedContentResponse> filtered = allItems.stream()
+                .filter(item -> normalizedSearch == null
+                        || (item.getTitle() != null && item.getTitle().toLowerCase().contains(normalizedSearch.toLowerCase())))
+                .filter(item -> normalizedStatus == null
+                        || normalizedStatus.equalsIgnoreCase(item.getStatus()))
+                .sorted(Comparator.comparing(UnifiedContentResponse::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
+
+        long totalElements = filtered.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int fromIndex = Math.min(page * size, filtered.size());
+        int toIndex = Math.min(fromIndex + size, filtered.size());
+        List<UnifiedContentResponse> pageContent = filtered.subList(fromIndex, toIndex);
+
+        return PageResponse.<UnifiedContentResponse>builder()
+                .content(pageContent)
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .build();
+    }
+
+    private boolean shouldInclude(String filterEntityType, String currentType) {
+        return filterEntityType == null || filterEntityType.equalsIgnoreCase(currentType);
+    }
+
+    private String resolveCreatedByName(User user) {
+        if (user == null) return null;
+        try { return user.getFullName(); } catch (Exception ex) { return null; }
     }
 
     // ── Private helpers ──────────────────────────────────────────
