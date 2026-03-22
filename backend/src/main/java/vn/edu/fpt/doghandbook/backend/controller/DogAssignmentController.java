@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 import vn.edu.fpt.doghandbook.backend.dto.request.DogAssignmentRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.service.DogAssignmentService;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 
 @RestController
 @RequestMapping("/assignments")
@@ -23,9 +25,11 @@ public class DogAssignmentController {
     private final DogAssignmentService dogAssignmentService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<?>> assign(@Valid @RequestBody DogAssignmentRequest request) {
+    public ResponseEntity<ApiResponse<?>> assign(@Valid @RequestBody DogAssignmentRequest request,
+                                                  Authentication authentication) {
+        Integer assignorId = AuthenticationUtils.extractUserId(authentication);
         return ResponseEntity.status(201)
-                .body(ApiResponse.success(dogAssignmentService.assign(request), "Phân công chó thành công"));
+                .body(ApiResponse.success(dogAssignmentService.assign(request, assignorId), "Phân công chó thành công"));
     }
 
     @PutMapping("/{id}")

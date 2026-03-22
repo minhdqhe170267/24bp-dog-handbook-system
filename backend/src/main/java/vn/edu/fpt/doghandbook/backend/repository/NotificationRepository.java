@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import vn.edu.fpt.doghandbook.backend.entity.Notification;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 
 import java.time.LocalDateTime;
@@ -31,4 +32,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     List<Notification> findByRecipientUserIdAndCreatedAtAfterOrderByCreatedAtDesc(
             Integer recipientId, LocalDateTime since);
+
+    // Escalation: count sync conflicts per user in recent period
+    long countByRecipientUserIdAndTypeAndCreatedAtAfter(
+            Integer recipientId, NotificationType type, LocalDateTime since);
 }

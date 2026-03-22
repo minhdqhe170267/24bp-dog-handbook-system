@@ -38,6 +38,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
@@ -344,6 +345,17 @@ public class SyncServiceImpl implements SyncService {
             item.setSyncStatus(SyncStatus.CONFLICT);
             item.setErrorMessage(e.getMessage());
             syncQueueRepository.save(item);
+
+            // Notify trainer about sync conflict
+            notificationService.notifyUser(
+                    user, null,
+                    NotificationType.SYNC_CONFLICT,
+                    "Xung đột đồng bộ: " + entityType,
+                    "Dữ liệu " + entityType + " (localId: " + localId
+                            + ") bị xung đột khi đồng bộ. Vui lòng kiểm tra lại.",
+                    entityType.toUpperCase(), item.getEntityId()
+            );
+
             // Convert serverData to a safe string to avoid LazyInitializationException
             // when Jackson serializes outside the transaction
             Object safeServerData = e.getServerData() != null

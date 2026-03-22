@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface DogAssignmentService {
 
-    DogAssignmentResponse assign(DogAssignmentRequest request);
+    DogAssignmentResponse assign(DogAssignmentRequest request, Integer assignorId);
 
     DogAssignmentResponse update(Integer assignmentId, DogAssignmentRequest request);
 
