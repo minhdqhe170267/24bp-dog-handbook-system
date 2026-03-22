@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing } from '../../src/constants/theme';
+import { notificationService } from '../../src/services/notificationService';
 import { useThemeStore } from '../../src/stores/themeStore';
 import { useAuthStore } from '../../src/stores/authStore';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
@@ -44,6 +45,22 @@ export default function HomeScreen() {
   const { colors, isDark } = useThemeStore();
   const { user } = useAuthStore();
   const [searchText, setSearchText] = useState('');
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  const loadUnreadCount = React.useCallback(async () => {
+    try {
+      const unread = await notificationService.getUnreadCount();
+      setNotificationCount(unread);
+    } catch {
+      setNotificationCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadUnreadCount();
+    }, [loadUnreadCount]),
+  );
 
   const onPressAction = (item: HomeAction) => {
     if (item.route) {
@@ -67,9 +84,17 @@ export default function HomeScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.notifyBtn} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={styles.notifyBtn}
+          activeOpacity={0.85}
+          onPress={() => router.push('/notifications' as any)}
+        >
           <Ionicons name="notifications" size={16} color="#6B7C71" />
-          <View style={styles.notifyDot} />
+          {notificationCount > 0 ? (
+            <View style={styles.notifyBadge}>
+              <Text style={styles.notifyBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
       </View>
 
@@ -171,14 +196,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#EEF2EF',
   },
-  notifyDot: {
+  notifyBadge: {
     position: 'absolute',
-    right: 8,
-    top: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FF5F5F',
+    right: 2,
+    top: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#E63946',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#EEF2EF',
+  },
+  notifyBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    lineHeight: 11,
+    fontWeight: '800',
   },
   searchBar: {
     minHeight: 44,

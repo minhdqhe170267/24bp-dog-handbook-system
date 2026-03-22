@@ -205,7 +205,11 @@ export default function DogManagementHubScreen() {
                     <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85}>
                         <Ionicons name="search" size={16} color="#647A6E" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85}>
+                    <TouchableOpacity
+                        style={styles.headerIcon}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/notifications' as any)}
+                    >
                         <Ionicons name="notifications-outline" size={16} color="#647A6E" />
                     </TouchableOpacity>
                 </View>

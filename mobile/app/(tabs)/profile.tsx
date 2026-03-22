@@ -1,10 +1,11 @@
 import React from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
 import { useSyncStatus } from '../../src/hooks/useSyncStatus';
+import { notificationService } from '../../src/services/notificationService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -12,7 +13,7 @@ type MenuItem = {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
   route: Href;
-  showSyncBadge?: boolean;
+  badgeType?: 'sync' | 'notification';
 };
 
 export default function ProfileScreen() {
@@ -20,16 +21,33 @@ export default function ProfileScreen() {
   const { colors } = useThemeStore();
   const { pendingCount, conflictCount } = useSyncStatus();
   const router = useRouter();
+  const [notificationCount, setNotificationCount] = React.useState(0);
 
   const syncBadgeCount = conflictCount > 0 ? conflictCount : pendingCount > 0 ? pendingCount : 0;
   const syncBadgeColor = conflictCount > 0 ? colors.error : colors.warning;
+  const notificationBadgeColor = colors.primary;
+
+  const loadUnreadCount = React.useCallback(async () => {
+    try {
+      const unread = await notificationService.getUnreadCount();
+      setNotificationCount(unread);
+    } catch {
+      setNotificationCount(0);
+    }
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadUnreadCount();
+    }, [loadUnreadCount]),
+  );
 
   const menuItems: MenuItem[] = [
     { icon: 'person-outline', label: 'Thông tin cá nhân', route: '/profile/personal-info' },
-    { icon: 'notifications-outline', label: 'Cài đặt thông báo', route: '/profile/notifications' },
+    { icon: 'notifications-outline', label: 'Thông báo', route: '/notifications' as Href, badgeType: 'notification' },
     { icon: 'settings-outline', label: 'Cài đặt chung', route: '/profile/settings' },
     { icon: 'help-circle-outline', label: 'Hỗ trợ & Trợ giúp', route: '/profile/help' },
-    { icon: 'sync-outline', label: 'Đồng bộ dữ liệu', route: '/sync', showSyncBadge: true },
+    { icon: 'sync-outline', label: 'Đồng bộ dữ liệu', route: '/sync', badgeType: 'sync' },
   ];
 
   const handleLogout = () => {
@@ -106,7 +124,17 @@ export default function ProfileScreen() {
 
       <View style={[styles.menuContainer, { backgroundColor: colors.surface }]}>
         {menuItems.map((item, index) => {
-          const showBadge = item.showSyncBadge && syncBadgeCount > 0;
+          const badgeCount =
+            item.badgeType === 'sync'
+              ? syncBadgeCount
+              : item.badgeType === 'notification'
+                ? notificationCount
+                : 0;
+          const badgeColor =
+            item.badgeType === 'sync'
+              ? syncBadgeColor
+              : notificationBadgeColor;
+          const showBadge = badgeCount > 0;
 
           return (
             <TouchableOpacity
@@ -128,8 +156,8 @@ export default function ProfileScreen() {
 
               <View style={styles.menuRight}>
                 {showBadge ? (
-                  <View style={[styles.syncBadge, { backgroundColor: syncBadgeColor }]}>
-                    <Text style={styles.syncBadgeText}>{syncBadgeCount}</Text>
+                  <View style={[styles.syncBadge, { backgroundColor: badgeColor }]}>
+                    <Text style={styles.syncBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
                   </View>
                 ) : null}
                 <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
