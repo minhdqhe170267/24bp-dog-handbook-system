@@ -11,10 +11,12 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.repository.DogAssignmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.DogAssignmentService;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,9 +29,10 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
     private final DogAssignmentRepository dogAssignmentRepository;
     private final DogProfileRepository dogProfileRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
-    public DogAssignmentResponse assign(DogAssignmentRequest request) {
+    public DogAssignmentResponse assign(DogAssignmentRequest request, Integer assignorId) {
         DogProfile dog = dogProfileRepository.findById(request.getDogId())
                 .orElseThrow(() -> new ResourceNotFoundException("Chó", "dogId", request.getDogId()));
 
@@ -51,6 +54,16 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
                 .build();
 
         assignment = dogAssignmentRepository.save(assignment);
+
+        User assignor = userRepository.findById(assignorId).orElse(null);
+        notificationService.notifyUser(
+                trainer, assignor,
+                NotificationType.ASSIGNMENT_CREATED,
+                "Phân công mới: " + dog.getDogName(),
+                "Bạn được phân công phụ trách chó " + dog.getDogName() + " (" + dog.getDogCode() + ")",
+                "DOG_ASSIGNMENT", assignment.getAssignmentId()
+        );
+
         return toResponse(assignment);
     }
 
