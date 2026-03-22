@@ -7,7 +7,7 @@ public interface AuthService {
 
     LoginResponse login(LoginRequest request, String ipAddress);
 
-    void changePassword(Integer userId, String currentPassword, String newPassword);
+    void changePassword(Integer userId, String newPassword);
 
     void logout(Integer userId, String ipAddress);
 }

@@ -8,7 +8,9 @@ import vn.edu.fpt.doghandbook.backend.dto.request.LoginRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.LoginResponse;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AuditActionType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.exception.ErrorCode;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.AuditLogService;
 import vn.edu.fpt.doghandbook.backend.service.AuthService;
@@ -37,7 +39,7 @@ public class AuthServiceImpl implements AuthService {
                     auditLogService.logWithUser(null, ipAddress, AuditActionType.LOGIN_FAILED,
                             "USER", null,
                             "Login failed: account not found for username '" + request.getUsername() + "'");
-                    return new BadRequestException("Tài khoản không tồn tại");
+                    return new BadRequestException(ErrorCode.USER_NOT_FOUND, "Tài khoản không tồn tại");
                 });
 
         int maxAttempts = systemSettingService.getInt("security.max_login_attempts");
@@ -45,32 +47,32 @@ public class AuthServiceImpl implements AuthService {
         if (Boolean.TRUE.equals(user.getIsLocked())) {
             auditLogService.logWithUser(user, ipAddress, AuditActionType.LOGIN_FAILED,
                     "USER", user.getUserId(), "Login failed: account locked");
-            throw new BadRequestException("Tài khoản đã bị khóa sau " + maxAttempts + " lần đăng nhập sai");
+            throw new BadRequestException(ErrorCode.USER_LOCKED, "Tài khoản đã bị khóa sau " + maxAttempts + " lần đăng nhập sai");
         }
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             auditLogService.logWithUser(user, ipAddress, AuditActionType.LOGIN_FAILED,
                     "USER", user.getUserId(), "Login failed: account deactivated");
-            throw new BadRequestException("Tài khoản đã bị vô hiệu hóa");
+            throw new BadRequestException(ErrorCode.USER_DISABLED, "Tài khoản đã bị vô hiệu hóa");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             int newCount = user.getFailedLoginCount() + 1;
             user.setFailedLoginCount(newCount);
-            if (newCount >= maxAttempts) {
+            if (newCount >= maxAttempts && user.getRole() != UserRole.ADMIN) {
                 user.setIsLocked(true);
                 userRepository.save(user);
                 auditLogService.logWithUser(user, ipAddress, AuditActionType.LOGIN_FAILED,
                         "USER", user.getUserId(),
                         "Login failed: wrong password (attempt " + newCount + "), account locked");
-                throw new BadRequestException("Tài khoản đã bị khóa sau " + maxAttempts + " lần đăng nhập sai");
+                throw new BadRequestException(ErrorCode.USER_LOCKED, "Tài khoản đã bị khóa sau " + maxAttempts + " lần đăng nhập sai");
             }
             userRepository.save(user);
             int remaining = maxAttempts - newCount;
             auditLogService.logWithUser(user, ipAddress, AuditActionType.LOGIN_FAILED,
                     "USER", user.getUserId(),
                     "Login failed: wrong password (attempt " + newCount + ", " + remaining + " remaining)");
-            throw new BadRequestException("Sai mật khẩu. Còn " + remaining + " lần thử");
+            throw new BadRequestException(ErrorCode.WRONG_PASSWORD, "Sai mật khẩu. Còn " + remaining + " lần thử");
         }
 
         user.setFailedLoginCount(0);
@@ -100,13 +102,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void changePassword(Integer userId, String currentPassword, String newPassword) {
+    public void changePassword(Integer userId, String newPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BadRequestException("Người dùng không tồn tại"));
-
-        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-            throw new BadRequestException("Mật khẩu hiện tại không đúng");
-        }
+                .orElseThrow(() -> new BadRequestException(ErrorCode.USER_NOT_FOUND, "Người dùng không tồn tại"));
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
