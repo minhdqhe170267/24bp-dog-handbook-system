@@ -20,13 +20,18 @@ import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FollowUpStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
+import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
 import vn.edu.fpt.doghandbook.backend.repository.DiagnosisRecordRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DogAssignmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthSessionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.service.HealthSessionService;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +46,8 @@ public class HealthSessionServiceImpl implements HealthSessionService {
     private final DogProfileRepository dogProfileRepository;
     private final UserRepository userRepository;
     private final DiagnosisRecordRepository diagnosisRecordRepository;
+    private final DogAssignmentRepository dogAssignmentRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -74,6 +81,22 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         }
 
         session = healthSessionRepository.save(session);
+
+        // Trainer-only: notify other trainers assigned to this dog
+        String title = "Phiên sức khỏe mới: " + dog.getDogName();
+        String message = trainer.getFullName() + " tạo phiên theo dõi sức khỏe cho " + dog.getDogName()
+                + " (" + dog.getDogCode() + ") - " + request.getIssueSummary();
+        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+            if (!a.getTrainer().getUserId().equals(trainerId)) {
+                notificationService.notifyUser(
+                        a.getTrainer(), trainer,
+                        NotificationType.HEALTH_SESSION_CREATED,
+                        title, message,
+                        "HEALTH_SESSION", session.getSessionId()
+                );
+            }
+        }
+
         return toResponse(session);
     }
 
@@ -148,6 +171,24 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         session.setResolutionNotes(resolutionNotes);
 
         session = healthSessionRepository.save(session);
+
+        User trainer = userRepository.findByUserIdAndIsDeletedFalse(trainerId).orElse(null);
+        DogProfile dog = session.getDogProfile();
+        String resolveTitle = "Phiên sức khỏe đã xử lý: " + dog.getDogName();
+        String resolveMessage = "Phiên theo dõi sức khỏe của " + dog.getDogName() + " (" + dog.getDogCode()
+                + ") đã được xử lý xong";
+        // Trainer-only: notify other trainers assigned to this dog
+        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+            if (!a.getTrainer().getUserId().equals(trainerId)) {
+                notificationService.notifyUser(
+                        a.getTrainer(), trainer,
+                        NotificationType.HEALTH_SESSION_RESOLVED,
+                        resolveTitle, resolveMessage,
+                        "HEALTH_SESSION", session.getSessionId()
+                );
+            }
+        }
+
         return toResponse(session);
     }
 
