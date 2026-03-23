@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Easing,
-  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,8 +17,10 @@ import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing } from '../../src/constants/theme';
 import { dogManagementFonts, dogManagementUi } from '../../src/features/dog-management/ui';
 import { notificationCenterService } from '../../src/services/notificationCenterService';
+import { dashboardService } from '../../src/services/dashboardService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
+import type { TrainerDashboardDog, TrainerDashboardStats } from '../../src/types/dashboard';
 
 type HomeAction = {
   id: string;
@@ -52,7 +55,7 @@ const homeActions: HomeAction[] = [
   {
     id: 'health',
     title: 'Sức khỏe',
-    description: 'Theo dõi bệnh lý, thuốc và sơ cứu.',
+    description: 'Theo dõi bệnh lý, thuốc và phiên chăm sóc.',
     icon: 'medkit',
     route: '/(tabs)/health',
     accent: '#0E7490',
@@ -68,18 +71,18 @@ const homeActions: HomeAction[] = [
     accentSoft: '#FFF4DF',
   },
   {
-    id: 'reports',
-    title: 'Báo cáo',
-    description: 'Tổng hợp nhanh dữ liệu hoạt động và huấn luyện.',
-    icon: 'bar-chart',
-    message: 'Màn báo cáo sẽ được bổ sung ở bước tiếp theo.',
+    id: 'suggestions',
+    title: 'Góp ý nội dung',
+    description: 'Gửi phản hồi, theo dõi phản hồi và tiến độ áp dụng.',
+    icon: 'chatbubbles',
+    route: '/content-suggestions',
     accent: '#6B4EFF',
     accentSoft: '#F0EDFF',
   },
   {
     id: 'breeds',
     title: 'Giống chó',
-    description: 'Tra cứu giống, thế mạnh và hồ sơ chi tiết.',
+    description: 'Tra cứu giống, so sánh nhanh và hồ sơ chi tiết.',
     icon: 'sparkles',
     route: '/(tabs)/breeds',
     accent: '#B6473E',
@@ -93,9 +96,45 @@ const quickShortcuts = [
 ];
 
 const fonts = {
-  regular: Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' }),
-  medium: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
-  bold: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'sans-serif' }),
+  regular: dogManagementFonts.regular,
+  medium: dogManagementFonts.medium,
+  bold: dogManagementFonts.bold,
+};
+
+const formatShortDate = (value: string | null | undefined) => {
+  if (!value) {
+    return 'vừa xong';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'vừa xong';
+  }
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  }).format(date);
+};
+
+const getSourceLabel = (source: TrainerDashboardStats['source'] | undefined) => {
+  switch (source) {
+    case 'REMOTE':
+      return 'Dữ liệu trực tuyến';
+    case 'CACHE':
+      return 'Bộ nhớ đệm';
+    case 'LOCAL':
+      return 'Cục bộ';
+    default:
+      return 'Đang cập nhật';
+  }
+};
+
+const buildDogSubtitle = (dog: TrainerDashboardDog) => {
+  const chunks = [dog.breedName, dog.assignmentType, dog.dogCode].filter(Boolean);
+  return chunks.length > 0 ? chunks.join(' • ') : 'Đang chờ bổ sung hồ sơ';
 };
 
 export default function HomeScreen() {
@@ -105,14 +144,18 @@ export default function HomeScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
+  const [dashboard, setDashboard] = useState<TrainerDashboardStats | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   const heroProgress = useRef(new Animated.Value(0)).current;
   const gridProgress = useRef(new Animated.Value(0)).current;
+  const rosterProgress = useRef(new Animated.Value(0)).current;
   const badgePulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     heroProgress.setValue(0);
     gridProgress.setValue(0);
+    rosterProgress.setValue(0);
 
     Animated.parallel([
       Animated.timing(heroProgress, {
@@ -127,8 +170,14 @@ export default function HomeScreen() {
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
+      Animated.timing(rosterProgress, {
+        toValue: 1,
+        duration: 860,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
     ]).start();
-  }, [gridProgress, heroProgress]);
+  }, [gridProgress, heroProgress, rosterProgress]);
 
   useEffect(() => {
     let animation: Animated.CompositeAnimation | null = null;
@@ -161,19 +210,26 @@ export default function HomeScreen() {
     };
   }, [badgePulse, notificationCount]);
 
-  const loadUnreadCount = React.useCallback(async () => {
+  const loadHomeData = React.useCallback(async () => {
+    setDashboardLoading(true);
+
     try {
-      const unread = await notificationCenterService.getUnreadCount();
-      setNotificationCount(unread);
-    } catch {
-      setNotificationCount(0);
+      const [unreadCount, trainerStats] = await Promise.all([
+        notificationCenterService.getUnreadCount().catch(() => 0),
+        dashboardService.getTrainerStats().catch(() => null),
+      ]);
+
+      setNotificationCount(unreadCount);
+      setDashboard(trainerStats);
+    } finally {
+      setDashboardLoading(false);
     }
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
-      void loadUnreadCount();
-    }, [loadUnreadCount]),
+      void loadHomeData();
+    }, [loadHomeData]),
   );
 
   const filteredActions = useMemo(() => {
@@ -188,13 +244,23 @@ export default function HomeScreen() {
     );
   }, [searchText]);
 
+  const heroTranslateY = heroProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [24, 0],
+  });
+
+  const rosterTranslateY = rosterProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [18, 0],
+  });
+
   const onPressAction = (item: HomeAction) => {
     if (item.route) {
       router.push(item.route as never);
       return;
     }
 
-    Alert.alert('Thông báo', item.message || 'Chức năng đang phát triển.');
+    Alert.alert('Thông báo', item.message || 'Chức năng đang được phát triển.');
   };
 
   const getCardAnimatedStyle = (index: number) => {
@@ -226,17 +292,18 @@ export default function HomeScreen() {
     };
   };
 
-  const heroTranslateY = heroProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [24, 0],
-  });
-
   const greetingName = user?.fullName || 'Huấn luyện viên';
   const todayLabel = new Intl.DateTimeFormat('vi-VN', {
     weekday: 'long',
     day: '2-digit',
     month: '2-digit',
   }).format(new Date());
+
+  const dashboardCards = [
+    { label: 'Chó phụ trách', value: dashboard?.assignedDogs.length ?? 0, icon: 'paw-outline' as const },
+    { label: 'Nhật ký thực địa', value: dashboard?.totalFieldNotes ?? 0, icon: 'document-text-outline' as const },
+    { label: 'Báo cáo công tác', value: dashboard?.totalReports ?? 0, icon: 'bar-chart-outline' as const },
+  ];
 
   return (
     <ScreenWrapper scrollable style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
@@ -258,7 +325,7 @@ export default function HomeScreen() {
               <View style={styles.avatarWrap}>
                 <Ionicons name="person" size={18} color="#FFFFFF" />
               </View>
-              <View>
+              <View style={styles.identityTextWrap}>
                 <Text style={[styles.eyebrowText, { fontFamily: fonts.medium }]}>{todayLabel}</Text>
                 <Text style={[styles.heroName, { fontFamily: fonts.bold }]}>Đồng chí {greetingName}</Text>
               </View>
@@ -278,7 +345,52 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.heroTitle, { fontFamily: fonts.bold }]}>Truy cập nhanh</Text>
+          <View style={styles.heroTitleRow}>
+            <View style={styles.heroTitleColumn}>
+              <Text style={[styles.heroTitle, { fontFamily: fonts.bold }]}>Bảng điều phối trainer</Text>
+              <Text style={[styles.heroSubtitle, { fontFamily: fonts.medium }]}>
+                Nắm nhanh số liệu ca trực, đội hình phụ trách và luồng nội dung cần xử lý.
+              </Text>
+            </View>
+            <View style={styles.heroMetaPill}>
+              <Ionicons name="flash-outline" size={12} color="#D8F3E4" />
+              <Text style={styles.heroMetaPillText}>{getSourceLabel(dashboard?.source)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.statsRow}>
+            {dashboardCards.map((item, index) => (
+              <View key={item.label} style={[styles.statCard, index === 1 ? styles.statCardCenter : null]}>
+                <View style={styles.statIconWrap}>
+                  <Ionicons name={item.icon} size={15} color="#FFFFFF" />
+                </View>
+                {dashboardLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.statValue, { fontFamily: fonts.bold }]}>{item.value}</Text>
+                )}
+                <Text style={[styles.statLabel, { fontFamily: fonts.medium }]}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.heroBottomRow}>
+            <View style={styles.heroUpdatePill}>
+              <Ionicons name="time-outline" size={13} color="#D8F3E4" />
+              <Text style={styles.heroUpdateText}>
+                Cập nhật {dashboardLoading ? 'đang tải...' : formatShortDate(dashboard?.updatedAt)}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => router.push('/content-suggestions' as never)}
+              style={styles.heroCta}
+            >
+              <Text style={styles.heroCtaText}>Mở góp ý nội dung</Text>
+              <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View
@@ -335,7 +447,7 @@ export default function HomeScreen() {
           Menu tác vụ
         </Text>
         <Text style={[styles.sectionHint, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted }]}>
-          Chọn nhanh khu vực bạn cần mở ngay lúc này.
+          Chạm để mở nhanh đúng khu vực bạn đang cần trong ca trực.
         </Text>
       </View>
 
@@ -365,13 +477,124 @@ export default function HomeScreen() {
               <Text style={[styles.actionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
                 {item.title}
               </Text>
-              <Text style={[styles.actionDescription, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal }]}>
+              <Text
+                style={[
+                  styles.actionDescription,
+                  { color: isDark ? colors.textSecondary : dogManagementUi.textNormal },
+                ]}
+              >
                 {item.description}
               </Text>
             </TouchableOpacity>
           </Animated.View>
         ))}
       </View>
+
+      <Animated.View
+        style={[
+          styles.rosterSection,
+          {
+            opacity: rosterProgress,
+            transform: [{ translateY: rosterTranslateY }],
+          },
+        ]}
+      >
+        <View style={styles.sectionHeaderCompact}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
+              Đội hình đang phụ trách
+            </Text>
+            <Text
+              style={[styles.sectionHint, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted }]}
+            >
+              Dữ liệu lấy trực tiếp từ trainer stats và cache gần nhất.
+            </Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.88} onPress={() => router.push('/dog-management/assignments' as never)}>
+            <Text style={[styles.inlineLink, { color: colors.primary }]}>Xem phân công</Text>
+          </TouchableOpacity>
+        </View>
+
+        {dashboardLoading ? (
+          <View style={[styles.rosterLoadingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.rosterLoadingText, { color: colors.textSecondary }]}>
+              Đang tải thống kê chiến sĩ và đội hình phụ trách...
+            </Text>
+          </View>
+        ) : dashboard?.assignedDogs.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dogScrollRow}>
+            {dashboard.assignedDogs.map((dog, index) => (
+              <Animated.View
+                key={`${dog.dogId}-${index}`}
+                style={{
+                  opacity: rosterProgress,
+                  transform: [
+                    {
+                      translateY: rosterProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [18 + Math.min(index * 6, 24), 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  onPress={() => router.push(`/dog-management/dogs/${dog.dogId}` as never)}
+                  style={[
+                    styles.dogCard,
+                    { backgroundColor: colors.surface, borderColor: isDark ? colors.border : '#D8E5DE' },
+                  ]}
+                >
+                  <View style={styles.dogCardTop}>
+                    <View style={styles.dogIconWrap}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color={colors.textLight} />
+                  </View>
+
+                  <Text style={[styles.dogName, { color: colors.text }]} numberOfLines={1}>
+                    {dog.dogName || `Hồ sơ chó #${dog.dogId}`}
+                  </Text>
+                  <Text style={[styles.dogSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {buildDogSubtitle(dog)}
+                  </Text>
+
+                  <View style={styles.dogMetaRow}>
+                    <View style={[styles.dogMetaPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F4F7F5' }]}>
+                      <Ionicons name="calendar-outline" size={12} color={colors.primary} />
+                      <Text style={[styles.dogMetaText, { color: colors.textSecondary }]}>
+                        {formatShortDate(dog.startDate)}
+                      </Text>
+                    </View>
+                    {dog.endDate ? (
+                      <View style={[styles.dogMetaPill, { backgroundColor: '#FFF4DF' }]}>
+                        <Ionicons name="timer-outline" size={12} color="#9A6700" />
+                        <Text style={[styles.dogMetaText, { color: '#9A6700' }]}>
+                          {formatShortDate(dog.endDate)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={[styles.rosterEmptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.rosterEmptyIcon}>
+              <Ionicons name="paw-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.rosterEmptyTextWrap}>
+              <Text style={[styles.rosterEmptyTitle, { color: colors.text }]}>Chưa có chó được phân công</Text>
+              <Text style={[styles.rosterEmptyText, { color: colors.textSecondary }]}>
+                Khi backend trả trainer stats hoặc cache cục bộ có dữ liệu, khu vực này sẽ hiển thị đội hình phụ trách.
+              </Text>
+            </View>
+          </View>
+        )}
+      </Animated.View>
 
       <TouchableOpacity
         activeOpacity={0.92}
@@ -434,6 +657,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 4,
   },
+  identityTextWrap: {
+    flex: 1,
+  },
   avatarWrap: {
     width: 42,
     height: 42,
@@ -485,11 +711,114 @@ const styles = StyleSheet.create({
     lineHeight: 11,
     fontWeight: '800',
   },
-  heroTitle: {
+  heroTitleRow: {
     marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  heroTitleColumn: {
+    gap: 6,
+  },
+  heroTitle: {
     fontSize: 28,
     lineHeight: 32,
     color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#D8EADF',
+  },
+  heroMetaPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  heroMetaPillText: {
+    color: '#D8F3E4',
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  statsRow: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    minHeight: 108,
+  },
+  statCardCenter: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  statIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    marginTop: 14,
+    color: '#FFFFFF',
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '800',
+  },
+  statLabel: {
+    marginTop: 6,
+    color: '#D8F3E4',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  heroBottomRow: {
+    marginTop: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  heroUpdatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  heroUpdateText: {
+    color: '#D8F3E4',
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  heroCta: {
+    minHeight: 38,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroCtaText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: '800',
   },
   searchBar: {
@@ -544,6 +873,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
+  sectionHeaderCompact: {
+    marginBottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
   sectionTitle: {
     fontSize: 22,
     lineHeight: 26,
@@ -554,6 +890,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  inlineLink: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
   },
   actionGrid: {
     flexDirection: 'row',
@@ -609,6 +950,115 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     lineHeight: 19,
+    fontWeight: '600',
+  },
+  rosterSection: {
+    marginTop: spacing.xl,
+  },
+  rosterLoadingCard: {
+    minHeight: 96,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+  },
+  rosterLoadingText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  dogScrollRow: {
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
+  },
+  dogCard: {
+    width: 224,
+    minHeight: 178,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+    shadowColor: '#102218',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  dogCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dogIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EAF7F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dogName: {
+    marginTop: spacing.lg,
+    fontSize: 19,
+    lineHeight: 22,
+    fontWeight: '800',
+  },
+  dogSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  dogMetaRow: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  dogMetaPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dogMetaText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  rosterEmptyCard: {
+    minHeight: 108,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  rosterEmptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EAF7F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rosterEmptyTextWrap: {
+    flex: 1,
+  },
+  rosterEmptyTitle: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '800',
+  },
+  rosterEmptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '600',
   },
   emergencyCard: {
