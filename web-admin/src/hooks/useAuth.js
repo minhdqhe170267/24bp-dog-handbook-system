@@ -14,7 +14,18 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await authService.login(username, password);
-      const { token, user } = res.data;
+      const token = res?.data?.token;
+      const user = res?.data?.user;
+
+      if (!token || !user) {
+        throw {
+          status: 502,
+          success: false,
+          message: res?.message || 'Phản hồi đăng nhập không hợp lệ',
+          errorCode: res?.errorCode || 'BAD_RESPONSE',
+        };
+      }
+
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       setUser(user);

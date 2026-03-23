@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { normalizeApiError } from './apiError';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -28,17 +29,19 @@ api.interceptors.request.use((config) => {
 // Response interceptor — xử lý 401
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.data); // Debug
+    if (response?.data && typeof response.data === 'object' && response.data.success === false) {
+      return Promise.reject(normalizeApiError({ response }));
+    }
     return response.data;
   },
   (error) => {
-    console.error('API Error:', error.response); // Debug
-    if (error.response?.status === 401) {
+    const normalized = normalizeApiError(error);
+    if (normalized.status === 401 || normalized.errorCode === 'UNAUTHORIZED') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    return Promise.reject(error.response?.data || error);
+    return Promise.reject(normalized);
   }
 );
 

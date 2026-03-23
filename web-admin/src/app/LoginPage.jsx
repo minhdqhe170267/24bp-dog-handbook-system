@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ui/Toast';
+import { normalizeApiError } from '../services/apiError';
 import { Dog, Loader2, AlertCircle, Shield, Eye, EyeOff, User, Lock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,6 +25,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { login } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
 
   useEffect(() => { setMounted(true); }, []);
@@ -30,19 +33,29 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!username.trim() || !password.trim()) { setError('Vui lòng nhập đầy đủ thông tin.'); return; }
+    if (!username.trim() || !password.trim()) {
+      const message = 'Vui lòng nhập đầy đủ thông tin.';
+      setError(message);
+      toast.warning(message);
+      return;
+    }
     setLoading(true);
     try {
       const loggedUser = await login(username, password);
       if (loggedUser?.role === 'TRAINER') {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        setError('Tài khoản Huấn luyện viên không có quyền truy cập Web Admin.');
+        const message = 'Tài khoản Huấn luyện viên không có quyền truy cập Web Admin.';
+        setError(message);
+        toast.error(message);
         return;
       }
       navigate('/dashboard');
     } catch (err) {
-      setError(err?.message || 'Sai tài khoản hoặc mật khẩu');
+      const normalizedError = normalizeApiError(err);
+      const message = normalizedError.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+      setError(message);
+      toast.error(normalizedError, { title: 'Đăng nhập thất bại' });
     } finally {
       setLoading(false);
     }
