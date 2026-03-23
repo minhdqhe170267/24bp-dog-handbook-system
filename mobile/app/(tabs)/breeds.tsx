@@ -270,6 +270,22 @@ export default function BreedsScreen() {
             <Text style={styles.heroStatLabel}>Năng lực nổi bật</Text>
           </View>
         </View>
+
+        <View style={styles.heroActionRow}>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => router.push('/breeds/compare' as never)}
+            style={styles.heroActionButton}
+          >
+            <Ionicons name="git-compare-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.heroActionText}>So sánh giống chó</Text>
+          </TouchableOpacity>
+
+          <View style={styles.heroActionHint}>
+            <Ionicons name="sparkles-outline" size={14} color="#D8F3E4" />
+            <Text style={styles.heroActionHintText}>Chọn 2-5 giống để đối chiếu nhanh</Text>
+          </View>
+        </View>
       </View>
 
       <View
@@ -628,6 +644,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.lg,
   },
+  heroActionRow: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
   heroStatCard: {
     flex: 1,
     borderRadius: 18,
@@ -643,6 +663,32 @@ const styles = StyleSheet.create({
   },
   heroStatLabel: {
     marginTop: 4,
+    color: '#D8F3E4',
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
+  heroActionButton: {
+    minHeight: 46,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroActionText: {
+    color: '#FFFFFF',
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+  },
+  heroActionHint: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroActionHintText: {
     color: '#D8F3E4',
     fontSize: fontSize.sm,
     fontWeight: '600',
