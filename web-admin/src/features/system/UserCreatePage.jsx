@@ -55,7 +55,7 @@ const UserCreatePage = () => {
           unit: detail.unit || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết người dùng');
+        toast.error(error, { title: 'Không tải được chi tiết người dùng' });
         navigate('/system/users');
       } finally {
         setLoadingDetail(false);
@@ -100,7 +100,7 @@ const UserCreatePage = () => {
       }
       navigate('/system/users');
     } catch (error) {
-      toast.error(error?.message || (isEditMode ? 'Không thể cập nhật người dùng' : 'Không thể tạo người dùng'));
+      toast.error(error, { title: isEditMode ? 'Không thể cập nhật người dùng' : 'Không thể tạo người dùng' });
     } finally {
       setSaving(false);
     }
