@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.DELETE, "/media/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
@@ -62,17 +63,21 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/contents/*/review")
                         .hasAnyRole("ADMIN", "REVIEWER")
 
+                        .requestMatchers(HttpMethod.PUT,
+                                "/approvals/*/*/publish", "/approvals/*/*/unpublish"
+                        ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
                         .requestMatchers(HttpMethod.PUT, "/contents/*/publish")
                         .hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT, "/contents/*/unpublish")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT, "/medications/*/publish", "/medications/*/unpublish")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT, "/first-aid-guides/*/publish", "/first-aid-guides/*/unpublish")
-                        .hasRole("ADMIN")
+                        .hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.PUT, "/suggestions/*/respond")
                         .hasAnyRole("ADMIN", "CONTENT_EDITOR")
