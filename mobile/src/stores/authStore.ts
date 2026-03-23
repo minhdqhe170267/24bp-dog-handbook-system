@@ -16,6 +16,8 @@ interface AuthState {
     hydrateAuth: () => Promise<void>;
 }
 
+const AUTH_TOKEN_KEY = 'auth_token';
+
 export const useAuthStore = create<AuthState>((set) => ({
     user: null,
     isAuthenticated: false,
@@ -29,7 +31,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             const { token, expiresIn, user } = response;
 
             // Persist token in SecureStore (encrypted)
-            await SecureStore.setItemAsync('auth_token', token);
+            await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
 
             // Persist user info in SQLite user_session
             const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
@@ -55,14 +57,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     },
 
     logout: async () => {
-        authService.logout();
-
-        // Clear persisted auth data
-        await SecureStore.deleteItemAsync('auth_token');
-        await userSessionDBService.clear();
-
-        console.log('[AUTH] Session cleared from SecureStore + SQLite');
-        set({ user: null, isAuthenticated: false, error: null });
+        await clearStoredSession();
+        set({ error: null });
     },
 
     clearError: () => set({ error: null }),
@@ -84,7 +80,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     hydrateAuth: async () => {
         try {
-            const token = await SecureStore.getItemAsync('auth_token');
+            const token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
             const session = await userSessionDBService.get();
 
             if (token && session && session.user_id) {
@@ -110,3 +106,20 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
     },
 }));
+
+export async function clearStoredSession(): Promise<void> {
+    authService.logout();
+
+    await Promise.allSettled([
+        SecureStore.deleteItemAsync(AUTH_TOKEN_KEY),
+        userSessionDBService.clear(),
+    ]);
+
+    console.log('[AUTH] Session cleared from SecureStore + SQLite');
+    useAuthStore.setState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+    });
+}

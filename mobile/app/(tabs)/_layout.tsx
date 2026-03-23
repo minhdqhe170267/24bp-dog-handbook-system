@@ -25,6 +25,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Trang chủ',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
@@ -34,6 +35,7 @@ export default function TabLayout() {
         name="breeds"
         options={{
           title: 'Giống chó',
+          headerShown: false,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'paw' : 'paw-outline'} size={24} color={color} />
           ),

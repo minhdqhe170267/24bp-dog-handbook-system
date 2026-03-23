@@ -18,6 +18,7 @@ import { useThemeStore } from '../../../src/stores/themeStore';
 import { dogService } from '../../../src/services/dogService';
 import { assignmentService } from '../../../src/services/assignmentService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
+import { localAlertService } from '../../../src/services/localAlertService';
 import { DogAssignment, DogProfile, WeightAssessment } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -66,13 +67,29 @@ export default function WeightAssessmentScreen() {
             const fallbackAssignment = fallbackAssignments.find((item) => item.dogId === numericDogId) || null;
             const fallbackAssessment = findFallbackWeightAssessment(numericDogId) || fallbackWeightAssessments[0];
 
-            setDog(dogResult.status === 'fulfilled' ? dogResult.value : fallbackDog);
+            const resolvedDog = dogResult.status === 'fulfilled' ? dogResult.value : fallbackDog;
+            const resolvedAssessment = assessmentResult.status === 'fulfilled' ? assessmentResult.value : fallbackAssessment;
+
+            setDog(resolvedDog);
             setAssignment(
                 assignmentResult.status === 'fulfilled'
                     ? assignmentResult.value.find((item) => item.isActive !== false) || fallbackAssignment
                     : fallbackAssignment
             );
-            setAssessment(assessmentResult.status === 'fulfilled' ? assessmentResult.value : fallbackAssessment);
+            setAssessment(resolvedAssessment);
+
+            if ((resolvedAssessment?.alertLevel || '').toUpperCase() !== 'NORMAL') {
+                await localAlertService.captureWeightAssessmentSnapshot({
+                    dogId: resolvedAssessment.dogId,
+                    dogName: resolvedAssessment.dogName ?? resolvedDog?.dogName ?? null,
+                    dogCode: resolvedAssessment.dogCode ?? resolvedDog?.dogCode ?? null,
+                    weightStatus: resolvedAssessment.weightStatus ?? null,
+                    alertLevel: resolvedAssessment.alertLevel ?? null,
+                    currentWeightKg: resolvedAssessment.currentWeightKg ?? null,
+                    deviationPercent: resolvedAssessment.deviationPercent ?? null,
+                    createdAt: resolvedAssessment.lastAssessmentAt ?? new Date().toISOString(),
+                });
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);

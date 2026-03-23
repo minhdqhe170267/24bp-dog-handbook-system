@@ -1,5 +1,5 @@
 import { useNetworkStore } from '../stores/networkStore';
-import type { PageResponse } from './api';
+import { isUnauthorizedError, type PageResponse } from './api';
 
 export function isOnline(): boolean {
   const { isConnected, isInternetReachable } = useNetworkStore.getState();
@@ -15,6 +15,29 @@ export function toPageResponse<T>(items: T[]): PageResponse<T> {
     totalPages: 1,
   };
 }
+
+const hasContentArray = (value: unknown): value is { content?: unknown[] } =>
+  typeof value === 'object' && value !== null && 'content' in value;
+
+const hasMeaningfulData = (value: unknown): boolean => {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (value == null) {
+    return false;
+  }
+
+  if (typeof value !== 'object') {
+    return true;
+  }
+
+  if (hasContentArray(value)) {
+    return (value.content?.length ?? 0) > 0;
+  }
+
+  return Object.keys(value).length > 0;
+};
 
 /**
  * Generic offline-first wrapper for READ operations.
@@ -36,12 +59,7 @@ export async function offlineFirstRead<T>({
   // 1. Try local first
   try {
     const localData = await localFetch();
-    const hasData = Array.isArray(localData)
-      ? localData.length > 0
-      : localData != null &&
-        (typeof localData !== 'object' ||
-          (localData as any).content?.length > 0 ||
-          Object.keys(localData as any).length > 0);
+    const hasData = hasMeaningfulData(localData);
 
     if (hasData) {
       console.log(`[OFFLINE] ${entityName}: serving from SQLite`);
@@ -53,12 +71,19 @@ export async function offlineFirstRead<T>({
           .then(() =>
             console.log(`[OFFLINE] ${entityName}: background refresh done`),
           )
-          .catch((err) =>
+          .catch((err) => {
+            if (isUnauthorizedError(err)) {
+              console.warn(
+                `[OFFLINE] ${entityName}: session expired during background refresh`,
+              );
+              return;
+            }
+
             console.warn(
               `[OFFLINE] ${entityName}: background refresh failed`,
               err,
-            ),
-          );
+            );
+          });
       }
 
       return localData;
@@ -75,7 +100,13 @@ export async function offlineFirstRead<T>({
       console.log(`[OFFLINE] ${entityName}: fetched from API, saved to SQLite`);
       return remoteData;
     } catch (err) {
+      if (isUnauthorizedError(err)) {
+        console.warn(
+          `[OFFLINE] ${entityName}: session expired while fetching API data`,
+        );
+      } else {
       console.error(`[OFFLINE] ${entityName}: API fetch failed`, err);
+      }
       throw err;
     }
   }
