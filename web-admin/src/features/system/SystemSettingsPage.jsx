@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RotateCcw, Save, Search } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
-import { Button, FormInput, FormSelect } from '../../components/ui/FormComponents';
+import { Button, ConfirmDialog, FormInput, FormSelect } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { systemSettingService } from '../../services/systemSettingService';
 
@@ -42,6 +42,7 @@ const SystemSettingsPage = () => {
   const [savingKey, setSavingKey] = useState('');
   const [savingBatch, setSavingBatch] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [groupedSettings, setGroupedSettings] = useState({});
   const [draftValues, setDraftValues] = useState({});
@@ -62,7 +63,7 @@ const SystemSettingsPage = () => {
       setDraftValues(nextDraftValues);
     } catch (error) {
       console.error('Fetch system settings error:', error);
-      toast.error('Không tải được cài đặt hệ thống');
+      toast.error(error, { title: 'Không tải được cài đặt hệ thống' });
     } finally {
       setLoading(false);
     }
@@ -144,7 +145,7 @@ const SystemSettingsPage = () => {
       toast.success(`Đã cập nhật: ${key}`);
     } catch (error) {
       console.error('Update system setting error:', error);
-      toast.error(error?.message || `Không thể cập nhật: ${key}`);
+      toast.error(error, { title: `Không thể cập nhật: ${key}` });
       setDraftValues((prev) => ({ ...prev, [key]: setting.settingValue ?? '' }));
     } finally {
       setSavingKey('');
@@ -165,22 +166,22 @@ const SystemSettingsPage = () => {
       toast.success(`Đã lưu ${payload.length} cài đặt`);
     } catch (error) {
       console.error('Update batch system settings error:', error);
-      toast.error(error?.message || 'Không thể lưu hàng loạt');
+      toast.error(error, { title: 'Không thể lưu hàng loạt' });
     } finally {
       setSavingBatch(false);
     }
   };
 
   const handleResetDefaults = async () => {
-    if (!window.confirm('Bạn có chắc muốn khôi phục toàn bộ cài đặt về mặc định?')) return;
     setResetting(true);
     try {
       await systemSettingService.resetDefaults();
       toast.success('Đã khôi phục cài đặt mặc định');
+      setResetConfirmOpen(false);
       await loadSettings();
     } catch (error) {
       console.error('Reset defaults error:', error);
-      toast.error(error?.message || 'Không thể khôi phục mặc định');
+      toast.error(error, { title: 'Không thể khôi phục mặc định' });
     } finally {
       setResetting(false);
     }
@@ -235,7 +236,7 @@ const SystemSettingsPage = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleResetDefaults} loading={resetting}>
+            <Button variant="outline" onClick={() => setResetConfirmOpen(true)} loading={resetting}>
               <RotateCcw className="h-4 w-4" />
               Khôi phục mặc định
             </Button>
@@ -323,6 +324,16 @@ const SystemSettingsPage = () => {
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        title="Khôi phục cài đặt mặc định"
+        description="Bạn có chắc chắn muốn khôi phục toàn bộ cài đặt về mặc định?"
+        onConfirm={handleResetDefaults}
+        confirmLabel="Khôi phục"
+        variant="destructive"
+        loading={resetting}
+      />
     </div>
   );
 };
