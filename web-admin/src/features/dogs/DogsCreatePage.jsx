@@ -103,7 +103,7 @@ const DogsCreatePage = () => {
           notes: detail.notes || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết chó');
+        toast.error(error, { title: 'Không tải được chi tiết chó' });
         navigate('/dogs');
       } finally {
         setLoadingDetail(false);
@@ -141,7 +141,7 @@ const DogsCreatePage = () => {
       return null;
     }
     if (!formData.dogName?.trim()) {
-      toast.error('Vui lòng nhập tên chó trước khi upload media');
+      toast.error('Vui lòng nhập tên chó trước khi tải tệp đa phương tiện');
       return null;
     }
 
@@ -157,10 +157,10 @@ const DogsCreatePage = () => {
 
       setCreatedEntityId(newId);
       navigate(`/dogs/${newId}/edit`, { replace: true });
-      toast.success('Đã tạo hồ sơ chó để gắn media');
+      toast.success('Đã tạo hồ sơ chó để gắn tệp đa phương tiện');
       return { id: newId };
     } catch (error) {
-      toast.error(error?.message || 'Không thể tạo hồ sơ chó để upload media');
+      toast.error(error, { title: 'Không thể tạo hồ sơ chó để tải tệp đa phương tiện' });
       return null;
     } finally {
       setEnsuringEntity(false);
@@ -190,7 +190,7 @@ const DogsCreatePage = () => {
       }
       navigate('/dogs');
     } catch (error) {
-      toast.error(error?.message || (entityIdFromRoute ? 'Không thể cập nhật hồ sơ chó' : 'Không thể tạo hồ sơ chó'));
+      toast.error(error, { title: entityIdFromRoute ? 'Không thể cập nhật hồ sơ chó' : 'Không thể tạo hồ sơ chó' });
     } finally {
       setSaving(false);
     }
