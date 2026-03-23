@@ -7,7 +7,8 @@ import FilterSelect from '../../components/shared/FilterSelect';
 import { Button, Modal } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { auditLogService } from '../../services/auditLogService';
-import { getContentTypeLabel } from '../../utils/enumLabels';
+import { getAuditDescriptionVi, getAuditEntityLabelVi } from '../../utils/auditLogLabels';
+import { sortAuditLogsCreateFirst } from '../../utils/auditLogSort';
 
 const actionTypeOptions = [
   { value: 'all', label: 'Tất cả thao tác' },
@@ -17,7 +18,7 @@ const actionTypeOptions = [
   { value: 'CHANGE_PASSWORD', label: 'Đổi mật khẩu' },
   { value: 'CREATE', label: 'Tạo mới' },
   { value: 'UPDATE', label: 'Cập nhật' },
-  { value: 'DELETE', label: 'Xóa/Ẩn' },
+  { value: 'DELETE', label: 'Xóa' },
   { value: 'APPROVE', label: 'Duyệt' },
   { value: 'REJECT', label: 'Từ chối' },
   { value: 'PUBLISH', label: 'Xuất bản' },
@@ -57,12 +58,33 @@ const actionLabelMap = Object.fromEntries(
 );
 
 const resolveActionLabel = (value) => actionLabelMap[value] || value || '—';
+const actionBadgeClassMap = {
+  LOGIN: 'border-blue-200 bg-blue-50 text-blue-700',
+  LOGIN_FAILED: 'border-rose-200 bg-rose-50 text-rose-700',
+  LOGOUT: 'border-slate-200 bg-slate-100 text-slate-700',
+  CHANGE_PASSWORD: 'border-violet-200 bg-violet-50 text-violet-700',
+  CREATE: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  UPDATE: 'border-amber-200 bg-amber-50 text-amber-700',
+  DELETE: 'border-red-200 bg-red-50 text-red-700',
+  APPROVE: 'border-green-200 bg-green-50 text-green-700',
+  REJECT: 'border-pink-200 bg-pink-50 text-pink-700',
+  PUBLISH: 'border-lime-200 bg-lime-50 text-lime-700',
+  UNPUBLISH: 'border-orange-200 bg-orange-50 text-orange-700',
+  SUBMIT_FOR_REVIEW: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  LOCK_USER: 'border-red-200 bg-red-50 text-red-700',
+  UNLOCK_USER: 'border-teal-200 bg-teal-50 text-teal-700',
+  ACTIVATE_USER: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  DEACTIVATE_USER: 'border-zinc-200 bg-zinc-100 text-zinc-700',
+  IMPORT_DATA: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700',
+  EXPORT_DATA: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  SYNC_PUSH: 'border-sky-200 bg-sky-50 text-sky-700',
+  SYNC_PULL: 'border-purple-200 bg-purple-50 text-purple-700',
+};
+const getActionBadgeClasses = (actionType) =>
+  actionBadgeClassMap[actionType] || 'border-accent/20 bg-accent/10 text-accent';
 
 const resolveEntityLabel = (value) => {
-  if (!value) return '—';
-  if (value === 'SYSTEM_SETTING') return 'Cài đặt hệ thống';
-  if (value === 'USER') return 'Người dùng';
-  return getContentTypeLabel(value);
+  return getAuditEntityLabelVi(value);
 };
 
 const getDateTimeParts = (value) => {
@@ -100,7 +122,7 @@ const parseJsonIfPossible = (rawValue) => {
 };
 
 const ActionBadge = ({ actionType }) => (
-  <span className="inline-flex items-center rounded-full border border-accent/20 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
+  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${getActionBadgeClasses(actionType)}`}>
     {resolveActionLabel(actionType)}
   </span>
 );
@@ -133,7 +155,7 @@ const AuditLogsPage = () => {
       });
     } catch (error) {
       console.error('Fetch audit stats error:', error);
-      toast.error('Không tải được thống kê nhật ký');
+      toast.error(error, { title: 'Không tải được thống kê nhật ký' });
     } finally {
       setStatsLoading(false);
     }
@@ -154,7 +176,7 @@ const AuditLogsPage = () => {
       const payload = res?.data || {};
       const content = Array.isArray(payload.content) ? payload.content : [];
 
-      setLogs(content);
+      setLogs(sortAuditLogsCreateFirst(content));
       setPagination((prev) => ({
         ...prev,
         page,
@@ -162,7 +184,7 @@ const AuditLogsPage = () => {
       }));
     } catch (error) {
       console.error('Fetch audit logs error:', error);
-      toast.error('Không tải được danh sách nhật ký');
+      toast.error(error, { title: 'Không tải được danh sách nhật ký' });
       setLogs([]);
       setPagination((prev) => ({ ...prev, page, total: 0 }));
     } finally {
@@ -185,9 +207,11 @@ const AuditLogsPage = () => {
     return logs.filter((row) => {
       const haystack = [
         row?.description,
+        getAuditDescriptionVi(row?.description, { actionType: row?.actionType, entityType: row?.entityType }),
         row?.username,
         row?.fullName,
         row?.entityType,
+        resolveEntityLabel(row?.entityType),
         row?.actionType,
         row?.ipAddress,
         row?.entityId,
@@ -211,7 +235,7 @@ const AuditLogsPage = () => {
     } catch (error) {
       console.error('Fetch audit detail error:', error);
       setDetailData(row);
-      toast.error('Không tải được chi tiết nhật ký, hiển thị dữ liệu tạm');
+      toast.error(error, { title: 'Không tải được chi tiết nhật ký, hiển thị dữ liệu tạm' });
     } finally {
       setDetailLoading(false);
     }
@@ -224,12 +248,14 @@ const AuditLogsPage = () => {
   };
 
   const columns = [
-    { key: 'logId', header: 'ID', className: 'w-20', render: (row) => row.logId || '—' },
     { key: 'user', header: 'Người dùng', className: 'w-44', render: (row) => row.fullName || row.username || 'Hệ thống' },
     { key: 'actionType', header: 'Hành động', className: 'w-44', render: (row) => <ActionBadge actionType={row.actionType} /> },
     { key: 'entityType', header: 'Đối tượng', className: 'w-44', render: (row) => resolveEntityLabel(row.entityType) },
-    { key: 'description', header: 'Mô tả', render: (row) => row.description || '—' },
-    { key: 'ipAddress', header: 'IP', className: 'w-32', render: (row) => row.ipAddress || '—' },
+    {
+      key: 'description',
+      header: 'Mô tả',
+      render: (row) => getAuditDescriptionVi(row.description, { actionType: row.actionType, entityType: row.entityType }),
+    },
     {
       key: 'actionTimestamp',
       header: 'Thời gian',
@@ -239,7 +265,7 @@ const AuditLogsPage = () => {
     {
       key: 'actions',
       header: 'Thao tác',
-      className: 'w-24',
+      className: 'w-32 whitespace-nowrap',
       render: (row) => (
         <Button variant="ghost" size="sm" onClick={() => openDetail(row)} title="Xem chi tiết">
           <Eye className="h-4 w-4" />
@@ -296,36 +322,36 @@ const AuditLogsPage = () => {
         />
       </div>
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Tìm mô tả, người dùng, IP..."
+            placeholder="Tìm mô tả, người dùng..."
             className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <FilterSelect
-          value={actionTypeFilter}
-          onChange={(value) => {
-            setActionTypeFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={actionTypeOptions}
-          className="min-w-[200px]"
-        />
-        <FilterSelect
-          value={entityTypeFilter}
-          onChange={(value) => {
-            setEntityTypeFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={entityTypeOptions}
-          className="min-w-[210px]"
-        />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <FilterSelect
+            value={actionTypeFilter}
+            onChange={(value) => {
+              setActionTypeFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={actionTypeOptions}
+            className="w-[170px]"
+          />
+          <FilterSelect
+            value={entityTypeFilter}
+            onChange={(value) => {
+              setEntityTypeFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={entityTypeOptions}
+            className="w-[170px]"
+          />
           <input
             type="date"
             value={fromDate}
@@ -333,9 +359,8 @@ const AuditLogsPage = () => {
               setFromDate(event.target.value);
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
-            className="h-9 px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
+            className="h-9 w-[150px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
           />
-          <span className="text-sm text-muted-foreground">-</span>
           <input
             type="date"
             value={toDate}
@@ -343,7 +368,7 @@ const AuditLogsPage = () => {
               setToDate(event.target.value);
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
-            className="h-9 px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
+            className="h-9 w-[150px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
           />
         </div>
       </div>
@@ -374,18 +399,22 @@ const AuditLogsPage = () => {
         ) : detailData ? (
           <div className="space-y-3">
             {[
-              ['ID', detailData.logId],
               ['Người dùng', detailData.fullName || detailData.username || 'Hệ thống'],
               ['Hành động', resolveActionLabel(detailData.actionType)],
               ['Đối tượng', resolveEntityLabel(detailData.entityType)],
               ['Entity ID', detailData.entityId || '—'],
-              ['IP', detailData.ipAddress || '—'],
               ['Thời gian', (() => {
                 const parts = getDateTimeParts(detailData.actionTimestamp);
                 if (!parts) return '—';
                 return `${parts.time} ${parts.date}`;
               })()],
-              ['Mô tả', detailData.description || '—'],
+              [
+                'Mô tả',
+                getAuditDescriptionVi(detailData.description, {
+                  actionType: detailData.actionType,
+                  entityType: detailData.entityType,
+                }),
+              ],
             ].map(([label, value]) => (
               <div key={label} className="flex gap-4 py-2 border-b border-border/40">
                 <span className="text-sm font-medium text-muted-foreground w-36 flex-shrink-0">{label}</span>
