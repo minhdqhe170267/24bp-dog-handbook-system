@@ -518,6 +518,7 @@ export interface UserSessionRow {
   token: string | null;
   refresh_token: string | null;
   token_expires_at: string | null;
+  password_hash: string | null;
   created_at: string;
 }
 

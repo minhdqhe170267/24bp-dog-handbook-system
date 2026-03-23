@@ -39,6 +39,13 @@ const migrations: Migration[] = [
       addColumnIfMissing(db, 'dog_assignment', 'dog_code', 'TEXT');
     },
   },
+  {
+    version: 3,
+    description: 'Add password_hash to user_session for offline login',
+    run: (db) => {
+      addColumnIfMissing(db, 'user_session', 'password_hash', 'TEXT');
+    },
+  },
 ];
 
 /**

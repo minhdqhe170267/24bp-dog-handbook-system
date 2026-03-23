@@ -9,12 +9,16 @@ import { Card } from '../../src/components/Card';
 import { spacing, fontSize } from '../../src/constants/theme';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { useNetworkStore } from '../../src/stores/networkStore';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const { login, isLoading, error, clearError } = useAuthStore();
     const { colors } = useThemeStore();
+    const isConnected = useNetworkStore((s) => s.isConnected);
+    const isInternetReachable = useNetworkStore((s) => s.isInternetReachable);
+    const isOnline = isConnected && isInternetReachable !== false;
 
     useEffect(() => {
         clearError();
@@ -57,6 +61,15 @@ export default function LoginScreen() {
                         </Text>
                     </View>
 
+                    {!isOnline && (
+                        <View style={[styles.offlineBanner, { backgroundColor: colors.warning ?? '#FFF3CD' }]}>
+                            <Ionicons name="cloud-offline-outline" size={18} color="#856404" />
+                            <Text style={styles.offlineBannerText}>
+                                Dang o che do ngoai tuyen. Chi dang nhap duoc voi tai khoan da luu.
+                            </Text>
+                        </View>
+                    )}
+
                     <Card style={styles.formCard}>
                         <Input
                             label="Ten dang nhap"
@@ -79,19 +92,21 @@ export default function LoginScreen() {
                         ) : null}
                         <View style={{ height: spacing.lg }} />
                         <Button
-                            title="DANG NHAP"
+                            title={isOnline ? 'DANG NHAP' : 'DANG NHAP NGOAI TUYEN'}
                             variant="primary"
                             onPress={() => handleLogin()}
                             loading={isLoading}
                         />
                     </Card>
 
-                    <Button
-                        title="Dang nhap nhanh trainer01"
-                        variant="outline"
-                        onPress={handleQuickLogin}
-                        style={{ marginTop: spacing.md }}
-                    />
+                    {isOnline && (
+                        <Button
+                            title="Dang nhap nhanh trainer01"
+                            variant="outline"
+                            onPress={handleQuickLogin}
+                            style={{ marginTop: spacing.md }}
+                        />
+                    )}
 
                     <Text style={[styles.version, { color: colors.textLight }]}>Phien ban 1.0.0</Text>
                 </View>
@@ -110,4 +125,18 @@ const styles = StyleSheet.create({
     formCard: { padding: spacing.xl },
     errorText: { fontSize: fontSize.sm, marginTop: spacing.sm, textAlign: 'center' },
     version: { fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xl },
+    offlineBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginBottom: spacing.md,
+    },
+    offlineBannerText: {
+        flex: 1,
+        fontSize: fontSize.sm,
+        color: '#856404',
+    },
 });
