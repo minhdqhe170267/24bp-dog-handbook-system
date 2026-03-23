@@ -4,6 +4,7 @@ import SockJS from 'sockjs-client/dist/sockjs';
 import { notificationService } from '../services/notificationService';
 
 const POLLING_INTERVAL_MS = 30000;
+const MAX_NOTIFICATION_BUFFER = 100;
 
 const getWsEndpoint = () => {
   const rawBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -50,7 +51,8 @@ export const useNotifications = ({ userId, pageSize = 10, enabled = true } = {})
         );
       }
 
-      return [incoming, ...prev].slice(0, pageSize);
+      const nextLimit = Math.max(pageSize, MAX_NOTIFICATION_BUFFER);
+      return [incoming, ...prev].slice(0, nextLimit);
     });
 
     if (!incoming?.isRead) {
