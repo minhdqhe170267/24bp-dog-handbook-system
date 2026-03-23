@@ -5,11 +5,15 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
-import { Plus, Eye, Pencil, EyeOff, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../components/ui/Toast';
+import { ConfirmDialog } from '../../components/ui/FormComponents';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -67,6 +71,9 @@ const NutritionPage = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRecords, setHistoryRecords] = useState([]);
   const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+  const [deleteId, setDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const toast = useToast();
   const { user } = useAuth();
   const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
   const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
@@ -80,41 +87,56 @@ const NutritionPage = () => {
     specialNotes: formData.specialNotes?.trim() || '',
   });
 
-  const fetchData = async () => {
+  const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.append('page', String(page));
-      params.append('size', String(pageSize));
+      params.append('page', String(nextPage));
+      params.append('size', String(nextPageSize));
+      params.append('sort', 'updatedAt,desc');
+      params.append('sort', 'createdAt,desc');
       if (search) params.append('search', search);
       const res = await api.get(`/nutrition-standards?${params.toString()}`);
       const data = res.data || res;
       const list = data.content || [];
-      setItems(list);
+      setItems(sortByNewest(list, { idKeys: ['standardId', 'id'] }));
       setTotalItems(data.totalElements || list.length);
     } catch (err) { console.error('Fetch nutrition error:', err); setItems([]); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, search]);
+  useEffect(() => { fetchData(page, pageSize); }, [page, pageSize, search]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc chắn muốn ẩn khẩu phần này?')) return;
-    try { await api.delete(`/nutrition-standards/${id}`); fetchData(); } catch (err) { console.error('Delete error:', err); }
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/nutrition-standards/${deleteId}`);
+      toast.success('Đã xóa khẩu phần');
+      setDeleteId(null);
+      fetchData();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error(err, { title: 'Không thể xóa khẩu phần' });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const getStandardId = (row) => row.standardId || row.id;
   const getStatus = (row) => String(row.status || '').toUpperCase();
+  const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
   const handleSubmitForReview = async (row) => {
     const id = getStandardId(row);
     if (!id) return;
     try {
       await approvalService.submit(APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD, id);
-      fetchData();
+      setPage(0);
+      await fetchData(0, pageSize);
     } catch (err) {
       console.error('Submit nutrition for review error:', err);
-      alert(err?.message || 'Không thể gửi duyệt');
+      toast.error(err, { title: 'Không thể gửi duyệt' });
     }
   };
 
@@ -123,10 +145,11 @@ const NutritionPage = () => {
     if (!id) return;
     try {
       await approvalService.publish(APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD, id);
-      fetchData();
+      setPage(0);
+      await fetchData(0, pageSize);
     } catch (err) {
       console.error('Publish nutrition error:', err);
-      alert(err?.message || 'Không thể xuất bản');
+      toast.error(err, { title: 'Không thể xuất bản' });
     }
   };
 
@@ -135,10 +158,11 @@ const NutritionPage = () => {
     if (!id) return;
     try {
       await approvalService.unpublish(APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD, id);
-      fetchData();
+      setPage(0);
+      await fetchData(0, pageSize);
     } catch (err) {
       console.error('Unpublish nutrition error:', err);
-      alert(err?.message || 'Không thể gỡ xuất bản');
+      toast.error(err, { title: 'Không thể gỡ xuất bản' });
     }
   };
 
@@ -165,14 +189,19 @@ const NutritionPage = () => {
   const handleEdit = async (formData) => {
     setSaving(true);
     try { await api.put(`/nutrition-standards/${editItem.standardId}`, toNutritionPayload(formData)); setEditItem(null); fetchData(); }
-    catch (err) { console.error('Update error:', err); alert('Có lỗi xảy ra khi cập nhật'); }
+    catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' }); }
     finally { setSaving(false); }
   };
 
   const handleCreate = async (formData) => {
     setSaving(true);
-    try { await api.post('/nutrition-standards', toNutritionPayload(formData)); setCreateOpen(false); fetchData(); }
-    catch (err) { console.error('Create error:', err); alert('Có lỗi xảy ra khi tạo mới'); }
+    try {
+      await api.post('/nutrition-standards', toNutritionPayload(formData));
+      setCreateOpen(false);
+      setPage(0);
+      await fetchData(0, pageSize);
+    }
+    catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
     finally { setSaving(false); }
   };
 
@@ -210,8 +239,8 @@ const NutritionPage = () => {
         <div className="flex items-center gap-1">
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
-          {canEdit && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/nutrition/${getStandardId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-          {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Ẩn" onClick={() => handleDelete(getStandardId(r))}><EyeOff className="h-4 w-4 text-destructive" /></button>}
+          {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/nutrition/${getStandardId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
+          {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getStandardId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
               <Send className="h-4 w-4 text-amber-600" />
@@ -252,7 +281,7 @@ const NutritionPage = () => {
             className="h-9 pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors w-64" />
         </div>
         <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả trạng thái" />
-        <FilterSelect value={activityFilter} onChange={(v) => { setActivityFilter(v); setPage(0); }} options={activityOptions} placeholder="Tất cả mức hoạt động" className="w-[250px] [&>button]:w-full" />
+        <FilterSelect value={activityFilter} onChange={(v) => { setActivityFilter(v); setPage(0); }} options={activityOptions} placeholder="Tất cả mức hoạt động" className="w-[200px] [&>button]:w-full" />
       </div>
       {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
         <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
@@ -260,6 +289,10 @@ const NutritionPage = () => {
       )}
       <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết khẩu phần" size="lg">
         <DetailView fields={detailFields} data={detailItem} />
+        <EntityMediaPreview
+          entityType={APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD}
+          entityId={detailItem?.standardId || detailItem?.id}
+        />
       </DetailModal>
       <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa khẩu phần" size="lg">
         <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
@@ -274,6 +307,15 @@ const NutritionPage = () => {
         records={historyRecords}
         entityTitle={historyTarget.title}
         entityTypeLabel={historyTarget.typeLabel}
+      />
+      <ConfirmDialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        title="Xóa khẩu phần"
+        description="Bạn có chắc chắn muốn xóa khẩu phần này?"
+        onConfirm={handleDelete}
+        confirmLabel="Xóa"
+        loading={deleting}
       />
     </div>
   );

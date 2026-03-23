@@ -16,13 +16,14 @@ import {
     Redo,
     Upload,
     Loader2,
-    EyeOff,
+    Trash2,
     Image as ImageIcon,
     Video,
     X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../../services/api';
+import { useToast } from '../../components/ui/Toast';
 
 const contentTypeLabels = {
     BREED_INFO: 'Giống chó',
@@ -45,6 +46,7 @@ const MAX_MEDIA_FILES = 10;
 const ContentCreatePage = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const toast = useToast();
     const { id } = useParams();
     const parsedRouteId = Number(id);
     const contentIdFromRoute = Number.isInteger(parsedRouteId) ? parsedRouteId : null;
@@ -115,13 +117,6 @@ const ContentCreatePage = () => {
         return `${apiOrigin}${normalizedPath}`;
     };
 
-    const getErrorMessage = (err, fallback) => {
-        if (typeof err === 'string') return err;
-        if (err?.message) return err.message;
-        if (err?.error) return err.error;
-        return fallback;
-    };
-
     const buildPayload = () => ({
         title: title.trim(),
         contentType,
@@ -132,7 +127,7 @@ const ContentCreatePage = () => {
 
     const ensureValidContent = () => {
         if (!title.trim() || !contentType || !body.trim()) {
-            alert('Vui lòng nhập Tiêu đề, Loại nội dung và Nội dung chính trước khi lưu/upload media');
+            toast.warning('Vui lòng nhập Tiêu đề, Loại nội dung và Nội dung chính trước khi lưu hoặc tải tệp đa phương tiện');
             return false;
         }
         return true;
@@ -168,7 +163,7 @@ const ContentCreatePage = () => {
 
                 await fetchMediaByContent(resolvedId);
             } catch (err) {
-                alert(getErrorMessage(err, 'Không tải được chi tiết nội dung'));
+                toast.error(err, { title: 'Không tải được chi tiết nội dung' });
                 navigate('/content');
             } finally {
                 if (active) setLoadingContent(false);
@@ -216,7 +211,7 @@ const ContentCreatePage = () => {
             await api.delete(`/media/${mediaId}`);
             setMediaFiles((prev) => prev.filter((m) => m.mediaId !== mediaId));
         } catch (err) {
-            alert(getErrorMessage(err, 'Lỗi ẩn media'));
+            toast.error(err, { title: 'Không thể xóa tệp đa phương tiện' });
         }
     };
 
@@ -511,10 +506,10 @@ const ContentCreatePage = () => {
                                                         type="button"
                                                         onClick={() => handleDeleteMedia(media.mediaId)}
                                                         className="h-8 w-8 rounded-md hover:bg-muted transition-colors flex items-center justify-center"
-                                                        title="Ẩn media"
+                                                        title="Xóa media"
                                                         disabled={!media.mediaId}
                                                     >
-                                                        <EyeOff className="h-4 w-4 text-destructive" />
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
                                                     </button>
                                                 )}
                                             </div>

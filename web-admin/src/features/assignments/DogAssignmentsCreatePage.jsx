@@ -40,16 +40,15 @@ const DogAssignmentsCreatePage = () => {
     const fetchLookup = async () => {
       setLoadingLookup(true);
       try {
-        const [dogsRes, usersRes] = await Promise.all([
+        const [dogsRes, trainerList] = await Promise.all([
           dogService.getAll(0, 200, ''),
-          userService.getAll(0, 200, ''),
+          userService.getAllByRole('TRAINER'),
         ]);
         const dogList = dogsRes.data?.content || [];
-        const userList = usersRes.data?.content || [];
         setDogs(dogList);
-        setTrainers(userList.filter((item) => item.role === 'TRAINER'));
-      } catch {
-        toast.error('Không tải được danh mục chó/huấn luyện viên');
+        setTrainers(trainerList || []);
+      } catch (error) {
+        toast.error(error, { title: 'Không tải được danh mục chó/huấn luyện viên' });
       } finally {
         setLoadingLookup(false);
       }
@@ -75,7 +74,7 @@ const DogAssignmentsCreatePage = () => {
           notes: detail.notes || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết phân công');
+        toast.error(error, { title: 'Không tải được chi tiết phân công' });
         navigate('/assignments');
       } finally {
         setLoadingDetail(false);
@@ -91,6 +90,13 @@ const DogAssignmentsCreatePage = () => {
     event.preventDefault();
     if (!formData.dogId || !formData.trainerId || !formData.startDate) {
       toast.error('Vui lòng nhập đủ thông tin bắt buộc');
+      return;
+    }
+    const selectedTrainer = trainers.find(
+      (trainer) => String(trainer?.userId) === String(formData.trainerId),
+    );
+    if (!selectedTrainer || String(selectedTrainer?.role || '').toUpperCase() !== 'TRAINER') {
+      toast.error('Chỉ có thể phân công cho người dùng có vai trò Huấn luyện viên');
       return;
     }
 
@@ -114,7 +120,7 @@ const DogAssignmentsCreatePage = () => {
       }
       navigate('/assignments');
     } catch (error) {
-      toast.error(error?.message || (isEditMode ? 'Không thể cập nhật phân công' : 'Không thể tạo phân công'));
+      toast.error(error, { title: (isEditMode ? 'Không thể cập nhật phân công' : 'Không thể tạo phân công') });
     } finally {
       setSaving(false);
     }

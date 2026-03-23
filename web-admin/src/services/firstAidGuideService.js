@@ -4,6 +4,8 @@ const buildQuery = (page = 0, size = 10, search = '', status = '') => {
   const params = new URLSearchParams();
   params.append('page', String(page));
   params.append('size', String(size));
+  params.append('sort', 'updatedAt,desc');
+  params.append('sort', 'createdAt,desc');
 
   if (search?.trim()) params.append('search', search.trim());
   if (status?.trim()) params.append('status', status.trim());

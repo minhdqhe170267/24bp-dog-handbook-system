@@ -77,7 +77,7 @@ const DiseasesCreatePage = () => {
           isContagious: Boolean(detail.isContagious),
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết bệnh');
+        toast.error(error, { title: 'Không tải được chi tiết bệnh' });
         navigate('/diseases');
       } finally {
         setLoadingDetail(false);
@@ -111,7 +111,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã lưu nháp bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp bệnh');
+      toast.error(error, { title: 'Không thể lưu nháp bệnh' });
     } finally {
       setSavingDraft(false);
     }
@@ -127,7 +127,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã gửi duyệt bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt bệnh');
+      toast.error(error, { title: 'Không thể gửi duyệt bệnh' });
     } finally {
       setSaving(false);
     }
@@ -148,7 +148,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã xuất bản bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản bệnh');
+      toast.error(error, { title: 'Không thể xuất bản bệnh' });
     } finally {
       setPublishing(false);
     }
@@ -173,7 +173,7 @@ const DiseasesCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

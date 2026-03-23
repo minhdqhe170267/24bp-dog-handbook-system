@@ -8,10 +8,13 @@ const ROLE_ROUTES = {
     ADMIN: null, // null = all routes allowed
     CONTENT_EDITOR: [
         '/dashboard', '/',
+        '/notifications',
         '/profile',
         '/content',
         '/import-data',
         '/breeds',
+        '/dogs',
+        '/assignments',
         '/diseases',
         '/training/exercises', '/training/methods', '/training/roadmaps',
         '/nutrition',
@@ -20,6 +23,7 @@ const ROLE_ROUTES = {
     ],
     REVIEWER: [
         '/dashboard', '/',
+        '/notifications',
         '/profile',
         '/content',
         '/approval',

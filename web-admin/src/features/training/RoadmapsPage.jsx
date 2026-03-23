@@ -5,11 +5,15 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
-import { Plus, Eye, Pencil, EyeOff, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../components/ui/Toast';
+import { ConfirmDialog } from '../../components/ui/FormComponents';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const statusOptions = [
     { value: 'all', label: 'Tất cả trạng thái' },
@@ -63,6 +67,9 @@ const RoadmapsPage = () => {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRecords, setHistoryRecords] = useState([]);
     const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+    const [deleteId, setDeleteId] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const toast = useToast();
     const { user } = useAuth();
     const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
@@ -80,40 +87,55 @@ const RoadmapsPage = () => {
         assessmentCriteria: formData.assessmentCriteria?.trim() || '',
     });
 
-    const fetchData = async () => {
+    const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
-            params.append('page', String(page));
-            params.append('size', String(pageSize));
+            params.append('page', String(nextPage));
+            params.append('size', String(nextPageSize));
+            params.append('sort', 'updatedAt,desc');
+            params.append('sort', 'createdAt,desc');
             const res = await api.get(`/roadmaps?${params.toString()}`);
             const data = res.data || res;
             const list = data.content || [];
-            setItems(list);
+            setItems(sortByNewest(list, { idKeys: ['roadmapId', 'id'] }));
             setTotalItems(data.totalElements || list.length);
         } catch (err) { console.error('Fetch roadmaps error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [page, pageSize]);
+    useEffect(() => { fetchData(page, pageSize); }, [page, pageSize]);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Bạn có chắc chắn muốn ẩn lộ trình này?')) return;
-        try { await api.delete(`/roadmaps/${id}`); fetchData(); } catch (err) { console.error('Delete error:', err); }
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        setDeleting(true);
+        try {
+            await api.delete(`/roadmaps/${deleteId}`);
+            toast.success('Đã xóa lộ trình');
+            setDeleteId(null);
+            fetchData();
+        } catch (err) {
+            console.error('Delete error:', err);
+            toast.error(err, { title: 'Không thể xóa lộ trình' });
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const getRoadmapId = (row) => row.roadmapId || row.id;
     const getStatus = (row) => String(row.status || '').toUpperCase();
+    const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
     const handleSubmitForReview = async (row) => {
         const id = getRoadmapId(row);
         if (!id) return;
         try {
             await approvalService.submit(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Submit roadmap for review error:', err);
-            alert(err?.message || 'Không thể gửi duyệt');
+            toast.error(err, { title: 'Không thể gửi duyệt' });
         }
     };
 
@@ -122,10 +144,11 @@ const RoadmapsPage = () => {
         if (!id) return;
         try {
             await approvalService.publish(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Publish roadmap error:', err);
-            alert(err?.message || 'Không thể xuất bản');
+            toast.error(err, { title: 'Không thể xuất bản' });
         }
     };
 
@@ -134,10 +157,11 @@ const RoadmapsPage = () => {
         if (!id) return;
         try {
             await approvalService.unpublish(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Unpublish roadmap error:', err);
-            alert(err?.message || 'Không thể gỡ xuất bản');
+            toast.error(err, { title: 'Không thể gỡ xuất bản' });
         }
     };
 
@@ -163,8 +187,13 @@ const RoadmapsPage = () => {
 
     const handleCreate = async (formData) => {
         setSaving(true);
-        try { await api.post('/roadmaps', toRoadmapPayload(formData)); setCreateOpen(false); fetchData(); }
-        catch (err) { console.error('Create error:', err); alert('Có lỗi xảy ra khi tạo mới'); }
+        try {
+            await api.post('/roadmaps', toRoadmapPayload(formData));
+            setCreateOpen(false);
+            setPage(0);
+            await fetchData(0, pageSize);
+        }
+        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
         finally { setSaving(false); }
     };
 
@@ -194,7 +223,12 @@ const RoadmapsPage = () => {
         { key: 'roadmapName', header: 'Tên lộ trình', render: (r) => <span className="font-medium">{r.roadmapName || '-'}</span> },
         { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || '-' },
         { key: 'targetRole', header: 'Vai trò mục tiêu', render: (r) => r.targetRole || '-' },
-        { key: 'totalDurationWeeks', header: 'Thời gian', render: (r) => r.totalDurationWeeks ? `${r.totalDurationWeeks} tuần` : '-' },
+        {
+            key: 'totalDurationWeeks',
+            header: 'Thời gian',
+            className: 'w-28 whitespace-nowrap',
+            render: (r) => r.totalDurationWeeks ? `${r.totalDurationWeeks} tuần` : '-',
+        },
         { key: 'phaseName', header: 'Giai đoạn', render: (r) => r.phaseName || '-' },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
@@ -203,8 +237,8 @@ const RoadmapsPage = () => {
                 <div className="flex items-center gap-1">
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem chi tiết" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
-                    {canEdit && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/roadmaps/${getRoadmapId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Ẩn" onClick={() => handleDelete(getRoadmapId(r))}><EyeOff className="h-4 w-4 text-destructive" /></button>}
+                    {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/roadmaps/${getRoadmapId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
+                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getRoadmapId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
                     {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
                             <Send className="h-4 w-4 text-amber-600" />
@@ -271,6 +305,10 @@ const RoadmapsPage = () => {
                         </div>
                     </div>
                 )}
+                <EntityMediaPreview
+                    entityType={APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP}
+                    entityId={detailItem?.roadmapId || detailItem?.id}
+                />
             </DetailModal>
             <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm lộ trình" size="lg">
                 <EditForm fields={createFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
@@ -282,6 +320,15 @@ const RoadmapsPage = () => {
                 records={historyRecords}
                 entityTitle={historyTarget.title}
                 entityTypeLabel={historyTarget.typeLabel}
+            />
+            <ConfirmDialog
+                open={!!deleteId}
+                onClose={() => setDeleteId(null)}
+                title="Xóa lộ trình"
+                description="Bạn có chắc chắn muốn xóa lộ trình này?"
+                onConfirm={handleDelete}
+                confirmLabel="Xóa"
+                loading={deleting}
             />
         </div>
     );

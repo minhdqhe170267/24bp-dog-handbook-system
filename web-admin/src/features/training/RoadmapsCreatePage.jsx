@@ -83,7 +83,7 @@ const RoadmapsCreatePage = () => {
           assessmentCriteria: detail.assessmentCriteria || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết lộ trình');
+        toast.error(error, { title: 'Không tải được chi tiết lộ trình' });
         navigate('/training/roadmaps');
       } finally {
         setLoadingDetail(false);
@@ -117,7 +117,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã lưu nháp lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp lộ trình');
+      toast.error(error, { title: 'Không thể lưu nháp lộ trình' });
     } finally {
       setSavingDraft(false);
     }
@@ -133,7 +133,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã gửi duyệt lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt lộ trình');
+      toast.error(error, { title: 'Không thể gửi duyệt lộ trình' });
     } finally {
       setSaving(false);
     }
@@ -154,7 +154,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã xuất bản lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản lộ trình');
+      toast.error(error, { title: 'Không thể xuất bản lộ trình' });
     } finally {
       setPublishing(false);
     }
@@ -179,7 +179,7 @@ const RoadmapsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

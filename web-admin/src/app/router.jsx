@@ -32,6 +32,7 @@ import DogAssignmentsPage from '../features/assignments/DogAssignmentsPage';
 import DogAssignmentsCreatePage from '../features/assignments/DogAssignmentsCreatePage';
 import ProfilePage from '../features/profile/ProfilePage';
 import ImportDataPage from '../features/import/ImportDataPage';
+import NotificationsPage from '../features/notifications/NotificationsPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'dashboard', element: <DashboardPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'content', element: <ContentListPage /> },
       { path: 'import-data', element: <ImportDataPage /> },

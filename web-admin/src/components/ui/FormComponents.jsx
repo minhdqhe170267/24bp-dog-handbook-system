@@ -222,6 +222,8 @@ const Button = ({ children, variant = 'primary', size = 'md', loading, className
     const variants = {
         primary: 'bg-accent text-accent-foreground hover:bg-accent/90 shadow-none',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        success: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-none',
+        muted: 'bg-muted text-foreground hover:bg-muted/80',
         outline: 'border border-border bg-card text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
         ghost: 'bg-transparent text-foreground hover:bg-muted',

@@ -18,7 +18,6 @@ const allNavItems = [
             { label: 'Danh sách nội dung', href: '/content', icon: FileText },
             { label: 'Duyệt nội dung', href: '/approval', icon: CheckCircle, roles: ['ADMIN', 'REVIEWER'] },
             { label: 'Nội dung đề xuất', href: '/suggestions', icon: Lightbulb, roles: ['ADMIN', 'CONTENT_EDITOR'] },
-            { label: 'Import dữ liệu', href: '/import-data', icon: Upload, roles: ['ADMIN', 'CONTENT_EDITOR'] },
         ]
     },
     {
@@ -35,14 +34,15 @@ const allNavItems = [
             { label: 'Lộ trình', href: '/training/roadmaps', icon: Route },
         ]
     },
-    { label: 'Dinh dưỡng', icon: Apple, href: '/nutrition', roles: ['ADMIN', 'CONTENT_EDITOR'] },
     {
         label: 'Sức khỏe', icon: Stethoscope, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
+            { label: 'Dinh dưỡng', href: '/nutrition', icon: Apple },
             { label: 'Bệnh', href: '/diseases', icon: HeartPulse },
             { label: 'Thuốc', href: '/medications', icon: Pill },
             { label: 'Sơ cứu', href: '/medical', icon: Stethoscope },
         ]
     },
+    { label: 'Import dữ liệu', icon: Upload, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
     {
         label: 'Quản trị Hệ thống', icon: Settings, roles: ['ADMIN'], children: [
             { label: 'Quản lý người dùng', href: '/system/users', icon: Users },

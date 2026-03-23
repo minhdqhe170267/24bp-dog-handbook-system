@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Plus, Search, EyeOff } from 'lucide-react';
+import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import {
   Button,
   ConfirmDialog,
@@ -18,6 +19,7 @@ import { useToast } from '../../components/ui/Toast';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -129,7 +131,7 @@ const DogsPage = () => {
       const res = await breedService.getAll(0, 200, '');
       setBreeds(res.data?.content || []);
     } catch (error) {
-      toast.error('Không tải được danh sách giống chó');
+      toast.error(error, { title: 'Không tải được danh sách giống chó' });
     }
   };
 
@@ -146,14 +148,14 @@ const DogsPage = () => {
           ])
         ).values()
       );
-      setDogs(uniqueList);
+      setDogs(sortByNewest(uniqueList, { idKeys: ['dogId', 'id'] }));
       setPagination((prev) => ({
         ...prev,
         page,
         total: res.data?.totalElements || 0,
       }));
     } catch (error) {
-      toast.error('Lỗi tải danh sách chó');
+      toast.error(error, { title: 'Lỗi tải danh sách chó' });
     } finally {
       setLoading(false);
     }
@@ -186,7 +188,7 @@ const DogsPage = () => {
       setDetailData(res.data);
       setDetailOpen(true);
     } catch (error) {
-      toast.error('Không tải được chi tiết chó');
+      toast.error(error, { title: 'Không tải được chi tiết chó' });
     }
   };
 
@@ -217,6 +219,7 @@ const DogsPage = () => {
     }
 
     try {
+      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogService.update(editing.dogId, payload);
@@ -228,9 +231,10 @@ const DogsPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchDogs(pagination.page, pagination.pageSize);
+      setPagination((prev) => ({ ...prev, page: 0 }));
+      await fetchDogs(0, pagination.pageSize);
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu thông tin chó');
+      toast.error(error, { title: 'Không thể lưu thông tin chó' });
     }
   };
 
@@ -238,11 +242,11 @@ const DogsPage = () => {
     if (!deleteId) return;
     try {
       await dogService.delete(deleteId);
-      toast.success('Đã ẩn hồ sơ chó');
+      toast.success('Đã xóa hồ sơ chó');
       setDeleteId(null);
       fetchDogs(pagination.page, pagination.pageSize);
     } catch (error) {
-      toast.error(error?.message || 'Không thể ẩn hồ sơ chó');
+      toast.error(error, { title: 'Không thể xóa hồ sơ chó' });
     }
   };
 
@@ -293,8 +297,8 @@ const DogsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Sửa">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Ẩn">
-            <EyeOff className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Xóa">
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -326,7 +330,7 @@ const DogsPage = () => {
         )}
       />
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -337,24 +341,26 @@ const DogsPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <FilterSelect
-          value={genderFilter}
-          onChange={(value) => {
-            setGenderFilter(normalizeGenderFilterValue(value));
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={genderFilterOptions}
-          className="min-w-[170px]"
-        />
-        <FilterSelect
-          value={statusFilter}
-          onChange={(value) => {
-            setStatusFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={statusFilterOptions}
-          className="min-w-[190px]"
-        />
+        <div className="flex items-center gap-2">
+          <FilterSelect
+            value={genderFilter}
+            onChange={(value) => {
+              setGenderFilter(normalizeGenderFilterValue(value));
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={genderFilterOptions}
+            className="w-[150px]"
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={statusFilterOptions}
+            className="w-[168px]"
+          />
+        </div>
       </div>
 
       <DataTable
@@ -471,6 +477,7 @@ const DogsPage = () => {
                 <span className="text-sm text-foreground break-all">{value || '—'}</span>
               </div>
             ))}
+            <EntityMediaPreview entityType="DOG_PROFILE" entityId={detailData?.dogId} />
           </div>
         )}
       </Modal>
@@ -478,10 +485,10 @@ const DogsPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Ẩn hồ sơ chó"
-        description="Bạn có chắc chắn muốn ẩn hồ sơ chó này không?"
+        title="Xóa hồ sơ chó"
+        description="Bạn có chắc chắn muốn xóa hồ sơ chó này không?"
         onConfirm={handleDelete}
-        confirmLabel="Ẩn"
+        confirmLabel="Xóa"
       />
     </div>
   );

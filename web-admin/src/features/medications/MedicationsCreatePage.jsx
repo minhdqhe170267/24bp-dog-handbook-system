@@ -77,7 +77,7 @@ const MedicationsCreatePage = () => {
           storageRequirements: detail.storageRequirements || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết thuốc');
+        toast.error(error, { title: 'Không tải được chi tiết thuốc' });
         navigate('/medications');
       } finally {
         setLoadingDetail(false);
@@ -115,7 +115,7 @@ const MedicationsCreatePage = () => {
       toast.success('Đã lưu nháp thuốc');
       navigate('/medications');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp thuốc');
+      toast.error(error, { title: 'Không thể lưu nháp thuốc' });
     } finally {
       setSavingDraft(false);
     }
@@ -131,7 +131,7 @@ const MedicationsCreatePage = () => {
       toast.success('Đã gửi duyệt thuốc');
       navigate('/medications');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt thuốc');
+      toast.error(error, { title: 'Không thể gửi duyệt thuốc' });
     } finally {
       setSaving(false);
     }
@@ -153,7 +153,7 @@ const MedicationsCreatePage = () => {
       toast.success('Đã xuất bản thuốc');
       navigate('/medications');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản thuốc');
+      toast.error(error, { title: 'Không thể xuất bản thuốc' });
     } finally {
       setPublishing(false);
     }
@@ -178,7 +178,7 @@ const MedicationsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >
