@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Plus, EyeOff } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
@@ -75,27 +75,38 @@ const DogAssignmentsPage = () => {
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const getSortableTime = (row) => {
+    const value = row?.updatedAt || row?.createdAt || null;
+    const time = new Date(value || 0).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  };
+
   const normalizeRows = (rows) =>
-    rows
+    [...rows]
+      .sort((left, right) => {
+        const timeDiff = getSortableTime(right) - getSortableTime(left);
+        if (timeDiff !== 0) return timeDiff;
+        const rightId = Number(right?.assignmentId || 0);
+        const leftId = Number(left?.assignmentId || 0);
+        return rightId - leftId;
+      })
       .filter((row) => row?.assignmentId != null)
       .map((row) => ({ ...row, id: row.assignmentId }));
 
   const fetchLookups = async () => {
     setLookupLoading(true);
     try {
-      const [dogsRes, usersRes] = await Promise.all([
+      const [dogsRes, trainerList] = await Promise.all([
         dogService.getAll(0, 200, ''),
-        userService.getAll(0, 200, ''),
+        userService.getAllByRole('TRAINER'),
       ]);
 
       const dogList = dogsRes.data?.content || [];
-      const userList = usersRes.data?.content || [];
-      const trainerList = userList.filter((user) => user.role === 'TRAINER');
 
       setDogs(dogList);
-      setTrainers(trainerList);
+      setTrainers(trainerList || []);
     } catch (error) {
-      toast.error('Không tải được dữ liệu danh mục cho phân công');
+      toast.error(error, { title: 'Không tải được dữ liệu danh mục cho phân công' });
     } finally {
       setLookupLoading(false);
     }
@@ -126,7 +137,7 @@ const DogAssignmentsPage = () => {
       );
       setAssignments(normalizeRows(deduped));
     } catch (error) {
-      toast.error('Lỗi tải danh sách phân công');
+      toast.error(error, { title: 'Lỗi tải danh sách phân công' });
       setAssignments([]);
     } finally {
       setLoading(false);
@@ -175,7 +186,7 @@ const DogAssignmentsPage = () => {
       setDetailData(res.data);
       setDetailOpen(true);
     } catch (error) {
-      toast.error('Không tải được chi tiết phân công');
+      toast.error(error, { title: 'Không tải được chi tiết phân công' });
     }
   };
 
@@ -194,8 +205,16 @@ const DogAssignmentsPage = () => {
       toast.error('Vui lòng nhập đủ thông tin bắt buộc');
       return;
     }
+    const selectedTrainer = trainers.find(
+      (trainer) => String(trainer?.userId) === String(formData.trainerId),
+    );
+    if (!selectedTrainer || String(selectedTrainer?.role || '').toUpperCase() !== 'TRAINER') {
+      toast.error('Chỉ có thể phân công cho người dùng có vai trò Huấn luyện viên');
+      return;
+    }
 
     try {
+      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogAssignmentService.update(editing.assignmentId, payload);
@@ -207,9 +226,10 @@ const DogAssignmentsPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchAssignments();
+      setPagination((prev) => ({ ...prev, page: 0 }));
+      await fetchAssignments();
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu phân công');
+      toast.error(error, { title: 'Không thể lưu phân công' });
     }
   };
 
@@ -221,7 +241,7 @@ const DogAssignmentsPage = () => {
       setDeleteTarget(null);
       fetchAssignments();
     } catch (error) {
-      toast.error(error?.message || 'Không thể hủy phân công');
+      toast.error(error, { title: 'Không thể hủy phân công' });
     }
   };
 
@@ -254,13 +274,13 @@ const DogAssignmentsPage = () => {
   );
 
   const columns = [
-    { key: 'dogName', header: 'Chó', render: (row) => <span className="font-medium">{row.dogName || '—'}</span> },
     { key: 'dogCode', header: 'Mã chó', className: 'w-28', render: (row) => row.dogCode || '—' },
+    { key: 'dogName', header: 'Chó', render: (row) => <span className="font-medium">{row.dogName || '—'}</span> },
     { key: 'trainerName', header: 'Huấn luyện viên', className: 'w-56', render: (row) => row.trainerName || '—' },
     {
       key: 'assignmentType',
       header: 'Loại phân công',
-      className: 'w-36',
+      className: 'w-40 whitespace-nowrap',
       render: (row) => {
         const labels = { PRIMARY: 'Chính', SECONDARY: 'Phụ', TEMPORARY: 'Tạm thời' };
         return labels[row.assignmentType] || row.assignmentType || '—';
@@ -286,7 +306,7 @@ const DogAssignmentsPage = () => {
             <Pencil className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)} title="Ngừng hiệu lực">
-            <EyeOff className="h-4 w-4 text-destructive" />
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
