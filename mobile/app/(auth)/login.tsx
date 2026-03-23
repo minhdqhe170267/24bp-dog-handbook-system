@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
@@ -47,28 +47,35 @@ export default function LoginScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.container}
             >
-                <View style={styles.content}>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                    contentInsetAdjustmentBehavior="automatic"
+                    showsVerticalScrollIndicator={false}
+                >
                     <View style={styles.logoArea}>
                         <Ionicons name="paw" size={72} color={colors.primary} />
                         <Text style={[styles.appName, { color: colors.primary }]}>DHS</Text>
-                        <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Dog Handbook System</Text>
+                        <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Sổ tay Chó nghiệp vụ</Text>
                         <Text style={[styles.appSubtitle, { color: colors.textLight }]}>
-                            He thong So tay Cho nghiep vu
+                            Hệ thống Sổ tay Chó nghiệp vụ
                         </Text>
                     </View>
 
                     <Card style={styles.formCard}>
                         <Input
-                            label="Ten dang nhap"
-                            placeholder="Nhap ten dang nhap"
+                            label="Tên đăng nhập"
+                            placeholder="Nhập tên đăng nhập"
                             value={username}
                             onChangeText={setUsername}
                             leftIcon="person-outline"
                         />
                         <View style={{ height: spacing.md }} />
                         <Input
-                            label="Mat khau"
-                            placeholder="Nhap mat khau"
+                            label="Mật khẩu"
+                            placeholder="Nhập mật khẩu"
                             value={password}
                             onChangeText={setPassword}
                             leftIcon="lock-closed-outline"
@@ -79,7 +86,7 @@ export default function LoginScreen() {
                         ) : null}
                         <View style={{ height: spacing.lg }} />
                         <Button
-                            title="DANG NHAP"
+                            title="ĐĂNG NHẬP"
                             variant="primary"
                             onPress={() => handleLogin()}
                             loading={isLoading}
@@ -87,14 +94,14 @@ export default function LoginScreen() {
                     </Card>
 
                     <Button
-                        title="Dang nhap nhanh trainer01"
+                        title="Đăng nhập nhanh trainer01"
                         variant="outline"
                         onPress={handleQuickLogin}
                         style={{ marginTop: spacing.md }}
                     />
 
-                    <Text style={[styles.version, { color: colors.textLight }]}>Phien ban 1.0.0</Text>
-                </View>
+                    <Text style={[styles.version, { color: colors.textLight }]}>Phiên bản 1.0.0</Text>
+                </ScrollView>
             </KeyboardAvoidingView>
         </ScreenWrapper>
     );
@@ -102,7 +109,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    content: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md },
+    content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.xl },
     logoArea: { alignItems: 'center', marginBottom: spacing.xl },
     appName: { fontSize: fontSize.title, fontWeight: 'bold', marginTop: spacing.sm },
     appTitle: { fontSize: fontSize.lg },
