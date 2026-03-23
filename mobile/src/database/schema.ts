@@ -579,6 +579,7 @@ CREATE TABLE IF NOT EXISTS user_session (
   token           TEXT,
   refresh_token   TEXT,
   token_expires_at TEXT,
+  password_hash   TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -626,6 +627,13 @@ const SEED_SYNC_METADATA = SYNCABLE_TABLES
 // initDatabase — called once at app startup from _layout.tsx
 // ──────────────────────────────────────────────────────────────
 
+const ensureColumnExists = (tableName: string, columnName: string, definition: string): void => {
+  const cols = db.getAllSync<{ name: string }>(`PRAGMA table_info(${tableName});`);
+  if (!cols.some((c) => c.name === columnName)) {
+    db.execSync(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+  }
+};
+
 export const initDatabase = async (): Promise<void> => {
   // Enable foreign keys
   db.execSync('PRAGMA foreign_keys = ON;');
@@ -636,6 +644,9 @@ export const initDatabase = async (): Promise<void> => {
   db.execSync(GROUP_A_TABLES);
   db.execSync(GROUP_B_TABLES);
   db.execSync(GROUP_C_TABLES);
+
+  // Ensure password_hash column exists for offline login (safe for existing DBs)
+  ensureColumnExists('user_session', 'password_hash', 'TEXT');
 
   // Seed sync_metadata
   db.execSync(SEED_SYNC_METADATA);
