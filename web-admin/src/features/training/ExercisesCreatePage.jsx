@@ -77,7 +77,7 @@ const ExercisesCreatePage = () => {
           safetyPrecautions: detail.safetyPrecautions || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết bài tập');
+        toast.error(error, { title: 'Không tải được chi tiết bài tập' });
         navigate('/training/exercises');
       } finally {
         setLoadingDetail(false);
@@ -111,7 +111,7 @@ const ExercisesCreatePage = () => {
       toast.success('Đã lưu nháp bài tập');
       navigate('/training/exercises');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp bài tập');
+      toast.error(error, { title: 'Không thể lưu nháp bài tập' });
     } finally {
       setSavingDraft(false);
     }
@@ -127,7 +127,7 @@ const ExercisesCreatePage = () => {
       toast.success('Đã gửi duyệt bài tập');
       navigate('/training/exercises');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt bài tập');
+      toast.error(error, { title: 'Không thể gửi duyệt bài tập' });
     } finally {
       setSaving(false);
     }
@@ -148,7 +148,7 @@ const ExercisesCreatePage = () => {
       toast.success('Đã xuất bản bài tập');
       navigate('/training/exercises');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản bài tập');
+      toast.error(error, { title: 'Không thể xuất bản bài tập' });
     } finally {
       setPublishing(false);
     }
@@ -173,7 +173,7 @@ const ExercisesCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

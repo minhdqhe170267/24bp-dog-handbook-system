@@ -71,7 +71,7 @@ const MethodsCreatePage = () => {
           disadvantages: detail.disadvantages || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết phương pháp');
+        toast.error(error, { title: 'Không tải được chi tiết phương pháp' });
         navigate('/training/methods');
       } finally {
         setLoadingDetail(false);
@@ -105,7 +105,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã lưu nháp phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp phương pháp');
+      toast.error(error, { title: 'Không thể lưu nháp phương pháp' });
     } finally {
       setSavingDraft(false);
     }
@@ -121,7 +121,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã gửi duyệt phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt phương pháp');
+      toast.error(error, { title: 'Không thể gửi duyệt phương pháp' });
     } finally {
       setSaving(false);
     }
@@ -142,7 +142,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã xuất bản phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản phương pháp');
+      toast.error(error, { title: 'Không thể xuất bản phương pháp' });
     } finally {
       setPublishing(false);
     }
@@ -167,7 +167,7 @@ const MethodsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >
