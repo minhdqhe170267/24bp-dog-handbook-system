@@ -130,6 +130,21 @@ public class ApprovalServiceImpl implements ApprovalService {
             }
         }
 
+        // Notify editors when content is rejected or revision requested
+        if (decision == ApprovalDecision.REJECTED || decision == ApprovalDecision.REVISION_REQUESTED) {
+            String entityTitle = getEntityTitle(entityType, entityId);
+            NotificationType editorNotifType = decision == ApprovalDecision.REJECTED
+                    ? NotificationType.CONTENT_REJECTED
+                    : NotificationType.CONTENT_REVISION_REQUESTED;
+            String action = decision == ApprovalDecision.REJECTED ? "đã từ chối" : "yêu cầu chỉnh sửa";
+            notificationService.notifyRole(
+                    UserRole.CONTENT_EDITOR, reviewer, editorNotifType,
+                    "Kết quả duyệt nội dung",
+                    reviewer.getFullName() + " " + action + " \"" + entityTitle + "\"",
+                    entityType.name(), entityId
+            );
+        }
+
         return toResponse(record);
     }
 

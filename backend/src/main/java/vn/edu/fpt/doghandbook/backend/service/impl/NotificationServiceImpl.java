@@ -20,7 +20,9 @@ import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -35,8 +37,39 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void notifyUser(User recipient, User sender, NotificationType type,
                            String title, String message, String entityType, Integer entityId) {
+        Set<Integer> deliveredUserIds = new HashSet<>();
+
+        createAndDispatchNotification(recipient, null, sender, type, title, message, entityType, entityId);
+        deliveredUserIds.add(recipient.getUserId());
+
+        notifyAllAdmins(sender, type, title, message, entityType, entityId, deliveredUserIds);
+    }
+
+    @Override
+    public void notifyRole(UserRole role, User sender, NotificationType type,
+                           String title, String message, String entityType, Integer entityId) {
+        Set<Integer> deliveredUserIds = new HashSet<>();
+
+        List<User> recipients = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == role && Boolean.TRUE.equals(u.getIsActive())
+                        && !Boolean.TRUE.equals(u.getIsDeleted()))
+                .filter(u -> sender == null || !u.getUserId().equals(sender.getUserId()))
+                .toList();
+
+        for (User recipient : recipients) {
+            createAndDispatchNotification(recipient, role, sender, type, title, message, entityType, entityId);
+            deliveredUserIds.add(recipient.getUserId());
+        }
+
+        notifyAllAdmins(sender, type, title, message, entityType, entityId, deliveredUserIds);
+    }
+
+    private void createAndDispatchNotification(User recipient, UserRole recipientRole, User sender,
+                                                NotificationType type, String title, String message,
+                                                String entityType, Integer entityId) {
         Notification notification = Notification.builder()
                 .recipient(recipient)
+                .recipientRole(recipientRole)
                 .sender(sender)
                 .type(type)
                 .title(title)
@@ -52,32 +85,21 @@ public class NotificationServiceImpl implements NotificationService {
                 "/topic/notifications/" + recipient.getUserId(), response);
     }
 
-    @Override
-    public void notifyRole(UserRole role, User sender, NotificationType type,
-                           String title, String message, String entityType, Integer entityId) {
-        List<User> recipients = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == role && Boolean.TRUE.equals(u.getIsActive())
+    private void notifyAllAdmins(User sender, NotificationType type, String title, String message,
+                                  String entityType, Integer entityId, Set<Integer> deliveredUserIds) {
+        Integer senderId = sender != null ? sender.getUserId() : null;
+
+        List<User> admins = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == UserRole.ADMIN
+                        && Boolean.TRUE.equals(u.getIsActive())
                         && !Boolean.TRUE.equals(u.getIsDeleted()))
-                .filter(u -> sender == null || !u.getUserId().equals(sender.getUserId()))
+                .filter(u -> !u.getUserId().equals(senderId))
+                .filter(u -> !deliveredUserIds.contains(u.getUserId()))
                 .toList();
 
-        for (User recipient : recipients) {
-            Notification notification = Notification.builder()
-                    .recipient(recipient)
-                    .recipientRole(role)
-                    .sender(sender)
-                    .type(type)
-                    .title(title)
-                    .message(message)
-                    .entityType(entityType)
-                    .entityId(entityId)
-                    .build();
-
-            notification = notificationRepository.save(notification);
-
-            NotificationResponse response = toResponse(notification);
-            messagingTemplate.convertAndSend(
-                    "/topic/notifications/" + recipient.getUserId(), response);
+        for (User admin : admins) {
+            createAndDispatchNotification(admin, null, sender, type, title, message, entityType, entityId);
+            deliveredUserIds.add(admin.getUserId());
         }
     }
 
