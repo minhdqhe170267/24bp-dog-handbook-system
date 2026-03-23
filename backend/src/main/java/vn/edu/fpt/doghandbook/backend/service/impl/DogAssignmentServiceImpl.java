@@ -9,6 +9,7 @@ import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
@@ -38,6 +39,10 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
 
         User trainer = userRepository.findById(request.getTrainerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Huấn luyện viên", "trainerId", request.getTrainerId()));
+
+        if (trainer.getRole() != UserRole.TRAINER) {
+            throw new BadRequestException("Người được phân công phải có vai trò TRAINER");
+        }
 
         if (dogAssignmentRepository.existsByDogProfileDogIdAndTrainerUserIdAndIsActiveTrue(
                 request.getDogId(), request.getTrainerId())) {
@@ -77,6 +82,10 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
 
         User trainer = userRepository.findById(request.getTrainerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Huấn luyện viên", "trainerId", request.getTrainerId()));
+
+        if (trainer.getRole() != UserRole.TRAINER) {
+            throw new BadRequestException("Người được phân công phải có vai trò TRAINER");
+        }
 
         assignment.setDogProfile(dog);
         assignment.setTrainer(trainer);

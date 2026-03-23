@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/*/file").permitAll()
 
+                        .requestMatchers(HttpMethod.PUT, "/auth/change-password").hasRole("ADMIN")
+
                         .requestMatchers("/notifications/**").authenticated()
 
                         .requestMatchers("/users/**").hasRole("ADMIN")
