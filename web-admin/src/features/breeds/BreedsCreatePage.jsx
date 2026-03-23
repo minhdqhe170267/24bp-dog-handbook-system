@@ -5,6 +5,7 @@ import EntityMediaSection from '../../components/shared/EntityMediaSection';
 import { FormField, FormInput, FormSelect, FormTextarea } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
+import { normalizeApiError } from '../../services/apiError';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -34,6 +35,24 @@ const BreedsCreatePage = () => {
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
   const canPublish = user?.role === 'ADMIN';
+
+  const showBreedError = (error, fallbackTitle) => {
+    const normalized = normalizeApiError(error);
+    const message = String(normalized?.message || '').toLowerCase();
+    const isDuplicatedBreedName =
+      message.includes('tên giống chó đã tồn tại') ||
+      (message.includes('giống chó') && message.includes('đã tồn tại'));
+
+    if (isDuplicatedBreedName) {
+      toast.error({
+        title: 'Tên giống bị trùng',
+        description: 'Tên giống chó đã tồn tại. Vui lòng nhập tên khác.',
+      });
+      return;
+    }
+
+    toast.error(error, { title: fallbackTitle });
+  };
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -77,7 +96,7 @@ const BreedsCreatePage = () => {
           operationalCapabilities: detail.operationalCapabilities || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết giống chó');
+        toast.error(error, { title: 'Không tải được chi tiết giống chó' });
         navigate('/breeds');
       } finally {
         setLoadingDetail(false);
@@ -115,7 +134,7 @@ const BreedsCreatePage = () => {
       toast.success('Đã lưu nháp giống chó');
       navigate('/breeds');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp giống chó');
+      showBreedError(error, 'Không thể lưu nháp giống chó');
     } finally {
       setSavingDraft(false);
     }
@@ -131,7 +150,7 @@ const BreedsCreatePage = () => {
       toast.success('Đã gửi duyệt giống chó');
       navigate('/breeds');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt giống chó');
+      showBreedError(error, 'Không thể gửi duyệt giống chó');
     } finally {
       setSaving(false);
     }
@@ -153,7 +172,7 @@ const BreedsCreatePage = () => {
       toast.success('Đã xuất bản giống chó');
       navigate('/breeds');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản giống chó');
+      toast.error(error, { title: 'Không thể xuất bản giống chó' });
     } finally {
       setPublishing(false);
     }
@@ -178,7 +197,7 @@ const BreedsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >
