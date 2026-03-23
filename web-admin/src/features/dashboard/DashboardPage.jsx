@@ -173,16 +173,16 @@ const getSecurityAlertMeta = (logItem) => {
 
 const getAuditActionBadgeClass = (actionType) => {
   const map = {
-    LOGIN_FAILED: 'border-rose-200 bg-rose-50 text-rose-700',
-    LOCK_USER: 'border-red-200 bg-red-50 text-red-700',
-    UNLOCK_USER: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    DELETE: 'border-red-200 bg-red-50 text-red-700',
-    UPDATE: 'border-amber-200 bg-amber-50 text-amber-700',
-    CREATE: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    APPROVE: 'border-lime-200 bg-lime-50 text-lime-700',
-    REJECT: 'border-pink-200 bg-pink-50 text-pink-700',
-    PUBLISH: 'border-teal-200 bg-teal-50 text-teal-700',
-    UNPUBLISH: 'border-orange-200 bg-orange-50 text-orange-700',
+    LOGIN_FAILED: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+    LOCK_USER: 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300',
+    UNLOCK_USER: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    DELETE: 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300',
+    UPDATE: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    CREATE: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    APPROVE: 'border-lime-500/25 bg-lime-500/10 text-lime-700 dark:text-lime-300',
+    REJECT: 'border-pink-500/25 bg-pink-500/10 text-pink-700 dark:text-pink-300',
+    PUBLISH: 'border-teal-500/25 bg-teal-500/10 text-teal-700 dark:text-teal-300',
+    UNPUBLISH: 'border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-300',
   };
   return map[actionType] || 'border-accent/20 bg-accent/10 text-accent';
 };
@@ -854,36 +854,36 @@ const DashboardPage = () => {
   const adminSecurityToneConfig = {
     danger: {
       icon: ShieldAlert,
-      iconClass: 'text-rose-600',
-      badgeClass: 'border-rose-200 bg-rose-50 text-rose-700',
+      iconClass: 'text-rose-600 dark:text-rose-300',
+      badgeClass: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
     },
     warning: {
       icon: AlertTriangle,
-      iconClass: 'text-amber-600',
-      badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
+      iconClass: 'text-amber-600 dark:text-amber-300',
+      badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
     },
     info: {
       icon: ShieldAlert,
-      iconClass: 'text-blue-600',
-      badgeClass: 'border-blue-200 bg-blue-50 text-blue-700',
+      iconClass: 'text-blue-600 dark:text-blue-300',
+      badgeClass: 'border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300',
     },
   };
 
   const adminSettingToneConfig = {
     ok: {
       icon: CheckCheck,
-      iconClass: 'text-emerald-600',
-      badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      iconClass: 'text-emerald-600 dark:text-emerald-300',
+      badgeClass: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
     },
     warn: {
       icon: AlertTriangle,
-      iconClass: 'text-amber-600',
-      badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
+      iconClass: 'text-amber-600 dark:text-amber-300',
+      badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
     },
     info: {
       icon: Wrench,
-      iconClass: 'text-sky-600',
-      badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
+      iconClass: 'text-sky-600 dark:text-sky-300',
+      badgeClass: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300',
     },
   };
 
