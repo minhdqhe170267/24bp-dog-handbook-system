@@ -5,12 +5,14 @@ import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import StatusBadge from '../../components/shared/StatusBadge';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import { Modal, FormField, FormInput, FormTextarea, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { medicationService } from '../../services/medicationService';
-import { Plus, Pencil, EyeOff, Eye, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -49,9 +51,10 @@ const MedicationsPage = () => {
     try {
       const statusQuery = status === 'all' ? '' : status;
       const res = await medicationService.getAll(page, size, search, statusQuery);
-      setMedications(res.data.content || []);
+      const list = res.data.content || [];
+      setMedications(sortByNewest(list, { idKeys: ['medicationId', 'id'] }));
       setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
-    } catch (err) { toast.error('Lỗi tải danh sách thuốc'); }
+    } catch (err) { toast.error(err, { title: 'Lỗi tải danh sách thuốc' }); }
     finally { setLoading(false); }
   };
 
@@ -61,21 +64,27 @@ const MedicationsPage = () => {
     e.preventDefault();
     if (!formData.medicationName) { toast.error('Vui lòng nhập tên thuốc'); return; }
     try {
+      const isCreate = !editing;
       if (editing) { await medicationService.update(editing.medicationId, formData); toast.success('Cập nhật thành công'); }
       else { await medicationService.create(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null);
-      fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
+      if (isCreate) {
+        fetchData(0, pagination.pageSize);
+      } else {
+        fetchData(pagination.page, pagination.pageSize);
+      }
+    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await medicationService.delete(deleteId); toast.success('Đã ẩn thuốc thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi ẩn thuốc'); }
+    try { await medicationService.delete(deleteId); toast.success('Đã xóa thuốc thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error(err, { title: 'Lỗi khi xóa thuốc' }); }
   };
 
   const getMedicationId = (row) => row.medicationId || row.id;
   const getStatus = (row) => String(row.status || '').toUpperCase();
+  const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
   const handleSubmitForReview = async (row) => {
     const id = getMedicationId(row);
@@ -83,10 +92,10 @@ const MedicationsPage = () => {
     try {
       await approvalService.submit(APPROVAL_ENTITY_TYPES.MEDICATION, id);
       toast.success('Đã gửi duyệt');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit medication for review error:', err);
-      toast.error(err?.message || 'Không thể gửi duyệt');
+      toast.error(err, { title: 'Không thể gửi duyệt' });
     }
   };
 
@@ -96,10 +105,10 @@ const MedicationsPage = () => {
     try {
       await approvalService.publish(APPROVAL_ENTITY_TYPES.MEDICATION, id);
       toast.success('Đã xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish medication error:', err);
-      toast.error(err?.message || 'Không thể xuất bản');
+      toast.error(err, { title: 'Không thể xuất bản' });
     }
   };
 
@@ -109,10 +118,10 @@ const MedicationsPage = () => {
     try {
       await approvalService.unpublish(APPROVAL_ENTITY_TYPES.MEDICATION, id);
       toast.success('Đã gỡ xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish medication error:', err);
-      toast.error(err?.message || 'Không thể gỡ xuất bản');
+      toast.error(err, { title: 'Không thể gỡ xuất bản' });
     }
   };
 
@@ -138,7 +147,7 @@ const MedicationsPage = () => {
 
   const openDetail = async (r) => {
     try { const res = await medicationService.getById(r.medicationId); setDetailData(res.data); setDetailOpen(true); }
-    catch (err) { toast.error('Lỗi tải chi tiết thuốc'); }
+    catch (err) { toast.error(err, { title: 'Lỗi tải chi tiết thuốc' }); }
   };
 
   const openEdit = (r) => {
@@ -186,8 +195,8 @@ const MedicationsPage = () => {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></Button>
-          {canEdit && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Ẩn" onClick={() => setDeleteId(getMedicationId(r))}><EyeOff className="h-4 w-4 text-destructive" /></Button>}
+          {canShowEdit(r) && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
+          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getMedicationId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600" /></Button>
           )}
@@ -229,6 +238,10 @@ const MedicationsPage = () => {
                 <span className="text-sm text-foreground">{value || '—'}</span>
               </div>
             ))}
+            <EntityMediaPreview
+              entityType={APPROVAL_ENTITY_TYPES.MEDICATION}
+              entityId={detailData?.medicationId}
+            />
           </div>
         )}
       </Modal>
@@ -243,7 +256,7 @@ const MedicationsPage = () => {
           <FormField label="Tác dụng phụ"><FormTextarea rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Ẩn thuốc" description="Bạn có chắc chắn muốn ẩn thuốc này?" onConfirm={handleDelete} confirmLabel="Ẩn" />
+      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa thuốc" description="Bạn có chắc chắn muốn xóa thuốc này?" onConfirm={handleDelete} confirmLabel="Xóa" />
       <ApprovalHistoryModal
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
