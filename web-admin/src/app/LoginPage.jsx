@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useToast } from '../components/ui/Toast';
 import { normalizeApiError } from '../services/apiError';
 import { Dog, Loader2, AlertCircle, Shield, Eye, EyeOff, User, Lock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,7 +24,6 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { login } = useAuth();
-  const toast = useToast();
   const navigate = useNavigate();
 
   useEffect(() => { setMounted(true); }, []);
@@ -36,7 +34,6 @@ const LoginPage = () => {
     if (!username.trim() || !password.trim()) {
       const message = 'Vui lòng nhập đầy đủ thông tin.';
       setError(message);
-      toast.warning(message);
       return;
     }
     setLoading(true);
@@ -47,7 +44,6 @@ const LoginPage = () => {
         localStorage.removeItem('user');
         const message = 'Tài khoản Huấn luyện viên không có quyền truy cập Web Admin.';
         setError(message);
-        toast.error(message);
         return;
       }
       navigate('/dashboard');
@@ -55,7 +51,6 @@ const LoginPage = () => {
       const normalizedError = normalizeApiError(err);
       const message = normalizedError.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
       setError(message);
-      toast.error(normalizedError, { title: 'Đăng nhập thất bại' });
     } finally {
       setLoading(false);
     }
@@ -66,7 +61,7 @@ const LoginPage = () => {
   }));
 
   return (
-    <div className="min-h-screen flex overflow-hidden">
+    <div className="min-h-screen flex overflow-hidden login-light-scope">
       {/* Left Panel - Branding */}
       <motion.div
         className="hidden lg:flex lg:w-[55%] relative gradient-navy items-center justify-center p-12 overflow-hidden"
