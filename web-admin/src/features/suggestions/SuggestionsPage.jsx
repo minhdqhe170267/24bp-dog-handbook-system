@@ -5,6 +5,8 @@ import FilterSelect from '../../components/shared/FilterSelect';
 import DetailModal, { DetailView } from '../../components/shared/DetailModal';
 import { Eye, MessageSquare, Search } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../../components/ui/Toast';
+import { Button, FormTextarea, Modal } from '../../components/ui/FormComponents';
 
 const suggestionStatusConfig = {
     PENDING: { label: 'Chờ xử lý', badge: 'bg-amber-500/10 text-amber-700 border-amber-500/30', dot: 'bg-amber-500' },
@@ -53,6 +55,10 @@ const SuggestionsPage = () => {
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
     const [detailItem, setDetailItem] = useState(null);
+    const [responseTarget, setResponseTarget] = useState(null);
+    const [responseText, setResponseText] = useState('');
+    const [responding, setResponding] = useState(false);
+    const toast = useToast();
 
     const fetchData = async () => {
         setLoading(true);
@@ -71,12 +77,37 @@ const SuggestionsPage = () => {
 
     useEffect(() => { fetchData(); }, [page, pageSize, statusFilter]);
 
-    const handleRespond = async (id) => {
-        const adminResponse = window.prompt('Phản hồi của admin:');
-        if (!adminResponse) return;
-        const status = window.confirm('Chấp nhận đề xuất này?') ? 'ACCEPTED' : 'REJECTED';
-        try { await api.put(`/suggestions/${id}/respond`, { adminResponse, status }); fetchData(); }
-        catch (err) { console.error('Respond error:', err); alert('Có lỗi xảy ra'); }
+    const openRespondModal = (row) => {
+        setResponseTarget(row);
+        setResponseText('');
+    };
+
+    const closeRespondModal = () => {
+        setResponseTarget(null);
+        setResponseText('');
+    };
+
+    const handleRespond = async (status) => {
+        const id = responseTarget?.suggestionId || responseTarget?.id;
+        const adminResponse = responseText.trim();
+        if (!id) return;
+        if (!adminResponse) {
+            toast.warning('Vui lòng nhập phản hồi trước khi gửi');
+            return;
+        }
+
+        setResponding(true);
+        try {
+            await api.put(`/suggestions/${id}/respond`, { adminResponse, status });
+            toast.success(status === 'ACCEPTED' ? 'Đã chấp nhận đề xuất' : 'Đã từ chối đề xuất');
+            closeRespondModal();
+            fetchData();
+        } catch (err) {
+            console.error('Respond error:', err);
+            toast.error(err, { title: 'Không thể phản hồi đề xuất' });
+        } finally {
+            setResponding(false);
+        }
     };
 
     const getDateTimeParts = (value) => {
@@ -112,7 +143,7 @@ const SuggestionsPage = () => {
                 <div className="flex items-center gap-1">
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
                     {(r.status === 'PENDING' || r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW') && (
-                        <button className="p-1.5 rounded-md hover:bg-accent/10 transition-colors" title="Phản hồi" onClick={() => handleRespond(r.suggestionId || r.id)}>
+                        <button className="p-1.5 rounded-md hover:bg-accent/10 transition-colors" title="Phản hồi" onClick={() => openRespondModal(r)}>
                             <MessageSquare className="h-4 w-4 text-accent" />
                         </button>
                     )}
@@ -152,6 +183,38 @@ const SuggestionsPage = () => {
             <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết đề xuất" size="lg">
                 <DetailView fields={detailFields} data={detailItem} />
             </DetailModal>
+
+            <Modal
+                open={!!responseTarget}
+                onClose={closeRespondModal}
+                title="Phản hồi đề xuất nội dung"
+                width={620}
+                footer={(
+                    <>
+                        <Button variant="outline" onClick={closeRespondModal} disabled={responding}>Hủy</Button>
+                        <Button variant="destructive" onClick={() => handleRespond('REJECTED')} loading={responding}>Từ chối</Button>
+                        <Button onClick={() => handleRespond('ACCEPTED')} loading={responding}>Chấp nhận</Button>
+                    </>
+                )}
+            >
+                <div className="space-y-3">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <p className="text-sm font-medium text-foreground">{responseTarget?.title || '-'}</p>
+                        <p className="text-xs text-muted-foreground">Người gửi: {responseTarget?.submitterName || responseTarget?.trainerName || '-'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-1.5">
+                            Phản hồi của quản trị viên <span className="text-destructive">*</span>
+                        </label>
+                        <FormTextarea
+                            rows={4}
+                            value={responseText}
+                            onChange={(event) => setResponseText(event.target.value)}
+                            placeholder="Nhập nội dung phản hồi..."
+                        />
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };
