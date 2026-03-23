@@ -1,13 +1,15 @@
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Loader2, LogOut, Search, User, Wifi, WifiOff } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, LogOut, Moon, Search, Sun, User } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/utils';
 import { useToast } from '../ui/Toast';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useTheme } from '../../hooks/useTheme';
 import {
   formatNotificationTime,
+  groupNotificationsByRecency,
   getNotificationEntityLabel,
   getNotificationTypeLabel,
   resolveNotificationRoute,
@@ -33,6 +35,7 @@ const searchItems = [
   },
   { label: 'Thông báo', href: '/notifications', keywords: ['thong bao', 'thông báo', 'notifications', 'notify'] },
   { label: 'Import dữ liệu', href: '/import-data', keywords: ['import', 'nhap du lieu', 'nhập dữ liệu', 'excel', 'csv'] },
+  { label: 'Export dữ liệu', href: '/export-data', keywords: ['export', 'xuat du lieu', 'xuất dữ liệu', 'bao cao', 'báo cáo'] },
   { label: 'Quản lý người dùng', href: '/system/users', keywords: ['nguoi dung', 'người dùng', 'user', 'users'] },
   { label: 'Cài đặt hệ thống', href: '/system/settings', keywords: ['cai dat', 'cài đặt', 'settings', 'he thong', 'hệ thống'] },
   { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', keywords: ['nhat ky', 'nhật ký', 'audit', 'log'] },
@@ -40,6 +43,7 @@ const searchItems = [
 
 const AppHeader = () => {
   const { user, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -48,24 +52,25 @@ const AppHeader = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [activeNotificationId, setActiveNotificationId] = useState(null);
 
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
   const notificationRef = useRef(null);
+  const notificationPageSize = user?.role === 'ADMIN' ? 50 : 30;
 
   const {
     items: notifications,
     unreadCount,
     loadingList: notificationLoading,
-    realtimeConnected,
     refresh: refreshNotifications,
     markAsRead,
     markAllAsRead,
   } = useNotifications({
     userId: user?.userId,
-    pageSize: 10,
+    pageSize: notificationPageSize,
     enabled: Boolean(user?.userId),
   });
 
@@ -121,6 +126,22 @@ const AppHeader = () => {
       .toUpperCase() || '?';
 
   const unreadBadge = unreadCount > 99 ? '99+' : String(unreadCount);
+  const filteredNotifications = useMemo(() => {
+    const source =
+      notificationFilter === 'unread'
+        ? notifications.filter((item) => !item?.isRead)
+        : notifications;
+
+    return [...source].sort((a, b) => {
+      const timeA = new Date(a?.createdAt || 0).getTime();
+      const timeB = new Date(b?.createdAt || 0).getTime();
+      return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+    });
+  }, [notificationFilter, notifications]);
+
+  const groupedNotifications = useMemo(() => {
+    return groupNotificationsByRecency(filteredNotifications);
+  }, [filteredNotifications]);
 
   const handleLogout = () => {
     logout();
@@ -142,7 +163,7 @@ const AppHeader = () => {
   };
 
   const handleNotificationSelect = async (notification) => {
-    const targetRoute = resolveNotificationRoute(notification);
+    const targetRoute = resolveNotificationRoute(notification, { role: user?.role });
     const notificationId = notification?.notificationId;
 
     try {
@@ -170,6 +191,48 @@ const AppHeader = () => {
       setMarkingAll(false);
     }
   };
+
+  const renderNotificationItems = (items) =>
+    items.map((notification) => {
+      const id = notification.notificationId || `${notification.type}-${notification.createdAt}`;
+      const isActionLoading = activeNotificationId === notification.notificationId;
+      return (
+        <button
+          key={id}
+          className={cn(
+            'w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted transition-colors',
+            notification?.isRead ? 'bg-card' : 'bg-accent/5'
+          )}
+          onClick={() => handleNotificationSelect(notification)}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground">
+              {notification?.title || 'Thông báo mới'}
+            </p>
+            <div className="flex items-center gap-1.5">
+              {!notification?.isRead && (
+                <span className="h-2 w-2 rounded-full bg-accent mt-1 shrink-0" />
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {formatNotificationTime(notification?.createdAt)}
+              </span>
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+            {notification?.message || 'Không có nội dung thông báo'}
+          </p>
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium">
+            <span className="px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+              {getNotificationTypeLabel(notification?.type)}
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+              {getNotificationEntityLabel(notification?.entityType)}
+            </span>
+            {isActionLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+        </button>
+      );
+    });
 
   return (
     <header className="h-14 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between px-5 gap-4 flex-shrink-0 sticky top-0 z-20">
@@ -230,6 +293,19 @@ const AppHeader = () => {
       </div>
 
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="relative h-9 w-9 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
+          onClick={toggleTheme}
+          title={isDark ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'}
+        >
+          {isDark ? (
+            <Sun className="h-[18px] w-[18px] text-warning" />
+          ) : (
+            <Moon className="h-[18px] w-[18px] text-muted-foreground" />
+          )}
+        </button>
+
         <div className="relative" ref={notificationRef}>
           <button
             className="relative h-9 w-9 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
@@ -254,24 +330,76 @@ const AppHeader = () => {
                 className="absolute right-0 top-full mt-1 w-[420px] max-w-[92vw] bg-card border border-border/60 rounded-lg shadow-elevated overflow-hidden z-50"
               >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">Thông báo</p>
-                    <span
+                  <p className="text-lg font-bold leading-none">Thông báo</p>
+                  <div className="inline-flex items-center rounded-full border border-border bg-muted/40 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setNotificationFilter('all')}
                       className={cn(
-                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium',
-                        realtimeConnected
-                          ? 'bg-success/15 text-success'
-                          : 'bg-warning/15 text-warning'
+                        'px-2.5 py-1 text-[11.5px] rounded-full transition-colors leading-none',
+                        notificationFilter === 'all' ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
-                      {realtimeConnected ? (
-                        <Wifi className="h-3 w-3" />
-                      ) : (
-                        <WifiOff className="h-3 w-3" />
+                      Tất cả
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotificationFilter('unread')}
+                      className={cn(
+                        'px-2.5 py-1 text-[11.5px] rounded-full transition-colors leading-none',
+                        notificationFilter === 'unread' ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'
                       )}
-                      {realtimeConnected ? 'Realtime' : 'Polling'}
-                    </span>
+                    >
+                      Chưa đọc
+                    </button>
                   </div>
+                </div>
+
+                <div className="max-h-[420px] overflow-y-auto">
+                  {notificationLoading && notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Đang tải thông báo...
+                    </div>
+                  ) : filteredNotifications.length === 0 ? (
+                    <div className="px-4 py-8 text-sm text-muted-foreground text-center">
+                      Chưa có thông báo nào
+                    </div>
+                  ) : (
+                    <>
+                      {groupedNotifications.recent.length > 0 && (
+                        <div className="px-3 py-1.5 text-xs font-semibold text-foreground bg-muted/55 border-b border-border/60">
+                          Mới
+                        </div>
+                      )}
+                      {renderNotificationItems(groupedNotifications.recent)}
+
+                      {groupedNotifications.today.length > 0 && (
+                        <div className="px-3 py-1.5 text-xs font-semibold text-foreground bg-muted/55 border-b border-border/60">
+                          Hôm nay
+                        </div>
+                      )}
+                      {renderNotificationItems(groupedNotifications.today)}
+
+                      {groupedNotifications.previous.length > 0 && (
+                        <div className="px-3 py-1.5 text-xs font-semibold text-foreground bg-muted/55 border-b border-border/60">
+                          Trước đó
+                        </div>
+                      )}
+                      {renderNotificationItems(groupedNotifications.previous)}
+                    </>
+                  )}
+                </div>
+                <div className="px-3 py-2 border-t border-border/60 bg-muted/20 flex items-center justify-between">
+                  <button
+                    className="text-xs font-medium text-accent hover:underline"
+                    onClick={() => {
+                      setNotificationOpen(false);
+                      navigate('/notifications');
+                    }}
+                  >
+                    Xem tất cả
+                  </button>
                   <button
                     className="text-xs px-2 py-1 rounded border border-border hover:bg-muted disabled:opacity-60"
                     onClick={handleMarkAllRead}
@@ -281,71 +409,6 @@ const AppHeader = () => {
                       {markingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
                       Đánh dấu tất cả đã đọc
                     </span>
-                  </button>
-                </div>
-
-                <div className="max-h-[420px] overflow-y-auto">
-                  {notificationLoading && notifications.length === 0 ? (
-                    <div className="px-4 py-6 text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang tải thông báo...
-                    </div>
-                  ) : notifications.length === 0 ? (
-                    <div className="px-4 py-8 text-sm text-muted-foreground text-center">
-                      Chưa có thông báo nào
-                    </div>
-                  ) : (
-                    notifications.map((notification) => {
-                      const id = notification.notificationId || `${notification.type}-${notification.createdAt}`;
-                      const isActionLoading = activeNotificationId === notification.notificationId;
-                      return (
-                        <button
-                          key={id}
-                          className={cn(
-                            'w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted transition-colors',
-                            notification?.isRead ? 'bg-card' : 'bg-accent/5'
-                          )}
-                          onClick={() => handleNotificationSelect(notification)}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold text-foreground">
-                              {notification?.title || 'Thông báo mới'}
-                            </p>
-                            <div className="flex items-center gap-1.5">
-                              {!notification?.isRead && (
-                                <span className="h-2 w-2 rounded-full bg-accent mt-1 shrink-0" />
-                              )}
-                              <span className="text-[11px] text-muted-foreground">
-                                {formatNotificationTime(notification?.createdAt)}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                            {notification?.message || 'Không có nội dung thông báo'}
-                          </p>
-                          <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium">
-                            <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                              {getNotificationTypeLabel(notification?.type)}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                              {getNotificationEntityLabel(notification?.entityType)}
-                            </span>
-                            {isActionLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                <div className="px-3 py-2 border-t border-border/60 bg-muted/20 flex justify-end">
-                  <button
-                    className="text-xs font-medium text-accent hover:underline"
-                    onClick={() => {
-                      setNotificationOpen(false);
-                      navigate('/notifications');
-                    }}
-                  >
-                    Xem tất cả
                   </button>
                 </div>
               </motion.div>
@@ -402,6 +465,16 @@ const AppHeader = () => {
                   >
                     <User className="h-4 w-4" />
                     Hồ sơ cá nhân
+                  </button>
+                  <button
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                    onClick={(event) => {
+                      setDropdownOpen(false);
+                      toggleTheme(event);
+                    }}
+                  >
+                    {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    {isDark ? 'Chế độ sáng' : 'Chế độ tối'}
                   </button>
                 </div>
                 <div className="border-t border-border py-1">
