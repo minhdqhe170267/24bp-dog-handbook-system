@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Lock, LockOpen, Pencil, Plus, Search, EyeOff } from 'lucide-react';
+import { Eye, Lock, LockOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -9,6 +9,7 @@ import { Modal, FormField, FormInput, FormSelect, Button, ConfirmDialog } from '
 import { useToast } from '../../components/ui/Toast';
 import { userService } from '../../services/userService';
 import { cn } from '../../utils/utils';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const roleOptions = [
   { value: 'ADMIN', label: 'Admin' },
@@ -105,14 +106,14 @@ const UserManagementPage = () => {
       const list = rawList
         .filter((item) => String(item?.role || '').toUpperCase() !== 'ADMIN')
         .map((item) => ({ ...item, id: item.userId }));
-      setUsers(list);
+      setUsers(sortByNewest(list, { idKeys: ['userId', 'id'] }));
       setPagination((prev) => ({
         ...prev,
         page,
         total: Math.max(0, (res.data?.totalElements || 0) - hiddenAdminCount),
       }));
     } catch (err) {
-      toast.error('Lỗi tải danh sách người dùng');
+      toast.error(err, { title: 'Lỗi tải danh sách người dùng' });
     } finally {
       setLoading(false);
     }
@@ -141,7 +142,7 @@ const UserManagementPage = () => {
       setDetailData(res.data);
       setDetailOpen(true);
     } catch (err) {
-      toast.error('Không tải được chi tiết người dùng');
+      toast.error(err, { title: 'Không tải được chi tiết người dùng' });
     }
   };
 
@@ -186,9 +187,10 @@ const UserManagementPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchData(pagination.page, pagination.pageSize);
+      setPagination((prev) => ({ ...prev, page: 0 }));
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
-      toast.error(err?.message || 'Không thể lưu người dùng');
+      toast.error(err, { title: 'Không thể lưu người dùng' });
     }
   };
 
@@ -196,11 +198,11 @@ const UserManagementPage = () => {
     if (!deleteId) return;
     try {
       await userService.delete(deleteId);
-      toast.success('Đã ẩn người dùng');
+      toast.success('Đã xóa người dùng');
       setDeleteId(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error(err?.message || 'Không thể ẩn người dùng');
+      toast.error(err, { title: 'Không thể xóa người dùng' });
     }
   };
 
@@ -212,7 +214,7 @@ const UserManagementPage = () => {
       setLockTarget(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error(err?.message || 'Không thể thay đổi trạng thái khóa');
+      toast.error(err, { title: 'Không thể thay đổi trạng thái khóa' });
     }
   };
 
@@ -253,8 +255,8 @@ const UserManagementPage = () => {
           <Button variant="ghost" size="sm" onClick={() => setLockTarget(row)} title={row.isLocked ? 'Mở khóa' : 'Khóa'}>
             {row.isLocked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.userId)} title="Ẩn">
-            <EyeOff className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.userId)} title="Xóa">
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -288,7 +290,7 @@ const UserManagementPage = () => {
         }
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -299,24 +301,26 @@ const UserManagementPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <FilterSelect
-          value={roleFilter}
-          onChange={(value) => {
-            setRoleFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={roleFilterOptions}
-          className="min-w-[170px]"
-        />
-        <FilterSelect
-          value={statusFilter}
-          onChange={(value) => {
-            setStatusFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={userStatusFilterOptions}
-          className="min-w-[180px]"
-        />
+        <div className="flex items-center gap-2">
+          <FilterSelect
+            value={roleFilter}
+            onChange={(value) => {
+              setRoleFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={roleFilterOptions}
+            className="w-[160px]"
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={userStatusFilterOptions}
+            className="w-[170px]"
+          />
+        </div>
       </div>
 
       <DataTable
@@ -416,10 +420,10 @@ const UserManagementPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Ẩn người dùng"
-        description="Bạn có chắc chắn muốn ẩn người dùng này không?"
+        title="Xóa người dùng"
+        description="Bạn có chắc chắn muốn xóa người dùng này không?"
         onConfirm={handleDelete}
-        confirmLabel="Ẩn"
+        confirmLabel="Xóa"
       />
 
       <ConfirmDialog
