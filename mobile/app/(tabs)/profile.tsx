@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const menuItems: MenuItem[] = [
     { icon: 'person-outline', label: 'Thông tin cá nhân', route: '/profile/personal-info' },
     { icon: 'notifications-outline', label: 'Thông báo', route: '/notifications' as Href, badgeType: 'notification' },
+    { icon: 'chatbubble-ellipses-outline', label: 'Góp ý nội dung', route: '/content-suggestions' as Href },
     { icon: 'settings-outline', label: 'Cài đặt chung', route: '/profile/settings' },
     { icon: 'help-circle-outline', label: 'Hỗ trợ & Trợ giúp', route: '/profile/help' },
     { icon: 'sync-outline', label: 'Đồng bộ dữ liệu', route: '/sync', badgeType: 'sync' },
