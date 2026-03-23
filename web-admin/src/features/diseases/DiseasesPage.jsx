@@ -5,13 +5,15 @@ import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormSwitch, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { diseaseService } from '../../services/diseaseService';
-import { Plus, Pencil, EyeOff, Search, Eye, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye, Send, Globe, Undo2, History } from 'lucide-react';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getBooleanLabel, getSeverityLabel, getStatusLabel } from '../../utils/enumLabels';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const severityFilterOptions = [
   { value: 'all', label: 'Tất cả mức độ' },
@@ -74,9 +76,10 @@ const DiseasesPage = () => {
     setLoading(true);
     try {
       const res = await diseaseService.getAll(page, size, search);
-      setDiseases(res.data.content || []);
+      const list = res.data.content || [];
+      setDiseases(sortByNewest(list, { idKeys: ['diseaseId', 'id'] }));
       setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
-    } catch (err) { toast.error('Lỗi tải danh sách bệnh'); }
+    } catch (err) { toast.error(err, { title: 'Lỗi tải danh sách bệnh' }); }
     finally { setLoading(false); }
   };
 
@@ -86,21 +89,27 @@ const DiseasesPage = () => {
     e.preventDefault();
     if (!formData.diseaseName) { toast.error('Vui lòng nhập tên bệnh'); return; }
     try {
+      const isCreate = !editing;
       if (editing) { await diseaseService.update(editing.diseaseId, formData); toast.success('Cập nhật thành công'); }
       else { await diseaseService.create(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null);
-      fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
+      if (isCreate) {
+        fetchData(0, pagination.pageSize);
+      } else {
+        fetchData(pagination.page, pagination.pageSize);
+      }
+    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    try { await diseaseService.delete(deleteId); toast.success('Đã ẩn bệnh thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi ẩn bệnh'); }
+    try { await diseaseService.delete(deleteId); toast.success('Đã xóa bệnh thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error(err, { title: 'Lỗi khi xóa bệnh' }); }
   };
 
   const getDiseaseId = (row) => row.diseaseId || row.id;
   const getStatus = (row) => String(row.status || '').toUpperCase();
+  const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
   const handleSubmitForReview = async (row) => {
     const id = getDiseaseId(row);
@@ -108,10 +117,10 @@ const DiseasesPage = () => {
     try {
       await approvalService.submit(APPROVAL_ENTITY_TYPES.DISEASE, id);
       toast.success('Đã gửi duyệt');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit disease for review error:', err);
-      toast.error(err?.message || 'Không thể gửi duyệt');
+      toast.error(err, { title: 'Không thể gửi duyệt' });
     }
   };
 
@@ -121,10 +130,10 @@ const DiseasesPage = () => {
     try {
       await approvalService.publish(APPROVAL_ENTITY_TYPES.DISEASE, id);
       toast.success('Đã xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish disease error:', err);
-      toast.error(err?.message || 'Không thể xuất bản');
+      toast.error(err, { title: 'Không thể xuất bản' });
     }
   };
 
@@ -134,10 +143,10 @@ const DiseasesPage = () => {
     try {
       await approvalService.unpublish(APPROVAL_ENTITY_TYPES.DISEASE, id);
       toast.success('Đã gỡ xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish disease error:', err);
-      toast.error(err?.message || 'Không thể gỡ xuất bản');
+      toast.error(err, { title: 'Không thể gỡ xuất bản' });
     }
   };
 
@@ -172,7 +181,7 @@ const DiseasesPage = () => {
       const res = await diseaseService.getById(r.diseaseId);
       setDetailData(res.data);
       setDetailOpen(true);
-    } catch (err) { toast.error('Lỗi tải chi tiết bệnh'); }
+    } catch (err) { toast.error(err, { title: 'Lỗi tải chi tiết bệnh' }); }
   };
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -213,8 +222,8 @@ const DiseasesPage = () => {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></Button>
-          {canEdit && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Ẩn" onClick={() => setDeleteId(getDiseaseId(r))}><EyeOff className="h-4 w-4 text-destructive" /></Button>}
+          {canShowEdit(r) && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
+          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getDiseaseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600" /></Button>
           )}
@@ -242,15 +251,17 @@ const DiseasesPage = () => {
       <PageHeader title="Quản lý Bệnh" description="Danh sách các bệnh thường gặp ở chó nghiệp vụ"
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Bệnh' }]}
         actions={canEdit ? <Button onClick={() => navigate('/diseases/create')} className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"><Plus className="h-4 w-4" />Tạo bệnh</Button> : null} />
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <FilterSelect value={severityFilter} onChange={(value) => { setSeverityFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={severityFilterOptions} className="min-w-[170px]" />
-        <FilterSelect value={contagiousFilter} onChange={(value) => { setContagiousFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={contagiousFilterOptions} className="min-w-[170px]" />
-        <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={statusFilterOptions} className="min-w-[180px]" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <FilterSelect value={severityFilter} onChange={(value) => { setSeverityFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={severityFilterOptions} className="w-[148px]" />
+          <FilterSelect value={contagiousFilter} onChange={(value) => { setContagiousFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={contagiousFilterOptions} className="w-[158px]" />
+          <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={statusFilterOptions} className="w-[168px]" />
+        </div>
       </div>
       <DataTable columns={columns} data={filteredDiseases} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={hasClientFilter ? filteredDiseases.length : pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có bệnh nào" />
@@ -266,6 +277,10 @@ const DiseasesPage = () => {
                 <span className="text-sm text-foreground">{value || '—'}</span>
               </div>
             ))}
+            <EntityMediaPreview
+              entityType={APPROVAL_ENTITY_TYPES.DISEASE}
+              entityId={detailData?.diseaseId}
+            />
           </div>
         )}
       </Modal>
@@ -285,7 +300,7 @@ const DiseasesPage = () => {
           <FormField label="Lây nhiễm"><FormSwitch checked={formData.isContagious || false} onChange={(v) => updateField('isContagious', v)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Ẩn bệnh" description="Bạn có chắc chắn muốn ẩn bệnh này?" onConfirm={handleDelete} confirmLabel="Ẩn" />
+      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa bệnh" description="Bạn có chắc chắn muốn xóa bệnh này?" onConfirm={handleDelete} confirmLabel="Xóa" />
       <ApprovalHistoryModal
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
