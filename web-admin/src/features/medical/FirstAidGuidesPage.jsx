@@ -5,6 +5,7 @@ import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import StatusBadge from '../../components/shared/StatusBadge';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
+import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import {
   Modal,
   FormField,
@@ -15,10 +16,11 @@ import {
 } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { firstAidGuideService } from '../../services/firstAidGuideService';
-import { Plus, Pencil, EyeOff, Eye, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const EMPTY_FORM = {
   guideTitle: '',
@@ -86,14 +88,15 @@ const FirstAidGuidesPage = () => {
     try {
       const statusQuery = status === 'all' ? '' : status;
       const res = await firstAidGuideService.getAll(page, size, search, statusQuery);
-      setGuides(res.data?.content || []);
+      const list = res.data?.content || [];
+      setGuides(sortByNewest(list, { idKeys: ['guideId', 'id'] }));
       setPagination((prev) => ({
         ...prev,
         page,
         total: res.data?.totalElements || 0,
       }));
     } catch (err) {
-      toast.error('Lỗi tải danh sách sơ cứu');
+      toast.error(err, { title: 'Lỗi tải danh sách sơ cứu' });
     } finally {
       setLoading(false);
     }
@@ -132,6 +135,7 @@ const FirstAidGuidesPage = () => {
     }
 
     try {
+      const isCreate = !editing;
       if (editing) {
         await firstAidGuideService.update(editing.guideId, payload);
         toast.success('Cập nhật thành công');
@@ -143,9 +147,13 @@ const FirstAidGuidesPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(EMPTY_FORM);
-      fetchData(pagination.page, pagination.pageSize);
+      if (isCreate) {
+        fetchData(0, pagination.pageSize);
+      } else {
+        fetchData(pagination.page, pagination.pageSize);
+      }
     } catch (err) {
-      toast.error(err?.message || 'Có lỗi xảy ra');
+      toast.error(err, { title: 'Có lỗi xảy ra' });
     }
   };
 
@@ -153,16 +161,17 @@ const FirstAidGuidesPage = () => {
     if (!deleteId) return;
     try {
       await firstAidGuideService.delete(deleteId);
-      toast.success('Đã ẩn hướng dẫn sơ cứu');
+      toast.success('Đã xóa hướng dẫn sơ cứu');
       setDeleteId(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error('Lỗi khi ẩn hướng dẫn sơ cứu');
+      toast.error(err, { title: 'Lỗi khi xóa hướng dẫn sơ cứu' });
     }
   };
 
   const getGuideId = (row) => row.guideId || row.id;
   const getStatus = (row) => String(row.status || '').toUpperCase();
+  const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
   const handleSubmitForReview = async (row) => {
     const id = getGuideId(row);
@@ -170,10 +179,10 @@ const FirstAidGuidesPage = () => {
     try {
       await approvalService.submit(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
       toast.success('Đã gửi duyệt');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit first aid guide for review error:', err);
-      toast.error(err?.message || 'Không thể gửi duyệt');
+      toast.error(err, { title: 'Không thể gửi duyệt' });
     }
   };
 
@@ -183,10 +192,10 @@ const FirstAidGuidesPage = () => {
     try {
       await approvalService.publish(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
       toast.success('Đã xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish first aid guide error:', err);
-      toast.error(err?.message || 'Không thể xuất bản');
+      toast.error(err, { title: 'Không thể xuất bản' });
     }
   };
 
@@ -196,10 +205,10 @@ const FirstAidGuidesPage = () => {
     try {
       await approvalService.unpublish(APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, id);
       toast.success('Đã gỡ xuất bản');
-      fetchData(pagination.page, pagination.pageSize);
+      await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish first aid guide error:', err);
-      toast.error(err?.message || 'Không thể gỡ xuất bản');
+      toast.error(err, { title: 'Không thể gỡ xuất bản' });
     }
   };
 
@@ -229,7 +238,7 @@ const FirstAidGuidesPage = () => {
       setDetailData(res.data);
       setDetailOpen(true);
     } catch (err) {
-      toast.error('Lỗi tải chi tiết sơ cứu');
+      toast.error(err, { title: 'Lỗi tải chi tiết sơ cứu' });
     }
   };
 
@@ -285,8 +294,8 @@ const FirstAidGuidesPage = () => {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openDetail(row)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(row)}><History className="h-4 w-4 text-muted-foreground" /></Button>
-          {canEdit && <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Ẩn" onClick={() => setDeleteId(getGuideId(row))}><EyeOff className="h-4 w-4 text-destructive" /></Button>}
+          {canShowEdit(row) && <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>}
+          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getGuideId(row))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(row)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(row)}><Send className="h-4 w-4 text-amber-600" /></Button>
           )}
@@ -362,6 +371,10 @@ const FirstAidGuidesPage = () => {
                 <span className="text-sm text-foreground whitespace-pre-line break-words">{value || '—'}</span>
               </div>
             ))}
+            <EntityMediaPreview
+              entityType={APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE}
+              entityId={detailData?.guideId}
+            />
           </div>
         )}
       </Modal>
@@ -448,10 +461,10 @@ const FirstAidGuidesPage = () => {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Ẩn hướng dẫn sơ cứu"
-        description="Bạn có chắc chắn muốn ẩn hướng dẫn này?"
+        title="Xóa hướng dẫn sơ cứu"
+        description="Bạn có chắc chắn muốn xóa hướng dẫn này?"
         onConfirm={handleDelete}
-        confirmLabel="Ẩn"
+        confirmLabel="Xóa"
       />
       <ApprovalHistoryModal
         open={historyOpen}

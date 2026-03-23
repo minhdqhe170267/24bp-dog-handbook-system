@@ -80,7 +80,7 @@ const FirstAidGuidesCreatePage = () => {
           imageUrl: detail.imageUrl || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết hướng dẫn sơ cứu');
+        toast.error(error, { title: 'Không tải được chi tiết hướng dẫn sơ cứu' });
         navigate('/medical');
       } finally {
         setLoadingDetail(false);
@@ -117,7 +117,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã lưu nháp hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể lưu nháp hướng dẫn sơ cứu' });
     } finally {
       setSavingDraft(false);
     }
@@ -133,7 +133,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã gửi duyệt hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể gửi duyệt hướng dẫn sơ cứu' });
     } finally {
       setSaving(false);
     }
@@ -155,7 +155,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã xuất bản hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể xuất bản hướng dẫn sơ cứu' });
     } finally {
       setPublishing(false);
     }
@@ -180,7 +180,7 @@ const FirstAidGuidesCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >
