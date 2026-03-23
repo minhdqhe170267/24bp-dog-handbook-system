@@ -26,6 +26,34 @@ const extractPendingItems = (response, fallbackType) => {
   }));
 };
 
+const parseSortableTimestamp = (value) => {
+  if (value == null) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value <= 0) return 0;
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const getPendingRowSortTime = (row) => {
+  const candidates = [
+    row?.submittedAt,
+    row?.submitted_at,
+    row?.requestedAt,
+    row?.requested_at,
+    row?.updatedAt,
+    row?.updated_at,
+    row?.createdAt,
+    row?.created_at,
+  ];
+  for (const candidate of candidates) {
+    const parsed = parseSortableTimestamp(candidate);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+};
+
 export const approvalService = {
   submit: (entityType, entityId) =>
     api.put(`/approvals/${normalizeEntityType(entityType)}/${entityId}/submit`),
@@ -65,8 +93,8 @@ export const approvalService = {
         })
       ).then((groupedItems) => {
         const merged = groupedItems.flat().sort((left, right) => {
-          const typeCompare = String(left?.entityType || '').localeCompare(String(right?.entityType || ''));
-          if (typeCompare !== 0) return typeCompare;
+          const timeDiff = getPendingRowSortTime(right) - getPendingRowSortTime(left);
+          if (timeDiff !== 0) return timeDiff;
           return Number(right?.entityId || 0) - Number(left?.entityId || 0);
         });
         const start = currentPage * pageSize;
@@ -88,12 +116,13 @@ export const approvalService = {
     return api
       .get(`/approvals/pending?${params.toString()}`)
       .then((response) => {
+        const payload = response?.data || response || {};
         const content = extractPendingItems(response, normalizedType);
         return {
           ...(typeof response === 'object' && response ? response : {}),
           data: {
             content,
-            totalElements: content.length,
+            totalElements: Number.isFinite(payload?.totalElements) ? payload.totalElements : content.length,
           },
         };
       });

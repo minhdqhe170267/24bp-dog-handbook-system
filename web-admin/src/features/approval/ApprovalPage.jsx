@@ -7,6 +7,9 @@ import DetailModal, { DetailView } from '../../components/shared/DetailModal';
 import { CheckCircle, XCircle, Eye, Loader2, Image as ImageIcon, Video, Search, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import { useToast } from '../../components/ui/Toast';
+import { Button, FormTextarea, Modal } from '../../components/ui/FormComponents';
+import { sortByNewest } from '../../utils/sortByNewest';
 
 const detailFields = [
     { key: 'title', label: 'Tiêu đề', render: (d) => d.title || d.entityTitle || '-' },
@@ -83,21 +86,11 @@ const entityTypeOptions = [
     })),
 ];
 
-const statusOptions = [
-    { value: 'all', label: 'Tất cả trạng thái' },
-    { value: 'PENDING', label: 'Chờ duyệt' },
-    { value: 'APPROVED', label: 'Đã duyệt' },
-    { value: 'REJECTED', label: 'Từ chối' },
-    { value: 'DRAFT', label: 'Nháp' },
-    { value: 'PUBLISHED', label: 'Đã xuất bản' },
-];
-
 const ApprovalPage = () => {
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(10);
     const [entityTypeFilter, setEntityTypeFilter] = useState('ALL');
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -109,6 +102,11 @@ const ApprovalPage = () => {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRecords, setHistoryRecords] = useState([]);
     const [historyTarget, setHistoryTarget] = useState(null);
+    const [reviewTarget, setReviewTarget] = useState(null);
+    const [reviewAction, setReviewAction] = useState('APPROVED');
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const toast = useToast();
     const detailRequestRef = useRef(0);
 
     const getEntityType = (row) => row?.entityType || 'CONTENT';
@@ -151,6 +149,13 @@ const ApprovalPage = () => {
         row?.updatedAt ||
         row?.createdAt ||
         null;
+
+    const resolveEntitySubmittedAt = (detail, row) =>
+        detail?.submittedAt ||
+        detail?.submitted_at ||
+        row?.submittedAt ||
+        row?.submitted_at ||
+        resolveEntityUpdatedAt(detail, row);
 
     const normalizeApiBase = (value) => {
         if (!value) return '/api/v1';
@@ -201,23 +206,52 @@ const ApprovalPage = () => {
         return `${apiOrigin}${apiBase}/media/${media.mediaId}/file`;
     };
 
-    const fetchData = async () => {
+    const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const res = await approvalService.getPending(entityTypeFilter, page, pageSize);
+            const res = await approvalService.getPending(entityTypeFilter, nextPage, nextPageSize);
             const payload = res?.data || res || {};
             const rawItems = Array.isArray(payload) ? payload : payload.content || [];
             const normalizedRows = rawItems.map((row, index) => ({
                 ...row,
                 id: `${getEntityType(row)}-${getEntityId(row) || index}`,
             }));
-            setItems(normalizedRows);
+
+            const enrichedRows = await Promise.all(
+                normalizedRows.map(async (row) => {
+                    const entityType = getEntityType(row);
+                    const entityId = getEntityId(row);
+                    const detailEndpoint = getEntityDetailEndpoint(entityType);
+                    if (!entityId || !detailEndpoint) return row;
+                    try {
+                        const detailRes = await api.get(`${detailEndpoint}/${entityId}`);
+                        const detail = detailRes?.data || detailRes || {};
+                        return {
+                            ...row,
+                            title: resolveEntityTitleFromDetail(entityType, detail, getEntityTitle(row)),
+                            authorName: resolveEntityAuthorFromDetail(detail, row),
+                            updatedAt: resolveEntityUpdatedAt(detail, row),
+                            createdAt: detail?.createdAt || detail?.created_at || row?.createdAt || row?.created_at || null,
+                            submittedAt: resolveEntitySubmittedAt(detail, row),
+                        };
+                    } catch (error) {
+                        return row;
+                    }
+                }),
+            );
+
+            const sortedRows = sortByNewest(enrichedRows, {
+                timeKeys: ['submittedAt', 'submitted_at', 'updatedAt', 'updated_at', 'createdAt', 'created_at'],
+                idKeys: ['entityId', 'id'],
+            });
+
+            setItems(sortedRows);
             setTotalItems(Array.isArray(payload) ? normalizedRows.length : payload.totalElements || normalizedRows.length);
         } catch (err) { console.error('Fetch pending reviews error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [entityTypeFilter, page, pageSize]);
+    useEffect(() => { fetchData(page, pageSize); }, [entityTypeFilter, page, pageSize]);
 
     const openDetail = async (row) => {
         const entityType = getEntityType(row);
@@ -322,18 +356,42 @@ const ApprovalPage = () => {
         }
     };
 
-    const handleReview = async (row, action) => {
-        const entityId = getEntityId(row);
+    const openReviewModal = (row, action) => {
+        setReviewTarget(row);
+        setReviewAction(action);
+        setReviewComment('');
+    };
+
+    const closeReviewModal = () => {
+        if (reviewSubmitting) return;
+        setReviewTarget(null);
+        setReviewAction('APPROVED');
+        setReviewComment('');
+    };
+
+    const handleReview = async () => {
+        const entityId = getEntityId(reviewTarget);
         if (!entityId) return;
-        const comment = window.prompt(action === 'APPROVED' ? 'Ghi chú phê duyệt (không bắt buộc):' : 'Lý do từ chối:');
-        if (comment === null) return;
-        if (action !== 'APPROVED' && !comment.trim()) {
-            alert('Vui lòng nhập lý do cho quyết định này');
+        const comment = reviewComment.trim();
+        if (reviewAction !== 'APPROVED' && !comment) {
+            toast.warning('Vui lòng nhập lý do cho quyết định này');
             return;
         }
-        const entityType = getEntityType(row);
-        try { await approvalService.review(entityType, entityId, action, comment || ''); fetchData(); }
-        catch (err) { console.error('Review error:', err); alert('Có lỗi xảy ra khi duyệt nội dung'); }
+
+        const entityType = getEntityType(reviewTarget);
+        setReviewSubmitting(true);
+        try {
+            await approvalService.review(entityType, entityId, reviewAction, comment);
+            toast.success(reviewAction === 'APPROVED' ? 'Đã duyệt nội dung' : 'Đã từ chối nội dung');
+            closeReviewModal();
+            setPage(0);
+            await fetchData(0, pageSize);
+        } catch (err) {
+            console.error('Review error:', err);
+            toast.error(err, { title: 'Có lỗi xảy ra khi duyệt nội dung' });
+        } finally {
+            setReviewSubmitting(false);
+        }
     };
 
     const getDateTimeParts = (value) => {
@@ -371,7 +429,7 @@ const ApprovalPage = () => {
         { key: 'entityType', header: 'Loại', render: (r) => getEntityTypeLabel(getEntityType(r)) },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'authorName', header: 'Tác giả', render: (r) => r.authorName || '-' },
-        { key: 'updatedAt', header: 'Ngày gửi', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
+        { key: 'submittedAt', header: 'Ngày gửi', render: (r) => renderDateTimeCell(r.submittedAt || r.updatedAt || r.createdAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
@@ -379,10 +437,10 @@ const ApprovalPage = () => {
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}>
                         <History className="h-4 w-4 text-muted-foreground" />
                     </button>
-                    <button className="p-1.5 rounded-md hover:bg-green-100 transition-colors" title="Duyệt" onClick={() => handleReview(r, 'APPROVED')}>
+                    <button className="p-1.5 rounded-md hover:bg-green-100 transition-colors" title="Duyệt" onClick={() => openReviewModal(r, 'APPROVED')}>
                         <CheckCircle className="h-4 w-4 text-green-600" />
                     </button>
-                    <button className="p-1.5 rounded-md hover:bg-red-100 transition-colors" title="Từ chối" onClick={() => handleReview(r, 'REJECTED')}>
+                    <button className="p-1.5 rounded-md hover:bg-red-100 transition-colors" title="Từ chối" onClick={() => openReviewModal(r, 'REJECTED')}>
                         <XCircle className="h-4 w-4 text-red-500" />
                     </button>
                 </div>
@@ -393,11 +451,9 @@ const ApprovalPage = () => {
     const normalizedSearch = search.trim().toLowerCase();
     const filteredItems = items.filter((item) => {
         const title = getEntityTitle(item);
-        const matchTitle = !normalizedSearch || title.toLowerCase().includes(normalizedSearch);
-        const matchStatus = statusFilter === 'all' || item.status === statusFilter;
-        return matchTitle && matchStatus;
+        return !normalizedSearch || title.toLowerCase().includes(normalizedSearch);
     });
-    const hasClientFilter = Boolean(normalizedSearch) || statusFilter !== 'all';
+    const hasClientFilter = Boolean(normalizedSearch);
 
     return (
         <div className="animate-fade-in">
@@ -414,7 +470,6 @@ const ApprovalPage = () => {
                         className="h-9 w-full pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
                     />
                 </div>
-                <FilterSelect value={statusFilter} onChange={(value) => { setStatusFilter(value); setPage(0); }} options={statusOptions} className="min-w-[180px]" />
                 <FilterSelect value={entityTypeFilter} onChange={(value) => { setEntityTypeFilter(value); setPage(0); }} options={entityTypeOptions} className="min-w-[180px]" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
@@ -489,6 +544,42 @@ const ApprovalPage = () => {
                     )}
                 </div>
             </DetailModal>
+            <Modal
+                open={!!reviewTarget}
+                onClose={closeReviewModal}
+                title={reviewAction === 'APPROVED' ? 'Duyệt nội dung' : 'Từ chối nội dung'}
+                width={620}
+                footer={(
+                    <>
+                        <Button variant="outline" onClick={closeReviewModal} disabled={reviewSubmitting}>Hủy</Button>
+                        <Button
+                            variant={reviewAction === 'APPROVED' ? 'primary' : 'destructive'}
+                            onClick={handleReview}
+                            loading={reviewSubmitting}
+                        >
+                            {reviewAction === 'APPROVED' ? 'Xác nhận duyệt' : 'Xác nhận từ chối'}
+                        </Button>
+                    </>
+                )}
+            >
+                <div className="space-y-3">
+                    <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <p className="text-sm font-medium text-foreground">{getEntityTitle(reviewTarget)}</p>
+                        <p className="text-xs text-muted-foreground">{getEntityTypeLabel(getEntityType(reviewTarget))}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-1.5">
+                            {reviewAction === 'APPROVED' ? 'Ghi chú phê duyệt (không bắt buộc)' : <>Lý do từ chối <span className="text-destructive">*</span></>}
+                        </label>
+                        <FormTextarea
+                            rows={4}
+                            value={reviewComment}
+                            onChange={(event) => setReviewComment(event.target.value)}
+                            placeholder={reviewAction === 'APPROVED' ? 'Nhập ghi chú nếu có...' : 'Nhập lý do từ chối...'}
+                        />
+                    </div>
+                </div>
+            </Modal>
             <DetailModal open={historyOpen} onClose={closeHistory} title="Lịch sử duyệt" size="lg">
                 <div className="space-y-3">
                     <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
