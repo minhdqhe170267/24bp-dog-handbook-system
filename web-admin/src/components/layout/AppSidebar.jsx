@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard, Dog, Pill, Apple, Dumbbell, Stethoscope, UserCheck,
     ChevronDown, ChevronLeft, BookOpen, Route, HeartPulse,
-    FileText, CheckCircle, Lightbulb, Upload,
+    FileText, CheckCircle, Lightbulb, Upload, Download,
     Settings, ClipboardList, Users,
 } from 'lucide-react';
 
@@ -43,6 +43,7 @@ const allNavItems = [
         ]
     },
     { label: 'Import dữ liệu', icon: Upload, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Export dữ liệu', icon: Download, href: '/export-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
     {
         label: 'Quản trị Hệ thống', icon: Settings, roles: ['ADMIN'], children: [
             { label: 'Quản lý người dùng', href: '/system/users', icon: Users },
@@ -102,8 +103,8 @@ const AppSidebar = () => {
                             exit={{ opacity: 0, width: 0 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <h1 className="text-sm font-bold text-sidebar-primary-foreground truncate tracking-tight">24BP DHS</h1>
-                            <p className="text-[10px] text-sidebar-foreground/50 truncate">Dog Handbook System</p>
+                            <h1 className="text-sm font-bold text-white truncate tracking-tight">24BP DHS</h1>
+                            <p className="text-[10px] text-white/70 truncate">Dog Handbook System</p>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -156,7 +157,7 @@ const AppSidebar = () => {
                                 className={cn(
                                     'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm w-full transition-all duration-200',
                                     groupActive
-                                        ? 'text-sidebar-primary-foreground bg-sidebar-accent'
+                                        ? 'text-white bg-sidebar-primary/20 border border-sidebar-primary/30'
                                         : 'hover:bg-sidebar-accent/80 text-sidebar-foreground/70 hover:text-sidebar-accent-foreground'
                                 )}
                             >

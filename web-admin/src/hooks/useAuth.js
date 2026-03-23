@@ -3,10 +3,29 @@ import { authService } from '../services/authService';
 
 const AuthContext = createContext(null);
 
+const normalizeUserRole = (role) => {
+  const normalized = String(role || '').trim().toUpperCase();
+  if (normalized === 'EDITOR') return 'CONTENT_EDITOR';
+  return normalized || role;
+};
+
+const normalizeUser = (user) => {
+  if (!user || typeof user !== 'object') return user;
+  return {
+    ...user,
+    role: normalizeUserRole(user.role),
+  };
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
+    if (!saved) return null;
+    try {
+      return normalizeUser(JSON.parse(saved));
+    } catch {
+      return null;
+    }
   });
   const [loading, setLoading] = useState(false);
 
@@ -15,7 +34,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await authService.login(username, password);
       const token = res?.data?.token;
-      const user = res?.data?.user;
+      const user = normalizeUser(res?.data?.user);
 
       if (!token || !user) {
         throw {

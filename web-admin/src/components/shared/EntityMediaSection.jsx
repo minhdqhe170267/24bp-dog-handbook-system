@@ -284,7 +284,7 @@ const EntityMediaSection = ({
                         event.stopPropagation();
                         setDeleteMediaId(media.mediaId);
                       }}
-                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors inline-flex items-center justify-center"
+                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300 transition-colors inline-flex items-center justify-center"
                       title="Xóa media"
                       disabled={!media.mediaId}
                     >
@@ -309,7 +309,7 @@ const EntityMediaSection = ({
               <button
                 type="button"
                 onClick={closeMediaPreview}
-                className="h-8 w-8 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors inline-flex items-center justify-center"
+                className="h-8 w-8 rounded-full bg-red-500 text-white hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300 transition-colors inline-flex items-center justify-center"
                 title="Đóng"
               >
                 <X className="h-4 w-4" />

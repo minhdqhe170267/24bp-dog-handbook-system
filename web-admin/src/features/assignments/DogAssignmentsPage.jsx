@@ -67,8 +67,6 @@ const DogAssignmentsPage = () => {
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10 });
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
@@ -180,14 +178,9 @@ const DogAssignmentsPage = () => {
     navigate(`/assignments/${row.assignmentId}/edit`);
   };
 
-  const openDetail = async (row) => {
-    try {
-      const res = await dogAssignmentService.getById(row.assignmentId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error(error, { title: 'Không tải được chi tiết phân công' });
-    }
+  const openDetail = (row) => {
+    if (!row?.assignmentId) return;
+    navigate(`/details/DOG_ASSIGNMENT/${row.assignmentId}`);
   };
 
   const buildPayload = () => ({
@@ -260,13 +253,13 @@ const DogAssignmentsPage = () => {
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${
         isActive
-          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/25'
-          : 'bg-gray-500/10 text-gray-500 border-gray-500/25'
+          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/25'
+          : 'bg-gray-500/10 text-gray-500 dark:text-gray-300 border-gray-500/25'
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-          isActive ? 'bg-emerald-500' : 'bg-gray-500'
+          isActive ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-gray-500 dark:bg-gray-400'
         }`}
       />
       {isActive ? 'Đang hiệu lực' : 'Đã hủy'}
@@ -376,35 +369,6 @@ const DogAssignmentsPage = () => {
         onPageSizeChange={(pageSize) => setPagination({ page: 0, pageSize })}
         emptyMessage="Chưa có phân công nào"
       />
-
-      <Modal
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="Chi tiết phân công chó"
-        width={700}
-      >
-        {detailData && (
-          <div className="space-y-3">
-            {[
-              ['Mã phân công', detailData.assignmentId],
-              ['Chó', `${detailData.dogCode || '---'} - ${detailData.dogName || '—'}`],
-              ['Huấn luyện viên', `${detailData.trainerName || '—'} (${detailData.trainerUsername || '—'})`],
-              ['Loại phân công', getAssignmentTypeLabel(detailData.assignmentType)],
-              ['Ngày bắt đầu', formatDate(detailData.startDate)],
-              ['Ngày kết thúc', formatDate(detailData.endDate)],
-              ['Trạng thái', detailData.isActive ? 'Đang hiệu lực' : 'Đã hủy'],
-              ['Ngày tạo', detailData.createdAt || '—'],
-              ['Cập nhật', detailData.updatedAt || '—'],
-              ['Ghi chú', detailData.notes || '—'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-40 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground">{value || '—'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
 
       <Modal
         open={modalOpen}

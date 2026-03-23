@@ -32,7 +32,9 @@ import DogAssignmentsPage from '../features/assignments/DogAssignmentsPage';
 import DogAssignmentsCreatePage from '../features/assignments/DogAssignmentsCreatePage';
 import ProfilePage from '../features/profile/ProfilePage';
 import ImportDataPage from '../features/import/ImportDataPage';
+import ExportDataPage from '../features/export/ExportDataPage';
 import NotificationsPage from '../features/notifications/NotificationsPage';
+import EntityDetailPage from '../features/details/EntityDetailPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -43,9 +45,11 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'details/:entityType/:id', element: <EntityDetailPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'content', element: <ContentListPage /> },
       { path: 'import-data', element: <ImportDataPage /> },
+      { path: 'export-data', element: <ExportDataPage /> },
       { path: 'content/create', element: <Navigate to="/content" replace /> },
       { path: 'content/history', element: <Navigate to="/content" replace /> },
       { path: 'content/:id', element: <ContentCreatePage /> },
