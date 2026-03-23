@@ -5,7 +5,7 @@ import { Modal, FormField, FormInput, FormTextarea, FormSelect, FormNumberInput,
 import { useToast } from '../../components/ui/Toast';
 import { trainingService } from '../../services/trainingService';
 import { breedService } from '../../services/breedService';
-import { Plus, Pencil, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '../../utils/utils';
 
 const TrainingPage = () => {
@@ -51,7 +51,7 @@ const MethodsTab = () => {
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try { const res = await trainingService.getMethods(page, size); setData(res.data.content || []); setPagination((prev) => ({ ...prev, total: res.data.totalElements, page })); }
-    catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+    catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -61,12 +61,12 @@ const MethodsTab = () => {
       if (editing) { await trainingService.updateMethod(editing.methodId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createMethod(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
+    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi ẩn'); }
+    try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -79,7 +79,7 @@ const MethodsTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -100,7 +100,7 @@ const MethodsTab = () => {
           <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
@@ -123,7 +123,7 @@ const ExercisesTab = () => {
       const [exRes, methRes] = await Promise.all([trainingService.getExercises(page, size), trainingService.getMethods(0, 100)]);
       setData(exRes.data.content || []); setMethods(methRes.data.content || []);
       setPagination((prev) => ({ ...prev, total: exRes.data.totalElements, page }));
-    } catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+    } catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -133,12 +133,12 @@ const ExercisesTab = () => {
       if (editing) { await trainingService.updateExercise(editing.exerciseId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createExercise(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
+    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi ẩn'); }
+    try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -152,7 +152,7 @@ const ExercisesTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -182,7 +182,7 @@ const ExercisesTab = () => {
           <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
@@ -205,7 +205,7 @@ const RoadmapsTab = () => {
       const [rmRes, brRes] = await Promise.all([trainingService.getRoadmaps(page, size), breedService.getAll(0, 100)]);
       setData(rmRes.data.content || []); setBreeds(brRes.data?.content || []);
       setPagination((prev) => ({ ...prev, total: rmRes.data.totalElements, page }));
-    } catch (err) { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+    } catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -215,12 +215,12 @@ const RoadmapsTab = () => {
       if (editing) { await trainingService.updateRoadmap(editing.roadmapId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createRoadmap(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err?.message || 'Có lỗi xảy ra'); }
+    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
-    try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Ẩn thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error('Lỗi khi ẩn'); }
+    try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
+    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -235,7 +235,7 @@ const RoadmapsTab = () => {
       key: 'actions', header: 'Thao tác', className: 'w-28', render: (r) => (
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><EyeOff className="h-4 w-4 text-destructive" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteItem(r)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
         </div>
       )
     },
@@ -261,7 +261,7 @@ const RoadmapsTab = () => {
           <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
         </form>
       </Modal>
-      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Ẩn" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Ẩn" />
+      <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
     </div>
   );
 };
