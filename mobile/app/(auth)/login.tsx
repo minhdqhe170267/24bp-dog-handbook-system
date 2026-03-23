@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
@@ -9,12 +9,16 @@ import { Card } from '../../src/components/Card';
 import { spacing, fontSize } from '../../src/constants/theme';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { useNetworkStore } from '../../src/stores/networkStore';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const { login, isLoading, error, clearError } = useAuthStore();
     const { colors } = useThemeStore();
+    const isConnected = useNetworkStore((s) => s.isConnected);
+    const isInternetReachable = useNetworkStore((s) => s.isInternetReachable);
+    const isOnline = isConnected && isInternetReachable !== false;
 
     useEffect(() => {
         clearError();
@@ -47,35 +51,37 @@ export default function LoginScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.container}
             >
-                <ScrollView
-                    contentContainerStyle={styles.content}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-                    contentInsetAdjustmentBehavior="automatic"
-                    showsVerticalScrollIndicator={false}
-                >
+                <View style={styles.content}>
                     <View style={styles.logoArea}>
                         <Ionicons name="paw" size={72} color={colors.primary} />
                         <Text style={[styles.appName, { color: colors.primary }]}>DHS</Text>
-                        <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Sổ tay Chó nghiệp vụ</Text>
+                        <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Dog Handbook System</Text>
                         <Text style={[styles.appSubtitle, { color: colors.textLight }]}>
-                            Hệ thống Sổ tay Chó nghiệp vụ
+                            He thong So tay Cho nghiep vu
                         </Text>
                     </View>
 
+                    {!isOnline && (
+                        <View style={[styles.offlineBanner, { backgroundColor: colors.warning ?? '#FFF3CD' }]}>
+                            <Ionicons name="cloud-offline-outline" size={18} color="#856404" />
+                            <Text style={styles.offlineBannerText}>
+                                Dang o che do ngoai tuyen. Chi dang nhap duoc voi tai khoan da luu.
+                            </Text>
+                        </View>
+                    )}
+
                     <Card style={styles.formCard}>
                         <Input
-                            label="Tên đăng nhập"
-                            placeholder="Nhập tên đăng nhập"
+                            label="Ten dang nhap"
+                            placeholder="Nhap ten dang nhap"
                             value={username}
                             onChangeText={setUsername}
                             leftIcon="person-outline"
                         />
                         <View style={{ height: spacing.md }} />
                         <Input
-                            label="Mật khẩu"
-                            placeholder="Nhập mật khẩu"
+                            label="Mat khau"
+                            placeholder="Nhap mat khau"
                             value={password}
                             onChangeText={setPassword}
                             leftIcon="lock-closed-outline"
@@ -86,22 +92,24 @@ export default function LoginScreen() {
                         ) : null}
                         <View style={{ height: spacing.lg }} />
                         <Button
-                            title="ĐĂNG NHẬP"
+                            title={isOnline ? 'DANG NHAP' : 'DANG NHAP NGOAI TUYEN'}
                             variant="primary"
                             onPress={() => handleLogin()}
                             loading={isLoading}
                         />
                     </Card>
 
-                    <Button
-                        title="Đăng nhập nhanh trainer01"
-                        variant="outline"
-                        onPress={handleQuickLogin}
-                        style={{ marginTop: spacing.md }}
-                    />
+                    {isOnline && (
+                        <Button
+                            title="Dang nhap nhanh trainer01"
+                            variant="outline"
+                            onPress={handleQuickLogin}
+                            style={{ marginTop: spacing.md }}
+                        />
+                    )}
 
-                    <Text style={[styles.version, { color: colors.textLight }]}>Phiên bản 1.0.0</Text>
-                </ScrollView>
+                    <Text style={[styles.version, { color: colors.textLight }]}>Phien ban 1.0.0</Text>
+                </View>
             </KeyboardAvoidingView>
         </ScreenWrapper>
     );
@@ -109,7 +117,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.xl },
+    content: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.md },
     logoArea: { alignItems: 'center', marginBottom: spacing.xl },
     appName: { fontSize: fontSize.title, fontWeight: 'bold', marginTop: spacing.sm },
     appTitle: { fontSize: fontSize.lg },
@@ -117,4 +125,18 @@ const styles = StyleSheet.create({
     formCard: { padding: spacing.xl },
     errorText: { fontSize: fontSize.sm, marginTop: spacing.sm, textAlign: 'center' },
     version: { fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.xl },
+    offlineBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginBottom: spacing.md,
+    },
+    offlineBannerText: {
+        flex: 1,
+        fontSize: fontSize.sm,
+        color: '#856404',
+    },
 });
