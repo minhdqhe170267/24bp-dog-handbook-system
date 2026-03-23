@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
@@ -17,6 +17,7 @@ import { useThemeStore } from '../../src/stores/themeStore';
 import { assignmentService } from '../../src/services/assignmentService';
 import { healthRecordService } from '../../src/services/healthRecordService';
 import { healthSessionService } from '../../src/services/healthSessionService';
+import { notificationCenterService } from '../../src/services/notificationCenterService';
 import { DogAssignment, HealthRecord, HealthSession } from '../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -91,12 +92,23 @@ export default function DogManagementHubScreen() {
     const [records, setRecords] = useState<HealthRecord[]>([]);
     const [sessions, setSessions] = useState<HealthSession[]>([]);
     const [loading, setLoading] = useState(true);
+    const [notificationCount, setNotificationCount] = useState(0);
+
+    const loadUnreadCount = React.useCallback(async () => {
+        try {
+            const unread = await notificationCenterService.getUnreadCount();
+            setNotificationCount(unread);
+        } catch {
+            setNotificationCount(0);
+        }
+    }, []);
 
     useEffect(() => {
         let mounted = true;
 
         const loadData = async () => {
             try {
+                const unreadCount = await notificationCenterService.getUnreadCount().catch(() => 0);
                 const trainerId = user?.userId ?? 0;
                 const assignmentResponse = trainerId > 0 ? await assignmentService.getByTrainer(trainerId) : [];
                 const safeAssignments = assignmentResponse.length > 0 ? assignmentResponse : trainerId > 0 ? [] : fallbackAssignments;
@@ -128,6 +140,7 @@ export default function DogManagementHubScreen() {
                 const nextSessions = sessionResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
 
                 setAssignments(safeAssignments);
+                setNotificationCount(unreadCount);
                 setRecords(
                     nextRecords.length > 0
                         ? nextRecords
@@ -145,6 +158,7 @@ export default function DogManagementHubScreen() {
             } catch {
                 if (mounted) {
                     setAssignments(fallbackAssignments);
+                    setNotificationCount(0);
                     setRecords(fallbackHealthRecords);
                     setSessions(fallbackHealthSessions);
                 }
@@ -161,6 +175,12 @@ export default function DogManagementHubScreen() {
             mounted = false;
         };
     }, [user?.userId]);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            void loadUnreadCount();
+        }, [loadUnreadCount]),
+    );
 
     const assignedDogCount = useMemo(() => {
         return new Set(assignments.filter((item) => item.isActive !== false).map((item) => item.dogId)).size;
@@ -211,6 +231,11 @@ export default function DogManagementHubScreen() {
                         onPress={() => router.push('/notifications' as any)}
                     >
                         <Ionicons name="notifications-outline" size={16} color="#647A6E" />
+                        {notificationCount > 0 ? (
+                            <View style={styles.notifyBadge}>
+                                <Text style={styles.notifyBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</Text>
+                            </View>
+                        ) : null}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -375,6 +400,27 @@ const styles = StyleSheet.create({
         backgroundColor: '#EFF2F0',
         justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
+    },
+    notifyBadge: {
+        position: 'absolute',
+        right: -2,
+        top: -2,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        paddingHorizontal: 4,
+        backgroundColor: '#E63946',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        borderColor: '#EFF2F0',
+    },
+    notifyBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        lineHeight: 11,
+        fontWeight: '800',
     },
     heroCard: {
         position: 'relative',

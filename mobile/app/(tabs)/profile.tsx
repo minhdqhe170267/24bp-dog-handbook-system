@@ -5,7 +5,7 @@ import { type Href, useFocusEffect, useRouter } from 'expo-router';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
 import { useSyncStatus } from '../../src/hooks/useSyncStatus';
-import { notificationService } from '../../src/services/notificationService';
+import { notificationCenterService } from '../../src/services/notificationCenterService';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -29,7 +29,7 @@ export default function ProfileScreen() {
 
   const loadUnreadCount = React.useCallback(async () => {
     try {
-      const unread = await notificationService.getUnreadCount();
+      const unread = await notificationCenterService.getUnreadCount();
       setNotificationCount(unread);
     } catch {
       setNotificationCount(0);
