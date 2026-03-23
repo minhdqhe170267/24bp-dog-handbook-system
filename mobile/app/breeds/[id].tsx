@@ -15,7 +15,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
-import { developmentStageDBService } from '../../src/database/services';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
@@ -84,19 +83,6 @@ const parseBulletList = (value: string | null | undefined, fallback: string[]): 
     .filter(Boolean);
 
   return parts.length > 0 ? parts : fallback;
-};
-
-const summarizeText = (value: string | null | undefined) => {
-  const normalized = (value || '').replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return '';
-  }
-
-  if (normalized.length <= 86) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, 83).trim()}...`;
 };
 
 const buildWarningNotes = (breed: Breed, careBullets: string[], trainingBullets: string[]) => {
@@ -250,41 +236,11 @@ export default function BreedDetailScreen() {
   });
 
   const openCompare = () => {
-    Alert.alert('So sánh giống chó', 'Mình sẽ nối tiếp tính năng so sánh ở bước sau để bạn chọn nhanh giữa nhiều giống.');
+    router.push(`/breeds/compare?seed=${id}` as never);
   };
 
-  const openDevelopmentStages = async () => {
-    if (!breed) {
-      return;
-    }
-
-    try {
-      const stages = await developmentStageDBService.getByBreed(breed.breedId);
-
-      if (stages.length === 0) {
-        Alert.alert('Giai đoạn phát triển', 'Chưa có dữ liệu giai đoạn phát triển cho giống chó này trong bộ nhớ cục bộ.');
-        return;
-      }
-
-      const summary = stages
-        .slice(0, 4)
-        .map((stage) => {
-          const ageRange = `${stage.age_min_months}-${stage.age_max_months} tháng`;
-          const note =
-            summarizeText(stage.training_notes) ||
-            summarizeText(stage.behavioral_milestones) ||
-            summarizeText(stage.physical_milestones) ||
-            'Đang chờ bổ sung hướng dẫn chi tiết.';
-
-          return `• ${stage.stage_name} (${ageRange})\n${note}`;
-        })
-        .join('\n\n');
-
-      Alert.alert('Giai đoạn phát triển', summary);
-    } catch (error) {
-      console.log('[SYNC_UI] Lỗi tải giai đoạn phát triển giống chó:', error);
-      Alert.alert('Giai đoạn phát triển', 'Chưa thể mở dữ liệu giai đoạn phát triển lúc này.');
-    }
+  const openDevelopmentStages = () => {
+    router.push(`/breeds/${id}/development-stages` as never);
   };
 
   const openWarnings = () => {
@@ -645,7 +601,7 @@ export default function BreedDetailScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => {
-              void openDevelopmentStages();
+              openDevelopmentStages();
             }}
             style={[styles.utilityActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
