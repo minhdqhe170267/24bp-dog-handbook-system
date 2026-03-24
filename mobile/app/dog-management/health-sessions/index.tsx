@@ -12,9 +12,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { healthSessionService } from '../../../src/services/healthSessionService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogProfile, HealthSession, HealthSessionStatus } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -42,25 +44,40 @@ export default function HealthSessionListScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<SessionFilter>('ALL');
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const numericDogId = dogId ? Number(dogId) : null;
 
     const loadData = React.useCallback(async () => {
         try {
-            const list = numericDogId
-                ? await healthSessionService.getByDog(numericDogId)
-                : await healthSessionService.getMine();
-            const safeList = list.length > 0 ? list : [];
-            setSessions(sortByDateDesc(safeList, (item) => item.lastUpdatedAt || item.startedAt));
-            if (numericDogId) {
-                setContextDog(findFallbackDog(numericDogId));
+            const scope = await trainerDogScopeService.getScope(true);
+
+            if (numericDogId && !scope.assignmentMap.has(numericDogId)) {
+                setAccessDenied(true);
+                setSessions([]);
+                setContextDog(null);
+                return;
             }
+
+            const list = numericDogId ? await healthSessionService.getByDog(numericDogId) : await healthSessionService.getMine();
+            const safeList = list.length > 0 ? list : [];
+            setAccessDenied(false);
+            setSessions(sortByDateDesc(safeList, (item) => item.lastUpdatedAt || item.startedAt));
+            setContextDog(numericDogId ? scope.dogs.find((item) => item.dogId === numericDogId) || findFallbackDog(numericDogId) : null);
         } catch {
-            const fallbackList = numericDogId
-                ? fallbackHealthSessions.filter((item) => item.dogId === numericDogId)
-                : fallbackHealthSessions;
-            setSessions(sortByDateDesc(fallbackList, (item) => item.lastUpdatedAt || item.startedAt));
-            setContextDog(numericDogId ? findFallbackDog(numericDogId) : null);
+            const allowedDogIds = await trainerDogScopeService.getAssignedDogIds(true);
+            if (numericDogId && !allowedDogIds.includes(numericDogId)) {
+                setAccessDenied(true);
+                setSessions([]);
+                setContextDog(null);
+            } else {
+                const fallbackList = numericDogId
+                    ? fallbackHealthSessions.filter((item) => item.dogId === numericDogId)
+                    : fallbackHealthSessions.filter((item) => allowedDogIds.includes(item.dogId));
+                setAccessDenied(false);
+                setSessions(sortByDateDesc(fallbackList, (item) => item.lastUpdatedAt || item.startedAt));
+                setContextDog(numericDogId ? findFallbackDog(numericDogId) : null);
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -70,12 +87,13 @@ export default function HealthSessionListScreen() {
     useFocusEffect(
         React.useCallback(() => {
             loadData();
-        }, [loadData])
+        }, [loadData]),
     );
 
-    const filteredSessions = useMemo(() => {
-        return sessions.filter((item) => (filter === 'ALL' ? true : item.status === filter));
-    }, [filter, sessions]);
+    const filteredSessions = useMemo(
+        () => sessions.filter((item) => (filter === 'ALL' ? true : item.status === filter)),
+        [filter, sessions],
+    );
 
     const emptyTitle = numericDogId
         ? `Chưa có phiên theo dõi cho ${contextDog?.dogName || 'chó này'}`
@@ -84,6 +102,20 @@ export default function HealthSessionListScreen() {
     const emptySubtitle = numericDogId
         ? 'Hãy mở phiên theo dõi đầu tiên để theo dõi diễn tiến sức khỏe theo từng mốc.'
         : 'Khi có phiên follow-up đang hoạt động, danh sách này sẽ hiển thị đầy đủ cho bạn.';
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể mở phiên theo dõi của chó này"
+                    description="Bạn chỉ được xem và thao tác với các phiên theo dõi của những chó đang thuộc phạm vi phân công."
+                    onPrimaryPress={() => router.replace('/dog-management/health-sessions' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
@@ -109,8 +141,8 @@ export default function HealthSessionListScreen() {
                 </Text>
                 <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
                     {numericDogId
-                        ? 'Tập trung vào các phiên đang mở, đang theo dõi và đã kết thúc của chó này.'
-                        : 'Ưu tiên các phiên đang hoạt động để xử lý nhanh và giữ lịch sử theo dõi rõ ràng.'}
+                        ? 'Chỉ hiển thị phiên theo dõi của chó này trong phạm vi trainer đang phụ trách.'
+                        : 'Ưu tiên các phiên đang hoạt động của những chó được giao cho bạn để xử lý nhanh và rõ lịch sử.'}
                 </Text>
             </View>
 
@@ -154,12 +186,8 @@ export default function HealthSessionListScreen() {
                             <View style={[styles.emptyIcon, { backgroundColor: '#EAF2ED' }]}>
                                 <Ionicons name="pulse-outline" size={26} color={colors.primary} />
                             </View>
-                            <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                {emptyTitle}
-                            </Text>
-                            <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                {emptySubtitle}
-                            </Text>
+                            <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>{emptyTitle}</Text>
+                            <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>{emptySubtitle}</Text>
                         </View>
                     }
                     renderItem={({ item }) => {
@@ -175,14 +203,10 @@ export default function HealthSessionListScreen() {
                                 <Image source={getSessionCoverImage(item)} style={styles.sessionImage} contentFit="cover" />
                                 <View style={styles.sessionOverlayRow}>
                                     <View style={[styles.overlayChip, { backgroundColor: severityMeta.bg }]}>
-                                        <Text style={[styles.overlayChipText, { color: severityMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                                            {severityMeta.label}
-                                        </Text>
+                                        <Text style={[styles.overlayChipText, { color: severityMeta.text, fontFamily: dogManagementFonts.bold }]}>{severityMeta.label}</Text>
                                     </View>
                                     <View style={[styles.overlayChip, { backgroundColor: statusMeta.bg }]}>
-                                        <Text style={[styles.overlayChipText, { color: statusMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                                            {statusMeta.label}
-                                        </Text>
+                                        <Text style={[styles.overlayChipText, { color: statusMeta.text, fontFamily: dogManagementFonts.bold }]}>{statusMeta.label}</Text>
                                     </View>
                                 </View>
 
@@ -196,17 +220,13 @@ export default function HealthSessionListScreen() {
 
                                     <View style={styles.infoGrid}>
                                         <View style={styles.infoCell}>
-                                            <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                                                Cập nhật gần nhất
-                                            </Text>
+                                            <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Cập nhật gần nhất</Text>
                                             <Text style={[styles.infoValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                                                 {formatDate(item.lastUpdatedAt || item.startedAt)}
                                             </Text>
                                         </View>
                                         <View style={styles.infoCell}>
-                                            <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                                                Tổng follow-up
-                                            </Text>
+                                            <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Tổng follow-up</Text>
                                             <Text style={[styles.infoValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                                                 {item.followUpCount || item.timeline?.length || 0} lần
                                             </Text>

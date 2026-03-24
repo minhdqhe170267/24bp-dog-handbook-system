@@ -11,19 +11,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { assignmentService } from '../../../src/services/assignmentService';
-import { dogService } from '../../../src/services/dogService';
 import { fieldNoteService } from '../../../src/services/fieldNoteService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
 import { healthSessionService } from '../../../src/services/healthSessionService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogAssignment, DogProfile, FieldNote, HealthRecord, HealthSession } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
     dogManagementUi,
-    fallbackAssignments,
-    fallbackDogs,
     fallbackFieldNotes,
     fallbackHealthRecords,
     fallbackHealthSessions,
@@ -42,15 +40,15 @@ const ageLabel = (ageMonths?: number | null) => {
 
     const years = Math.floor(ageMonths / 12);
     const months = ageMonths % 12;
+
     if (!years) {
         return `${months} tháng`;
     }
+
     return `${years} năm ${months} tháng`;
 };
 
-const ensureArray = <T,>(value: unknown): T[] => {
-    return Array.isArray(value) ? value : [];
-};
+const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value : []);
 
 export default function DogDetailScreen() {
     const router = useRouter();
@@ -58,11 +56,12 @@ export default function DogDetailScreen() {
     const { colors, isDark } = useThemeStore();
 
     const [dog, setDog] = useState<DogProfile | null>(null);
-    const [assignments, setAssignments] = useState<DogAssignment[]>([]);
+    const [assignment, setAssignment] = useState<DogAssignment | null>(null);
     const [records, setRecords] = useState<HealthRecord[]>([]);
     const [sessions, setSessions] = useState<HealthSession[]>([]);
     const [notes, setNotes] = useState<FieldNote[]>([]);
     const [loading, setLoading] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const dogId = Number(id);
 
@@ -71,9 +70,19 @@ export default function DogDetailScreen() {
 
         const loadData = async () => {
             try {
-                const [dogResult, assignmentResult, recordResult, sessionResult, noteResult] = await Promise.allSettled([
-                    dogService.getById(dogId),
-                    assignmentService.getByDog(dogId),
+                const scope = await trainerDogScopeService.getScope(true);
+
+                if (!Number.isFinite(dogId) || !scope.assignmentMap.has(dogId)) {
+                    if (mounted) {
+                        setAccessDenied(true);
+                    }
+                    return;
+                }
+
+                const scopedDog = scope.dogs.find((item) => item.dogId === dogId) ?? null;
+                const scopedAssignment = scope.assignmentMap.get(dogId) ?? null;
+
+                const [recordResult, sessionResult, noteResult] = await Promise.allSettled([
                     healthRecordService.getByDog(dogId, 0, 10),
                     healthSessionService.getByDog(dogId),
                     fieldNoteService.getByDog(dogId),
@@ -83,39 +92,24 @@ export default function DogDetailScreen() {
                     return;
                 }
 
-                const fallbackDog = fallbackDogs.find((item) => item.dogId === dogId) || fallbackDogs[0];
-                setDog(dogResult.status === 'fulfilled' ? dogResult.value : fallbackDog);
-                setAssignments(
-                    assignmentResult.status === 'fulfilled'
-                        ? ensureArray<DogAssignment>(assignmentResult.value)
-                        : fallbackAssignments.filter((item) => item.dogId === dogId)
-                );
+                setAccessDenied(false);
+                setDog(scopedDog);
+                setAssignment(scopedAssignment);
                 setRecords(
                     recordResult.status === 'fulfilled'
                         ? ensureArray<HealthRecord>(recordResult.value?.content)
-                        : fallbackHealthRecords.filter((item) => item.dogId === dogId)
+                        : fallbackHealthRecords.filter((item) => item.dogId === dogId),
                 );
                 setSessions(
                     sessionResult.status === 'fulfilled'
                         ? ensureArray<HealthSession>(sessionResult.value)
-                        : fallbackHealthSessions.filter((item) => item.dogId === dogId)
+                        : fallbackHealthSessions.filter((item) => item.dogId === dogId),
                 );
                 setNotes(
                     noteResult.status === 'fulfilled'
                         ? ensureArray<FieldNote>(noteResult.value)
-                        : fallbackFieldNotes.filter((item) => item.dogId === dogId)
+                        : fallbackFieldNotes.filter((item) => item.dogId === dogId),
                 );
-            } catch {
-                if (!mounted) {
-                    return;
-                }
-
-                const fallbackDog = fallbackDogs.find((item) => item.dogId === dogId) || fallbackDogs[0];
-                setDog(fallbackDog);
-                setAssignments(fallbackAssignments.filter((item) => item.dogId === fallbackDog.dogId));
-                setRecords(fallbackHealthRecords.filter((item) => item.dogId === fallbackDog.dogId));
-                setSessions(fallbackHealthSessions.filter((item) => item.dogId === fallbackDog.dogId));
-                setNotes(fallbackFieldNotes.filter((item) => item.dogId === fallbackDog.dogId));
             } finally {
                 if (mounted) {
                     setLoading(false);
@@ -130,17 +124,13 @@ export default function DogDetailScreen() {
         };
     }, [dogId]);
 
-    const latestAssignment = assignments[0] || null;
     const latestRecord = records[0] || null;
     const latestNote = notes[0] || null;
     const statusMeta = useMemo(() => getDogStatusMeta(dog?.status), [dog?.status]);
-    const assignmentMeta = useMemo(
-        () => getAssignmentTypeMeta(latestAssignment?.assignmentType),
-        [latestAssignment?.assignmentType]
-    );
+    const assignmentMeta = useMemo(() => getAssignmentTypeMeta(assignment?.assignmentType), [assignment?.assignmentType]);
     const activeSessionCount = useMemo(
         () => sessions.filter((item) => (item.status || '').toUpperCase() !== 'RESOLVED').length,
-        [sessions]
+        [sessions],
     );
 
     if (loading) {
@@ -153,15 +143,16 @@ export default function DogDetailScreen() {
         );
     }
 
-    if (!dog) {
+    if (accessDenied || !dog) {
         return (
             <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
-                <View style={styles.centered}>
-                    <Ionicons name="paw-outline" size={34} color={colors.primary} />
-                    <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Không tìm thấy hồ sơ chó
-                    </Text>
-                </View>
+                <TrainerRestrictedState
+                    title="Không thể mở hồ sơ chó này"
+                    description="Bạn chỉ có thể xem hồ sơ và dữ liệu riêng tư của những chó đang được phân công cho mình."
+                    onPrimaryPress={() => router.replace('/dog-management/dogs' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
             </ScreenWrapper>
         );
     }
@@ -178,23 +169,37 @@ export default function DogDetailScreen() {
                     <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         Chi tiết chó
                     </Text>
-                    <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
-                        <Ionicons name="ellipsis-vertical" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
-                    </TouchableOpacity>
+                    <View style={styles.iconButton}>
+                        <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                    </View>
                 </View>
 
-                <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                <View
+                    style={[
+                        styles.heroCard,
+                        {
+                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                            borderColor: isDark ? colors.border : dogManagementUi.border,
+                        },
+                    ]}
+                >
                     <Image source={dogImage} style={styles.heroImage} contentFit="cover" />
                     <View style={styles.heroOverlay} />
                     <View style={styles.heroContent}>
-                        <View style={[styles.statusChip, { backgroundColor: statusMeta.bg }]}>
-                            <Text style={[styles.statusChipText, { color: statusMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                                {statusMeta.label}
-                            </Text>
+                        <View style={styles.heroBadgeRow}>
+                            <View style={[styles.statusChip, { backgroundColor: statusMeta.bg }]}>
+                                <Text style={[styles.statusChipText, { color: statusMeta.text, fontFamily: dogManagementFonts.bold }]}>
+                                    {statusMeta.label}
+                                </Text>
+                            </View>
+                            <View style={[styles.statusChip, { backgroundColor: assignmentMeta.bg }]}>
+                                <Text style={[styles.statusChipText, { color: assignmentMeta.text, fontFamily: dogManagementFonts.bold }]}>
+                                    {assignmentMeta.label}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={[styles.heroName, { fontFamily: dogManagementFonts.bold }]}>
-                            {dog.dogName}
-                        </Text>
+
+                        <Text style={[styles.heroName, { fontFamily: dogManagementFonts.bold }]}>{dog.dogName}</Text>
                         <Text style={[styles.heroMeta, { fontFamily: dogManagementFonts.medium }]}>
                             {dog.dogCode} • {dog.breedName || 'Chưa rõ giống'}
                         </Text>
@@ -208,9 +213,7 @@ export default function DogDetailScreen() {
                             </View>
                             <View style={styles.metricPillSoft}>
                                 <Ionicons name="time-outline" size={12} color="#4E6356" />
-                                <Text style={[styles.metricPillSoftText, { fontFamily: dogManagementFonts.medium }]}>
-                                    {ageLabel(dog.ageMonths)}
-                                </Text>
+                                <Text style={[styles.metricPillSoftText, { fontFamily: dogManagementFonts.medium }]}>{ageLabel(dog.ageMonths)}</Text>
                             </View>
                         </View>
                     </View>
@@ -218,23 +221,40 @@ export default function DogDetailScreen() {
 
                 <View style={styles.statRow}>
                     {[
-                        { label: 'Phân công', value: latestAssignment?.trainerName || 'Chưa có' },
-                        { label: 'Phiên mở', value: String(activeSessionCount) },
+                        { label: 'Vai trò hiện tại', value: assignment?.trainerName || 'Chưa rõ' },
+                        { label: 'Phiên đang mở', value: String(activeSessionCount) },
                         { label: 'Hồ sơ khám', value: String(records.length) },
                         { label: 'Ghi chú', value: String(notes.length) },
                     ].map((item) => (
-                        <View key={item.label} style={[styles.statCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                        <View
+                            key={item.label}
+                            style={[
+                                styles.statCard,
+                                {
+                                    backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                                    borderColor: isDark ? colors.border : dogManagementUi.border,
+                                },
+                            ]}
+                        >
                             <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
                                 {item.label}
                             </Text>
-                            <Text numberOfLines={2} style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                            <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                                 {item.value}
                             </Text>
                         </View>
                     ))}
                 </View>
 
-                <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                <View
+                    style={[
+                        styles.card,
+                        {
+                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                            borderColor: isDark ? colors.border : dogManagementUi.border,
+                        },
+                    ]}
+                >
                     <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         Thông tin cơ bản
                     </Text>
@@ -257,10 +277,19 @@ export default function DogDetailScreen() {
                     </View>
                 </View>
 
-                <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+                <View
+                    style={[
+                        styles.card,
+                        {
+                            backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                            borderColor: isDark ? colors.border : dogManagementUi.border,
+                        },
+                    ]}
+                >
                     <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Tóm tắt vận hành
+                        Tóm tắt riêng trong phạm vi bạn phụ trách
                     </Text>
+
                     <View style={styles.summaryRow}>
                         <View style={[styles.summaryIcon, { backgroundColor: assignmentMeta.bg }]}>
                             <Ionicons name="clipboard-outline" size={17} color={assignmentMeta.text} />
@@ -270,10 +299,10 @@ export default function DogDetailScreen() {
                                 Phân công hiện tại
                             </Text>
                             <Text style={[styles.summaryValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                {latestAssignment?.trainerName || 'Chưa có người phụ trách'}
+                                {assignment?.trainerName || 'Chưa có người phụ trách'}
                             </Text>
                             <Text style={[styles.summaryMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                {latestAssignment ? `${assignmentMeta.label} • Từ ${formatDate(latestAssignment.startDate)}` : 'Cần cập nhật phân công'}
+                                {assignment ? `${assignmentMeta.label} • ${assignment.startDate ? `Từ ${formatDate(assignment.startDate)}` : 'Đang hiệu lực'}` : 'Chưa có phân công hoạt động'}
                             </Text>
                         </View>
                     </View>
@@ -290,7 +319,7 @@ export default function DogDetailScreen() {
                                 {latestRecord?.diagnosis || 'Chưa có hồ sơ khám'}
                             </Text>
                             <Text style={[styles.summaryMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                {latestRecord ? formatDateTime(latestRecord.examinationDate) : 'Nên ghi nhận khám sức khỏe định kỳ'}
+                                {latestRecord ? formatDateTime(latestRecord.examinationDate) : 'Nên ghi nhận khám định kỳ để theo dõi sát hơn'}
                             </Text>
                         </View>
                     </View>
@@ -307,14 +336,14 @@ export default function DogDetailScreen() {
                                 {latestNote?.title || 'Chưa có ghi chú thực địa'}
                             </Text>
                             <Text style={[styles.summaryMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                {latestNote ? formatDateTime(latestNote.recordedAt) : 'Có thể bổ sung ghi chú hiện trường khi cần'}
+                                {latestNote ? formatDateTime(latestNote.recordedAt) : 'Có thể bổ sung ghi chú nhiệm vụ khi phát sinh diễn biến mới'}
                             </Text>
                         </View>
                     </View>
                 </View>
 
                 <Text style={[styles.actionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Thao tác nhanh
+                    Tác vụ trong phạm vi được giao
                 </Text>
                 <View style={styles.actionGrid}>
                     {[
@@ -329,7 +358,13 @@ export default function DogDetailScreen() {
                             key={item.label}
                             activeOpacity={0.88}
                             onPress={() => router.push(item.route as any)}
-                            style={[styles.actionCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}
+                            style={[
+                                styles.actionCard,
+                                {
+                                    backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                                    borderColor: isDark ? colors.border : dogManagementUi.border,
+                                },
+                            ]}
                         >
                             <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={18} color={colors.primary} />
                             <Text style={[styles.actionLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
@@ -392,13 +427,17 @@ const styles = StyleSheet.create({
         right: 18,
         bottom: 18,
     },
+    heroBadgeRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 10,
+    },
     statusChip: {
         alignSelf: 'flex-start',
         minHeight: 28,
         borderRadius: 14,
         paddingHorizontal: 12,
         justifyContent: 'center',
-        marginBottom: 10,
     },
     statusChipText: {
         fontSize: 11,
@@ -565,10 +604,5 @@ const styles = StyleSheet.create({
     actionLabel: {
         fontSize: 13,
         lineHeight: 18,
-    },
-    emptyTitle: {
-        fontSize: 18,
-        lineHeight: 22,
-        textAlign: 'center',
     },
 });

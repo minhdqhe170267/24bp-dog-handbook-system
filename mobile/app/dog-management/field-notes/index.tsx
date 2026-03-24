@@ -12,10 +12,12 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { fieldNoteService } from '../../../src/services/fieldNoteService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogProfile, FieldNote, FieldNoteScope } from '../../../src/types/dogManagement';
 import {
     buildFieldNoteExcerpt,
@@ -23,7 +25,6 @@ import {
     dogManagementUi,
     fallbackFieldNotes,
     fieldNoteScopeOptions,
-    findFallbackDog,
     formatDate,
     formatTime,
     getFieldNoteCategoryMeta,
@@ -43,34 +44,65 @@ export default function FieldNoteListScreen() {
     const deferredSearch = useDeferredValue(search);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const numericDogId = dogId ? Number(dogId) : null;
 
     const loadData = React.useCallback(async () => {
         try {
+            const trainerScope = await trainerDogScopeService.getScope(true);
+
+            if (numericDogId && !trainerScope.assignmentMap.has(numericDogId)) {
+                setAccessDenied(true);
+                setNotes([]);
+                setContextDog(null);
+                return;
+            }
+
             const list = numericDogId ? await fieldNoteService.getByDog(numericDogId) : await fieldNoteService.getAll();
+            setAccessDenied(false);
             setNotes(sortByDateDesc(list, (item) => item.recordedAt));
+            setContextDog(numericDogId ? trainerScope.dogs.find((item) => item.dogId === numericDogId) || null : null);
             if (numericDogId) {
-                setContextDog(findFallbackDog(numericDogId));
                 setScope('DOG');
             }
-        } catch {
-            const fallbackList = numericDogId ? fallbackFieldNotes.filter((item) => item.dogId === numericDogId) : fallbackFieldNotes;
-            setNotes(sortByDateDesc(fallbackList, (item) => item.recordedAt));
-            setContextDog(numericDogId ? findFallbackDog(numericDogId) : null);
-            if (numericDogId) {
-                setScope('DOG');
+        } catch (error) {
+            if (trainerDogScopeService.isAccessDeniedError(error)) {
+                setAccessDenied(true);
+                setNotes([]);
+                setContextDog(null);
+            } else {
+                const assignedDogIds = await trainerDogScopeService.getAssignedDogIds(true);
+                const fallbackList = (numericDogId
+                    ? fallbackFieldNotes.filter((item) => item.dogId === numericDogId)
+                    : fallbackFieldNotes.filter((item) =>
+                          item.dogId ? assignedDogIds.includes(item.dogId) : item.ownerId === (user?.userId ?? 0),
+                      )) as FieldNote[];
+
+                if (numericDogId && !assignedDogIds.includes(numericDogId)) {
+                    setAccessDenied(true);
+                    setNotes([]);
+                    setContextDog(null);
+                } else {
+                    setAccessDenied(false);
+                    setNotes(sortByDateDesc(fallbackList, (item) => item.recordedAt));
+                    const scopeData = await trainerDogScopeService.getScope(true);
+                    setContextDog(numericDogId ? scopeData.dogs.find((item) => item.dogId === numericDogId) || null : null);
+                    if (numericDogId) {
+                        setScope('DOG');
+                    }
+                }
             }
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [numericDogId]);
+    }, [numericDogId, user?.userId]);
 
     useFocusEffect(
         React.useCallback(() => {
             loadData();
-        }, [loadData])
+        }, [loadData]),
     );
 
     const filteredNotes = useMemo(() => {
@@ -87,11 +119,25 @@ export default function FieldNoteListScreen() {
                     ? true
                     : scope === 'MINE'
                       ? item.ownerId === (user?.userId ?? 0) || item.isOwner
-                      : !!item.dogId;
+                      : Boolean(item.dogId);
 
             return matchesSearch && matchesScope;
         });
     }, [deferredSearch, notes, scope, user?.userId]);
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Khong the mo ghi chu cua cho nay"
+                    description="Ban chi duoc xem ghi chu thuc dia lien quan den nhung cho dang nam trong pham vi phan cong hien tai."
+                    onPrimaryPress={() => router.replace('/dog-management/field-notes' as any)}
+                    secondaryLabel="Quay lai"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
@@ -100,10 +146,12 @@ export default function FieldNoteListScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Ghi chú thực địa
+                    Ghi chu thuc dia
                 </Text>
                 <TouchableOpacity
-                    onPress={() => router.push((numericDogId ? `/dog-management/field-notes/form?dogId=${numericDogId}` : '/dog-management/field-notes/form') as any)}
+                    onPress={() =>
+                        router.push((numericDogId ? `/dog-management/field-notes/form?dogId=${numericDogId}` : '/dog-management/field-notes/form') as any)
+                    }
                     style={styles.iconButton}
                     activeOpacity={0.85}
                 >
@@ -113,8 +161,8 @@ export default function FieldNoteListScreen() {
 
             <Text style={[styles.subtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
                 {numericDogId
-                    ? `Đang hiển thị ghi chú liên quan đến ${contextDog?.dogName || 'chó được chọn'}.`
-                    : 'Ghi lại hiện trường, buổi huấn luyện và các tình huống phát sinh trong ca làm việc.'}
+                    ? `Dang hien thi ghi chu lien quan den ${contextDog?.dogName || 'cho duoc chon'}.`
+                    : 'Chi hien thi ghi chu cua ban va ghi chu gan voi nhung cho dang duoc phan cong.'}
             </Text>
 
             <View style={[styles.searchShell, { backgroundColor: isDark ? colors.surface : '#FAFCFB', borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -122,7 +170,7 @@ export default function FieldNoteListScreen() {
                 <TextInput
                     value={search}
                     onChangeText={setSearch}
-                    placeholder="Tìm theo tiêu đề..."
+                    placeholder="Tim theo tieu de..."
                     placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                     style={[styles.searchInput, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}
                 />
@@ -162,10 +210,10 @@ export default function FieldNoteListScreen() {
                         <View style={styles.emptyWrap}>
                             <Ionicons name="document-text-outline" size={30} color={colors.primary} />
                             <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Chưa có ghi chú phù hợp
+                                Chua co ghi chu phu hop
                             </Text>
                             <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Hãy tạo ghi chú đầu tiên để lưu lại hiện trường hoặc diễn biến nhiệm vụ.
+                                Hay tao ghi chu dau tien de luu lai hien truong hoac dien bien nhiem vu.
                             </Text>
                         </View>
                     }
@@ -186,7 +234,7 @@ export default function FieldNoteListScreen() {
                                             {item.title}
                                         </Text>
                                         <Text style={[styles.noteMeta, { color: categoryMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                                            {item.dogCode || 'Không gắn mã'} • {item.ownerName || 'Chưa rõ người ghi'}
+                                            {item.dogCode || 'Khong gan ma'} • {item.ownerName || 'Chua ro nguoi ghi'}
                                         </Text>
                                     </View>
                                     <Text style={[styles.noteTime, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
@@ -214,7 +262,7 @@ export default function FieldNoteListScreen() {
                                         {formatDate(item.recordedAt)}
                                     </Text>
                                     <Text style={[styles.noteFooterText, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
-                                        Xem chi tiết
+                                        Xem chi tiet
                                     </Text>
                                 </View>
                             </TouchableOpacity>

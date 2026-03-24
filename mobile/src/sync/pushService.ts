@@ -63,6 +63,23 @@ interface HealthSessionApiDto {
   followUps?: HealthSessionFollowUpApiDto[] | null;
 }
 
+interface ContentSuggestionApiDto {
+  suggestionId: number;
+  trainerId: number;
+  trainerName?: string | null;
+  suggestionType: 'NEW_CONTENT' | 'UPDATE_EXISTING' | 'ERROR_REPORT' | 'GENERAL_FEEDBACK';
+  relatedExerciseId?: number | null;
+  relatedExerciseName?: string | null;
+  title: string;
+  description: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'IMPLEMENTED';
+  adminResponse?: string | null;
+  reviewedById?: number | null;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
+  submittedAt: string;
+}
+
 const parsePayload = (payload: string): Record<string, unknown> => {
   try {
     const parsed: unknown = JSON.parse(payload);
@@ -81,8 +98,13 @@ const isHealthSessionResolveItem = (item: SyncQueueRow): boolean => {
   return `${payload.status ?? ''}`.toUpperCase() === 'RESOLVED' || payload.resolvedAt != null;
 };
 
+const isContentSuggestionCreateItem = (item: SyncQueueRow): boolean =>
+  item.entity_type === 'content_suggestion' && item.action === 'CREATE';
+
 const requiresSpecialPush = (item: SyncQueueRow): boolean =>
-  item.entity_type === 'session_follow_up' || isHealthSessionResolveItem(item);
+  item.entity_type === 'session_follow_up' ||
+  isHealthSessionResolveItem(item) ||
+  isContentSuggestionCreateItem(item);
 
 const mapHealthSessionResponseToRow = (session: HealthSessionApiDto) => ({
   server_id: session.sessionId,
@@ -207,6 +229,45 @@ const pushHealthSessionResolveDirect = async (
   pushResult.synced++;
 };
 
+const pushContentSuggestionDirect = async (
+  item: SyncQueueRow,
+  pushResult: PushResult,
+): Promise<void> => {
+  const suggestionRow = await contentSuggestionDBService.getById(item.entity_id);
+  if (!suggestionRow) {
+    await syncQueueDBService.markFailed(item.id, 'Không tìm thấy góp ý nội dung trong bộ nhớ cục bộ');
+    pushResult.failed++;
+    pushResult.errors.push(`${item.entity_type}/${item.entity_id}: suggestion missing locally`);
+    return;
+  }
+
+  const response = (await apiClient.post('/suggestions', {
+    localId: suggestionRow.local_id,
+    suggestionType: suggestionRow.suggestion_type,
+    relatedExerciseId: suggestionRow.related_exercise_id,
+    title: suggestionRow.title,
+    description: suggestionRow.description,
+    localUpdatedAt: suggestionRow.updated_at,
+  })) as ApiResponse<ContentSuggestionApiDto>;
+
+  const submitted = unwrapApiData(response);
+  await contentSuggestionDBService.applyServerSnapshot(item.entity_id, {
+    server_id: submitted.suggestionId,
+    suggestion_type: submitted.suggestionType,
+    related_exercise_id: submitted.relatedExerciseId ?? null,
+    title: submitted.title,
+    description: submitted.description,
+    status: submitted.status,
+    admin_response: submitted.adminResponse ?? null,
+    reviewed_by: submitted.reviewedById ?? null,
+    reviewed_at: submitted.reviewedAt ?? null,
+    submitted_at: submitted.submittedAt,
+  });
+
+  await syncQueueDBService.markSynced(item.id);
+  pushResult.synced++;
+};
+
 const pushSpecialItem = async (
   item: SyncQueueRow,
   pushResult: PushResult,
@@ -219,6 +280,11 @@ const pushSpecialItem = async (
 
     if (isHealthSessionResolveItem(item)) {
       await pushHealthSessionResolveDirect(item, pushResult);
+      return;
+    }
+
+    if (isContentSuggestionCreateItem(item)) {
+      await pushContentSuggestionDirect(item, pushResult);
       return;
     }
 
