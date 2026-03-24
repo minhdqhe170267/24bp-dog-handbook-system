@@ -3,6 +3,7 @@ import { offlineFirstRead, isOnline, toPageResponse } from './offlineFirst';
 import { dogProfileDBService, healthRecordDBService } from '../database/services';
 import { useAuthStore } from '../stores/authStore';
 import { syncEngine } from '../sync/syncEngine';
+import { trainerDogScopeService } from './trainerDogScopeService';
 import type { HealthRecordRow } from '../database/types';
 import type { HealthRecord, HealthRecordRequest, WeightAssessment } from '../types/dogManagement';
 
@@ -12,6 +13,29 @@ const parseServerId = (value: string | number): number | null => {
   const numericValue = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
 };
+
+const mapApiToHealthRecord = (record: HealthRecordApiDto): HealthRecord => ({
+  recordId: record.recordId,
+  dogId: record.dogId,
+  dogName: record.dogName ?? null,
+  dogCode: record.dogCode ?? null,
+  examinerId: record.examinerId ?? null,
+  examinerName: record.examinerName ?? null,
+  examinationDate: record.examinationDate ?? null,
+  weightKg: record.weightKg ?? null,
+  temperatureC: record.temperatureC ?? null,
+  fecesStatus: record.fecesStatus ?? null,
+  appetiteLevel: record.appetiteLevel ?? null,
+  activityLevel: record.activityLevel ?? null,
+  observedSymptoms: record.observedSymptoms ?? null,
+  diagnosis: record.diagnosis ?? null,
+  treatmentGiven: record.treatmentGiven ?? null,
+  nextCheckupDate: record.nextCheckupDate ?? null,
+  notes: record.notes ?? null,
+  createdAt: record.createdAt ?? null,
+  updatedAt: record.updatedAt ?? null,
+  syncStatus: 'SYNCED',
+});
 
 const mapRowToHealthRecord = async (row: HealthRecordRow): Promise<HealthRecord> => {
   const currentUser = useAuthStore.getState().user;
@@ -89,19 +113,27 @@ const saveRemoteRecordsToLocal = async (records: HealthRecord[]): Promise<void> 
   await healthRecordDBService.upsertFromServer(serverRecords.map(mapApiToRow));
 };
 
+const filterAccessibleRecords = async (records: HealthRecord[]): Promise<HealthRecord[]> => {
+  const assignedDogIds = new Set(await trainerDogScopeService.getAssignedDogIds());
+  return records.filter((record) => assignedDogIds.has(record.dogId));
+};
+
+const toAccessiblePageResponse = async (records: HealthRecord[]): Promise<PageResponse<HealthRecord>> =>
+  toPageResponse(await filterAccessibleRecords(records));
+
 export const healthRecordService = {
   getAll: (page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
     offlineFirstRead<PageResponse<HealthRecord>>({
       localFetch: async () => {
         const rows = await healthRecordDBService.getAll();
         const records = await Promise.all(rows.map(mapRowToHealthRecord));
-        return toPageResponse(records);
+        return toAccessiblePageResponse(records);
       },
       remoteFetch: async () => {
         const response = (await api.get('/health-records', {
           params: { page, size },
         })) as ApiResponse<PageResponse<HealthRecordApiDto>>;
-        return unwrapApiData(response);
+        return toAccessiblePageResponse((unwrapApiData(response).content ?? []).map(mapApiToHealthRecord));
       },
       saveToLocal: async (pageData) => {
         await saveRemoteRecordsToLocal(pageData.content ?? []);
@@ -112,15 +144,17 @@ export const healthRecordService = {
   getByDog: (dogId: number, page = 0, size = 20): Promise<PageResponse<HealthRecord>> =>
     offlineFirstRead<PageResponse<HealthRecord>>({
       localFetch: async () => {
+        await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc xem ho so cua cho nay');
         const rows = await healthRecordDBService.getByDog(dogId);
         const records = await Promise.all(rows.map(mapRowToHealthRecord));
         return toPageResponse(records);
       },
       remoteFetch: async () => {
+        await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc xem ho so cua cho nay');
         const response = (await api.get(`/health-records/by-dog/${dogId}`, {
           params: { page, size },
         })) as ApiResponse<PageResponse<HealthRecordApiDto>>;
-        return unwrapApiData(response);
+        return toPageResponse((unwrapApiData(response).content ?? []).map(mapApiToHealthRecord));
       },
       saveToLocal: async (pageData) => {
         await saveRemoteRecordsToLocal(pageData.content ?? []);
@@ -131,7 +165,9 @@ export const healthRecordService = {
   getById: async (recordId: string | number): Promise<HealthRecord> => {
     const localRow = await resolveLocalRow(recordId);
     if (localRow) {
-      return mapRowToHealthRecord(localRow);
+      const localRecord = await mapRowToHealthRecord(localRow);
+      await trainerDogScopeService.assertAccessToDog(localRecord.dogId, true, 'Ban khong duoc xem ho so cua cho nay');
+      return localRecord;
     }
 
     const serverId = parseServerId(recordId);
@@ -140,7 +176,8 @@ export const healthRecordService = {
     }
 
     const response = (await api.get(`/health-records/${serverId}`)) as ApiResponse<HealthRecordApiDto>;
-    const remoteRecord = unwrapApiData(response);
+    const remoteRecord = mapApiToHealthRecord(unwrapApiData(response));
+    await trainerDogScopeService.assertAccessToDog(remoteRecord.dogId, true, 'Ban khong duoc xem ho so cua cho nay');
     await saveRemoteRecordsToLocal([remoteRecord]);
 
     const refreshedLocalRow = await healthRecordDBService.getByServerId(serverId);
@@ -148,6 +185,7 @@ export const healthRecordService = {
   },
 
   create: async (request: HealthRecordRequest): Promise<HealthRecord> => {
+    await trainerDogScopeService.assertAccessToDog(request.dogId, true, 'Ban khong duoc tao ho so cho cho nay');
     const user = useAuthStore.getState().user;
     const localId = await healthRecordDBService.create({
       dog_id: request.dogId,
@@ -178,6 +216,7 @@ export const healthRecordService = {
   },
 
   assessWeight: async (dogId: number): Promise<WeightAssessment> => {
+    await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc danh gia can nang cho cho nay');
     const response = (await api.get(`/weight-assessment/${dogId}`)) as ApiResponse<WeightAssessment>;
     return unwrapApiData(response);
   },
