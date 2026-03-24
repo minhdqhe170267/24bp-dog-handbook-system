@@ -32,6 +32,7 @@ const CreateFormPage = ({
   onCancel,
   saving = false,
   saveLabel = 'Tạo mới',
+  showSubmitAction = true,
   cancelLabel = 'Quay lại danh sách',
   extraActions = [],
   children,
@@ -69,10 +70,12 @@ const CreateFormPage = ({
                 </Button>
               );
             })}
-            <Button type="submit" form={formId} loading={saving} className="w-full">
-              {SubmitIcon && <SubmitIcon className="h-4 w-4" />}
-              <span>{saveLabel}</span>
-            </Button>
+            {showSubmitAction ? (
+              <Button type="submit" form={formId} loading={saving} className="w-full">
+                {SubmitIcon && <SubmitIcon className="h-4 w-4" />}
+                <span>{saveLabel}</span>
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" onClick={onCancel} className="w-full">
               {CancelIcon && <CancelIcon className="h-4 w-4" />}
               {cancelLabel}

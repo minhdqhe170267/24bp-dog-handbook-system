@@ -4,8 +4,7 @@ import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
-import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
+import DetailModal, { EditForm } from '../../components/shared/DetailModal';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
 import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
@@ -14,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const difficultyOptions = [
     { value: 'all', label: 'Tất cả độ khó' },
@@ -28,19 +28,6 @@ const statusOptions = [
     { value: 'APPROVED', label: 'Đã duyệt' },
     { value: 'PUBLISHED', label: 'Đã xuất bản' },
     { value: 'REJECTED', label: 'Từ chối' },
-];
-
-const detailFields = [
-    { key: 'exerciseName', label: 'Tên bài tập' },
-    { key: 'difficultyLevel', label: 'Độ khó' },
-    { key: 'durationMinutes', label: 'Thời gian (phút)' },
-    { key: 'methodName', label: 'Phương pháp' },
-    { key: 'requiredEquipment', label: 'Thiết bị cần thiết' },
-    { key: 'description', label: 'Mô tả', type: 'textarea' },
-    { key: 'instructions', label: 'Hướng dẫn', type: 'textarea' },
-    { key: 'safetyPrecautions', label: 'Lưu ý an toàn', type: 'textarea' },
-    { key: 'status', label: 'Trạng thái' },
-    { key: 'createdByName', label: 'Người tạo' },
 ];
 
 const editFields = [
@@ -63,7 +50,6 @@ const ExercisesPage = () => {
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [detailItem, setDetailItem] = useState(null);
     const [editItem, setEditItem] = useState(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -77,7 +63,7 @@ const ExercisesPage = () => {
     const { user } = useAuth();
     const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
-    const canPublish = user?.role === 'ADMIN';
+    const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
     const toExercisePayload = (formData) => ({
         exerciseName: formData.exerciseName?.trim() || '',
@@ -92,19 +78,27 @@ const ExercisesPage = () => {
     const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('page', String(nextPage));
-            params.append('size', String(nextPageSize));
-            params.append('sort', 'updatedAt,desc');
-            params.append('sort', 'createdAt,desc');
-            if (search) params.append('search', search);
-            if (difficultyFilter !== 'all') params.append('difficulty', difficultyFilter);
-            const res = await api.get(`/exercises?${params.toString()}`);
-            const data = res.data || res;
-            let list = data.content || [];
-            if (statusFilter !== 'all') list = list.filter(e => e.status === statusFilter);
-            setItems(sortByNewest(list, { idKeys: ['exerciseId', 'id'] }));
-            setTotalItems(data.totalElements || list.length);
+            const allRows = await fetchAllPages((pageIndex, batchSize) => {
+                const params = new URLSearchParams();
+                params.append('page', String(pageIndex));
+                params.append('size', String(batchSize));
+                params.append('sort', 'updatedAt,desc');
+                params.append('sort', 'createdAt,desc');
+                if (search) params.append('search', search);
+                if (difficultyFilter !== 'all') params.append('difficulty', difficultyFilter);
+                return api.get(`/exercises?${params.toString()}`);
+            });
+
+            const filteredRows = allRows.filter((item) => {
+                const matchDifficulty = difficultyFilter === 'all' || item.difficultyLevel === difficultyFilter;
+                const matchStatus = statusFilter === 'all' || item.status === statusFilter;
+                return matchDifficulty && matchStatus;
+            });
+            const sortedRows = sortByNewest(filteredRows, { idKeys: ['exerciseId', 'id'] });
+            const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+            setItems(pageRows);
+            setTotalItems(totalItems);
+            if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) { console.error('Fetch exercises error:', err); setItems([]); }
         finally { setLoading(false); }
     };
@@ -129,7 +123,7 @@ const ExercisesPage = () => {
 
     const getExerciseId = (row) => row.exerciseId || row.id;
     const getStatus = (row) => String(row.status || '').toUpperCase();
-    const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
+    const canShowEdit = (row) => canEdit && !['PENDING', 'APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
     const handleSubmitForReview = async (row) => {
         const id = getExerciseId(row);
@@ -240,18 +234,18 @@ const ExercisesPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/TRAINING_EXERCISE/${getExerciseId(r)}`)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
                     {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/exercises/${getExerciseId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
                     {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getExerciseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
                     {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
-                            <Send className="h-4 w-4 text-amber-600" />
+                            <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
                         </button>
                     )}
                     {canPublish && getStatus(r) === 'APPROVED' && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xuất bản" onClick={() => handlePublish(r)}>
-                            <Globe className="h-4 w-4 text-emerald-600" />
+                            <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                         </button>
                     )}
                     {canPublish && getStatus(r) === 'PUBLISHED' && (
@@ -283,13 +277,6 @@ const ExercisesPage = () => {
                 <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có bài tập nào" />
             )}
-            <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết bài tập" size="lg">
-                <DetailView fields={detailFields} data={detailItem} />
-                <EntityMediaPreview
-                    entityType={APPROVAL_ENTITY_TYPES.TRAINING_EXERCISE}
-                    entityId={detailItem?.exerciseId || detailItem?.id}
-                />
-            </DetailModal>
             <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa bài tập" size="lg">
                 <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
             </DetailModal>
@@ -318,3 +305,4 @@ const ExercisesPage = () => {
 };
 
 export default ExercisesPage;
+
