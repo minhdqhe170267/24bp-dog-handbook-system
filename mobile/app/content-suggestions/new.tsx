@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   StyleSheet,
@@ -90,9 +91,30 @@ export default function NewContentSuggestionScreen() {
         description,
       });
 
+      if (created.syncStatus !== 'SYNCED') {
+        setSubmitting(false);
+        Alert.alert(
+          'Đã lưu góp ý',
+          'Góp ý đã được lưu trên thiết bị và sẽ tự gửi lên admin/editor khi có kết nối hoặc khi bạn đồng bộ lại.',
+          [
+            {
+              text: 'Xem chi tiết',
+              onPress: () => router.replace(`/content-suggestions/${created.routeId}` as never),
+            },
+          ],
+        );
+        return;
+      }
+
       router.replace(`/content-suggestions/${created.routeId}` as never);
     } catch (error) {
       console.log('[SYNC_UI] Lỗi tạo góp ý nội dung:', error);
+      Alert.alert(
+        'Chưa thể gửi góp ý',
+        error instanceof Error
+          ? error.message
+          : 'Đã có lỗi xảy ra khi tạo góp ý nội dung. Vui lòng thử lại.',
+      );
       setSubmitting(false);
     }
   };
