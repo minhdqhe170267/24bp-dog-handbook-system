@@ -31,6 +31,16 @@ const formatDateTimeValue = (value) => {
   return date.toLocaleString('vi-VN');
 };
 
+const APPROVAL_DECISION_LABELS = {
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối',
+  REVISION_REQUESTED: 'Yêu cầu chỉnh sửa',
+  PENDING: 'Chờ xử lý',
+};
+
+const getApprovalDecisionLabel = (decision) =>
+  APPROVAL_DECISION_LABELS[String(decision || '').trim().toUpperCase()] || toText(decision);
+
 const toText = (value) => {
   if (value === null || value === undefined || value === '') return '—';
   return String(value);
@@ -358,6 +368,8 @@ const EntityDetailPage = () => {
   const [suggestionResponseOpen, setSuggestionResponseOpen] = useState(false);
   const [suggestionResponse, setSuggestionResponse] = useState('');
   const [suggestionResponding, setSuggestionResponding] = useState(false);
+  const [reviewerFeedbackLoading, setReviewerFeedbackLoading] = useState(false);
+  const [latestReviewerFeedback, setLatestReviewerFeedback] = useState(null);
 
   const entityType = normalizeEntityType(routeEntityType);
   const config = ENTITY_CONFIG[entityType];
@@ -402,6 +414,43 @@ const EntityDetailPage = () => {
     fetchDetail();
   }, [fetchDetail]);
 
+  const resolvedEntityId = useMemo(() => {
+    if (!config) return null;
+    const rawId = data?.[config.idKey] ?? id;
+    const parsed = Number(rawId);
+    return Number.isFinite(parsed) ? parsed : rawId;
+  }, [config, data, id]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatestFeedback = async () => {
+      if (!isWorkflowEntity || !resolvedEntityId) {
+        if (active) setLatestReviewerFeedback(null);
+        return;
+      }
+
+      setReviewerFeedbackLoading(true);
+      try {
+        const res = await approvalService.getHistory(entityType, resolvedEntityId);
+        const payload = res?.data || res || [];
+        const records = Array.isArray(payload) ? payload : payload.content || [];
+        const latest = records[0];
+        if (active) {
+          setLatestReviewerFeedback(latest && String(latest?.comments || '').trim() ? latest : null);
+        }
+      } catch (error) {
+        if (active) setLatestReviewerFeedback(null);
+      } finally {
+        if (active) setReviewerFeedbackLoading(false);
+      }
+    };
+
+    fetchLatestFeedback();
+    return () => {
+      active = false;
+    };
+  }, [entityType, isWorkflowEntity, resolvedEntityId]);
+
   const breadcrumbs = useMemo(() => {
     if (!config) return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Chi tiết' }];
     return [
@@ -416,13 +465,6 @@ const EntityDetailPage = () => {
     const resolved = field.render ? field.render(rawValue, data) : rawValue;
     return toText(resolved);
   };
-
-  const resolvedEntityId = useMemo(() => {
-    if (!config) return null;
-    const rawId = data?.[config.idKey] ?? id;
-    const parsed = Number(rawId);
-    return Number.isFinite(parsed) ? parsed : rawId;
-  }, [config, data, id]);
 
   const workflowStatus = normalizeStatusValue(data?.status);
   const canRoleEdit = isAdmin || isEditor;
@@ -696,6 +738,31 @@ const EntityDetailPage = () => {
           <div className="py-8 text-sm text-muted-foreground">Không có dữ liệu chi tiết</div>
         ) : (
           <div className="space-y-3">
+            {isWorkflowEntity && (
+              <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-foreground">Phản hồi từ người duyệt</h3>
+                  {reviewerFeedbackLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : null}
+                </div>
+                {latestReviewerFeedback ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      {latestReviewerFeedback?.reviewerName || 'Reviewer'} •{' '}
+                      {getApprovalDecisionLabel(latestReviewerFeedback?.decision)} •{' '}
+                      {formatDateTimeValue(latestReviewerFeedback?.reviewedAt)}
+                    </p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">
+                      {latestReviewerFeedback?.comments}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Chưa có nhận xét từ reviewer</p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {config.fields.map((field) => {
                 const value = resolveFieldValue(field);

@@ -7,6 +7,7 @@ import FilterSelect from '../../components/shared/FilterSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationService } from '../../services/notificationService';
+import { approvalService } from '../../services/approvalService';
 import {
   formatNotificationTime,
   getNotificationEntityLabel,
@@ -61,6 +62,21 @@ const unreadFilterOptions = [
   { value: 'read', label: 'Đã đọc' },
 ];
 
+const REVIEW_RESULT_TYPES = new Set([
+  'CONTENT_APPROVED',
+  'CONTENT_REJECTED',
+  'CONTENT_REVISION_REQUESTED',
+]);
+
+const getFeedbackKey = (notification) => {
+  const type = String(notification?.type || '').trim().toUpperCase();
+  if (!REVIEW_RESULT_TYPES.has(type)) return null;
+  const entityType = String(notification?.entityType || '').trim().toUpperCase();
+  const entityId = Number(notification?.entityId);
+  if (!entityType || !Number.isFinite(entityId) || entityId <= 0) return null;
+  return `${entityType}:${entityId}`;
+};
+
 const NotificationsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -71,6 +87,7 @@ const NotificationsPage = () => {
   const [markingAll, setMarkingAll] = useState(false);
   const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
   const [readFilter, setReadFilter] = useState('all');
+  const [reviewFeedbackByKey, setReviewFeedbackByKey] = useState({});
   const [pagination, setPagination] = useState({
     page: 0,
     pageSize: 20,
@@ -162,6 +179,57 @@ const NotificationsPage = () => {
     return rows;
   }, [readFilter, rows]);
 
+  useEffect(() => {
+    let active = true;
+
+    const targetKeys = Array.from(
+      new Set(
+        rows
+          .map((notification) => getFeedbackKey(notification))
+          .filter(Boolean)
+      )
+    );
+
+    const missingKeys = targetKeys.filter((key) => !(key in reviewFeedbackByKey));
+    if (missingKeys.length === 0) return () => { active = false; };
+
+    const fetchFeedback = async () => {
+      const nextMap = {};
+      await Promise.all(
+        missingKeys.map(async (key) => {
+          try {
+            const [entityType, entityIdRaw] = key.split(':');
+            const entityId = Number(entityIdRaw);
+            if (!entityType || !Number.isFinite(entityId) || entityId <= 0) {
+              nextMap[key] = null;
+              return;
+            }
+            const res = await approvalService.getHistory(entityType, entityId);
+            const payload = res?.data || res || [];
+            const records = Array.isArray(payload) ? payload : payload.content || [];
+            const latestRecord = records[0];
+            nextMap[key] = latestRecord && String(latestRecord?.comments || '').trim()
+              ? {
+                  comments: latestRecord.comments,
+                  reviewerName: latestRecord.reviewerName,
+                }
+              : null;
+          } catch {
+            nextMap[key] = null;
+          }
+        })
+      );
+      if (!active) return;
+      setReviewFeedbackByKey((prev) => ({ ...prev, ...nextMap }));
+    };
+
+    fetchFeedback();
+
+    return () => {
+      active = false;
+    };
+  }, [reviewFeedbackByKey, rows]);
+
   const columns = [
     {
       key: 'title',
@@ -173,6 +241,19 @@ const NotificationsPage = () => {
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
             {row?.message || 'Không có nội dung'}
           </p>
+          {(() => {
+            const feedbackKey = getFeedbackKey(row);
+            const feedback = feedbackKey ? reviewFeedbackByKey[feedbackKey] : null;
+            if (!feedback?.comments) return null;
+            return (
+              <p className="text-xs text-foreground mt-1 line-clamp-2">
+                <span className="font-medium">
+                  Phản hồi reviewer{feedback?.reviewerName ? ` (${feedback.reviewerName})` : ''}:
+                </span>{' '}
+                {feedback.comments}
+              </p>
+            );
+          })()}
         </div>
       ),
     },

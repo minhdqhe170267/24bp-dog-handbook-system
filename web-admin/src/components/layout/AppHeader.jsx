@@ -7,6 +7,7 @@ import { cn } from '../../utils/utils';
 import { useToast } from '../ui/Toast';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useTheme } from '../../hooks/useTheme';
+import { approvalService } from '../../services/approvalService';
 import {
   formatNotificationTime,
   groupNotificationsByRecency,
@@ -41,6 +42,21 @@ const searchItems = [
   { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', keywords: ['nhat ky', 'nhật ký', 'audit', 'log'] },
 ];
 
+const REVIEW_RESULT_TYPES = new Set([
+  'CONTENT_APPROVED',
+  'CONTENT_REJECTED',
+  'CONTENT_REVISION_REQUESTED',
+]);
+
+const getFeedbackKey = (notification) => {
+  const type = String(notification?.type || '').trim().toUpperCase();
+  if (!REVIEW_RESULT_TYPES.has(type)) return null;
+  const entityType = String(notification?.entityType || '').trim().toUpperCase();
+  const entityId = Number(notification?.entityId);
+  if (!entityType || !Number.isFinite(entityId) || entityId <= 0) return null;
+  return `${entityType}:${entityId}`;
+};
+
 const AppHeader = () => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -55,6 +71,7 @@ const AppHeader = () => {
   const [notificationFilter, setNotificationFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [activeNotificationId, setActiveNotificationId] = useState(null);
+  const [reviewFeedbackByKey, setReviewFeedbackByKey] = useState({});
 
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -143,6 +160,59 @@ const AppHeader = () => {
     return groupNotificationsByRecency(filteredNotifications);
   }, [filteredNotifications]);
 
+  useEffect(() => {
+    let active = true;
+
+    const targetKeys = Array.from(
+      new Set(
+        notifications
+          .map((notification) => getFeedbackKey(notification))
+          .filter(Boolean)
+      )
+    );
+
+    const missingKeys = targetKeys.filter((key) => !(key in reviewFeedbackByKey));
+    if (missingKeys.length === 0) return () => { active = false; };
+
+    const fetchFeedback = async () => {
+      const nextMap = {};
+
+      await Promise.all(
+        missingKeys.map(async (key) => {
+          try {
+            const [entityType, entityIdRaw] = key.split(':');
+            const entityId = Number(entityIdRaw);
+            if (!entityType || !Number.isFinite(entityId) || entityId <= 0) {
+              nextMap[key] = null;
+              return;
+            }
+
+            const res = await approvalService.getHistory(entityType, entityId);
+            const payload = res?.data || res || [];
+            const records = Array.isArray(payload) ? payload : payload.content || [];
+            const latestRecord = records[0];
+            nextMap[key] = latestRecord && String(latestRecord?.comments || '').trim()
+              ? {
+                  comments: latestRecord.comments,
+                  reviewerName: latestRecord.reviewerName,
+                }
+              : null;
+          } catch {
+            nextMap[key] = null;
+          }
+        })
+      );
+
+      if (!active) return;
+      setReviewFeedbackByKey((prev) => ({ ...prev, ...nextMap }));
+    };
+
+    fetchFeedback();
+    return () => {
+      active = false;
+    };
+  }, [notifications, reviewFeedbackByKey]);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -196,6 +266,8 @@ const AppHeader = () => {
     items.map((notification) => {
       const id = notification.notificationId || `${notification.type}-${notification.createdAt}`;
       const isActionLoading = activeNotificationId === notification.notificationId;
+      const feedbackKey = getFeedbackKey(notification);
+      const feedback = feedbackKey ? reviewFeedbackByKey[feedbackKey] : null;
       return (
         <button
           key={id}
@@ -221,6 +293,14 @@ const AppHeader = () => {
           <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
             {notification?.message || 'Không có nội dung thông báo'}
           </p>
+          {feedback?.comments ? (
+            <p className="mt-1 text-xs text-foreground leading-relaxed line-clamp-2">
+              <span className="font-medium">
+                Phản hồi reviewer{feedback?.reviewerName ? ` (${feedback.reviewerName})` : ''}:
+              </span>{' '}
+              {feedback.comments}
+            </p>
+          ) : null}
           <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium">
             <span className="px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
               {getNotificationTypeLabel(notification?.type)}
