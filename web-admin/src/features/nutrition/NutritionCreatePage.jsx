@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   rationCode: '',
@@ -31,7 +32,7 @@ const NutritionCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -71,7 +72,7 @@ const NutritionCreatePage = () => {
           specialNotes: detail.specialNotes || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết khẩu phần');
+        toast.error(error, { title: 'Không tải được chi tiết khẩu phần' });
         navigate('/nutrition');
       } finally {
         setLoadingDetail(false);
@@ -107,7 +108,7 @@ const NutritionCreatePage = () => {
       toast.success('Đã lưu nháp khẩu phần');
       navigate('/nutrition');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp khẩu phần');
+      toast.error(error, { title: 'Không thể lưu nháp khẩu phần' });
     } finally {
       setSavingDraft(false);
     }
@@ -123,7 +124,7 @@ const NutritionCreatePage = () => {
       toast.success('Đã gửi duyệt khẩu phần');
       navigate('/nutrition');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt khẩu phần');
+      toast.error(error, { title: 'Không thể gửi duyệt khẩu phần' });
     } finally {
       setSaving(false);
     }
@@ -145,7 +146,7 @@ const NutritionCreatePage = () => {
       toast.success('Đã xuất bản khẩu phần');
       navigate('/nutrition');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản khẩu phần');
+      toast.error(error, { title: 'Không thể xuất bản khẩu phần' });
     } finally {
       setPublishing(false);
     }
@@ -161,7 +162,7 @@ const NutritionCreatePage = () => {
       onCancel={() => navigate('/nutrition')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {
@@ -170,7 +171,7 @@ const NutritionCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

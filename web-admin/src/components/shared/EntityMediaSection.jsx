@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image as ImageIcon, Video, Upload, EyeOff, Loader2, Eye } from 'lucide-react';
+import { Image as ImageIcon, Video, Upload, Loader2, X } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../ui/Toast';
+import { ConfirmDialog } from '../ui/FormComponents';
 
 const MAX_MEDIA_FILES = 10;
 
@@ -35,6 +36,10 @@ const EntityMediaSection = ({
   const [dragging, setDragging] = useState(false);
   const [mediaFiles, setMediaFiles] = useState([]);
   const [failedPreviews, setFailedPreviews] = useState({});
+  const [activeMediaPreview, setActiveMediaPreview] = useState(null);
+  const [previewLoadFailed, setPreviewLoadFailed] = useState(false);
+  const [deleteMediaId, setDeleteMediaId] = useState(null);
+  const [deletingMedia, setDeletingMedia] = useState(false);
 
   const previewItems = useMemo(
     () =>
@@ -96,7 +101,7 @@ const EntityMediaSection = ({
     }
 
     if (mediaFiles.length + files.length > maxFiles) {
-      toast.error(`Tối đa ${maxFiles} file media`);
+      toast.error(`Tối đa ${maxFiles} tệp đa phương tiện`);
       return;
     }
 
@@ -104,7 +109,7 @@ const EntityMediaSection = ({
     try {
       const resolvedEntityId = await ensureEntityId();
       if (!resolvedEntityId) {
-        toast.error('Cần lưu dữ liệu trước khi upload media');
+        toast.error('Cần lưu dữ liệu trước khi tải tệp đa phương tiện');
         return;
       }
 
@@ -116,29 +121,54 @@ const EntityMediaSection = ({
         await api.post('/media/upload', formData);
       }
 
-      toast.success('Upload media thành công');
+      toast.success('Tải tệp đa phương tiện thành công');
       await fetchMedia(resolvedEntityId);
     } catch (error) {
       console.error('Upload media error:', error);
-      toast.error(error?.message || 'Không thể upload media');
+      toast.error(error, { title: 'Không thể tải tệp đa phương tiện' });
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (mediaId) => {
-    if (disabled || !mediaId) return;
-    if (!window.confirm('Bạn có chắc muốn ẩn media này?')) return;
-
+  const handleDelete = async () => {
+    if (disabled || !deleteMediaId) return;
+    setDeletingMedia(true);
     try {
-      await api.delete(`/media/${mediaId}`);
-      setMediaFiles((prev) => prev.filter((item) => item.mediaId !== mediaId));
-      toast.success('Đã ẩn media');
+      await api.delete(`/media/${deleteMediaId}`);
+      setMediaFiles((prev) => prev.filter((item) => item.mediaId !== deleteMediaId));
+      toast.success('Đã xóa tệp đa phương tiện');
     } catch (error) {
       console.error('Delete media error:', error);
-      toast.error(error?.message || 'Không thể ẩn media');
+      toast.error(error, { title: 'Không thể xóa tệp đa phương tiện' });
+    } finally {
+      setDeletingMedia(false);
+      setDeleteMediaId(null);
     }
   };
+
+  const openMediaPreview = ({ media, mediaKey, previewUrl, isVideo }) => {
+    if (!previewUrl) return;
+    setPreviewLoadFailed(false);
+    setActiveMediaPreview({
+      mediaId: media?.mediaId || null,
+      mediaKey,
+      name: media?.fileName || media?.filename || 'Media',
+      isVideo,
+      previewUrl,
+    });
+  };
+
+  const closeMediaPreview = () => {
+    setActiveMediaPreview(null);
+    setPreviewLoadFailed(false);
+  };
+
+  useEffect(() => {
+    if (!activeMediaPreview) return;
+    const stillExists = previewItems.some((item) => item.mediaKey === activeMediaPreview.mediaKey);
+    if (!stillExists) closeMediaPreview();
+  }, [previewItems, activeMediaPreview]);
 
   return (
     <div className="mt-6 rounded-xl border border-border/60 bg-card p-4">
@@ -178,7 +208,8 @@ const EntityMediaSection = ({
         ) : (
           <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
         )}
-        <p className="text-sm text-foreground">Kéo thả hoặc bấm để chọn file</p>
+        <p className="text-sm text-foreground">Kéo thả file vào đây hoặc nhấp để chọn</p>
+        <p className="mt-1 text-xs text-muted-foreground">Hỗ trợ ảnh và video. Tối đa {maxFiles} file.</p>
       </div>
 
       <input
@@ -194,7 +225,7 @@ const EntityMediaSection = ({
         disabled={disabled}
       />
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3">
         {listLoading ? (
           <div className="flex items-center justify-center rounded-lg border border-border/60 py-5">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -204,14 +235,20 @@ const EntityMediaSection = ({
             Chưa có media
           </div>
         ) : (
-          previewItems.map(({ media, mediaKey, previewUrl, isVideo }) => {
-            const previewFailed = failedPreviews[mediaKey];
-            const canPreview = Boolean(previewUrl) && !previewFailed;
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {previewItems.map(({ media, mediaKey, previewUrl, isVideo }) => {
+              const previewFailed = failedPreviews[mediaKey];
+              const canPreview = Boolean(previewUrl) && !previewFailed;
 
-            return (
-              <div key={mediaKey} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2">
-                <div className="min-w-0 flex items-center gap-2">
-                  <div className="h-14 w-14 overflow-hidden rounded-md border border-border/60 bg-muted/20">
+              return (
+                <div key={mediaKey} className="group relative rounded-xl border border-border/60 bg-background overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => openMediaPreview({ media, mediaKey, previewUrl, isVideo })}
+                    disabled={!canPreview}
+                    title={canPreview ? 'Xem chi tiết media' : 'Không xem trước được'}
+                    className={`block w-full aspect-square overflow-hidden ${canPreview ? 'cursor-zoom-in' : 'cursor-not-allowed opacity-70'}`}
+                  >
                     {canPreview && isVideo ? (
                       <video
                         src={previewUrl}
@@ -229,43 +266,87 @@ const EntityMediaSection = ({
                         onError={() => setFailedPreviews((prev) => ({ ...prev, [mediaKey]: true }))}
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        {isVideo ? <Video className="h-4 w-4 text-muted-foreground" /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />}
+                      <div className="flex h-full w-full items-center justify-center bg-muted/20">
+                        {isVideo ? (
+                          <Video className="h-6 w-6 text-muted-foreground" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                        )}
                       </div>
                     )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-foreground">{media.fileName || media.filename || '-'}</p>
-                    <p className="text-xs text-muted-foreground">{media.mediaType || '-'}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {previewUrl && (
-                    <a
-                      href={previewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors"
-                      title="Xem media"
-                    >
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors"
-                    title="Ẩn media"
-                    onClick={() => handleDelete(media.mediaId)}
-                    disabled={disabled}
-                  >
-                    <EyeOff className="h-4 w-4 text-destructive" />
                   </button>
+
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDeleteMediaId(media.mediaId);
+                      }}
+                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300 transition-colors inline-flex items-center justify-center"
+                      title="Xóa media"
+                      disabled={!media.mediaId}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
+
+      {activeMediaPreview && (
+        <div className="fixed inset-0 z-50 bg-black/75 p-4 md:p-8" onClick={closeMediaPreview}>
+          <div
+            className="mx-auto flex h-full w-full max-w-5xl flex-col rounded-xl bg-card p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="min-w-0 truncate text-sm font-medium text-foreground">{activeMediaPreview.name}</p>
+              <button
+                type="button"
+                onClick={closeMediaPreview}
+                className="h-8 w-8 rounded-full bg-red-500 text-white hover:bg-red-600 dark:bg-red-400 dark:text-red-950 dark:hover:bg-red-300 transition-colors inline-flex items-center justify-center"
+                title="Đóng"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-background">
+              {previewLoadFailed ? (
+                <p className="text-sm text-muted-foreground px-4 text-center">Không tải được xem trước media.</p>
+              ) : activeMediaPreview.isVideo ? (
+                <video
+                  src={activeMediaPreview.previewUrl}
+                  controls
+                  autoPlay
+                  className="max-h-full max-w-full"
+                  onError={() => setPreviewLoadFailed(true)}
+                />
+              ) : (
+                <img
+                  src={activeMediaPreview.previewUrl}
+                  alt={activeMediaPreview.name}
+                  className="max-h-full max-w-full object-contain"
+                  onError={() => setPreviewLoadFailed(true)}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!deleteMediaId}
+        onClose={() => setDeleteMediaId(null)}
+        title="Xóa media"
+        description="Bạn có chắc chắn muốn xóa media này không?"
+        onConfirm={handleDelete}
+        confirmLabel="Xóa"
+        loading={deletingMedia}
+      />
     </div>
   );
 };

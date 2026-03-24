@@ -36,7 +36,7 @@ const ImportDataPage = () => {
       }
     } catch (error) {
       console.error('Fetch import templates error:', error);
-      toast.error(error?.message || 'Không tải được danh sách template import');
+      toast.error(error, { title: 'Không tải được danh sách mẫu nhập dữ liệu' });
       setTemplates([]);
     } finally {
       setLoadingTemplates(false);
@@ -56,7 +56,7 @@ const ImportDataPage = () => {
 
   const handlePreview = async () => {
     if (!entityType || !file) {
-      toast.error('Vui lòng chọn loại dữ liệu và file import');
+      toast.error('Vui lòng chọn loại dữ liệu và tệp nhập');
       return;
     }
 
@@ -67,13 +67,13 @@ const ImportDataPage = () => {
       setPreview(payload);
       const errorCount = Number(payload?.errorRows || 0);
       if (errorCount > 0) {
-        toast.warning(`Preview có ${errorCount} dòng lỗi, cần sửa trước khi import`);
+        toast.warning(`Xem trước có ${errorCount} dòng lỗi, cần sửa trước khi nhập`);
       } else {
-        toast.success('Preview thành công, bạn có thể xác nhận import');
+        toast.success('Xem trước thành công, bạn có thể xác nhận nhập dữ liệu');
       }
     } catch (error) {
       console.error('Preview import error:', error);
-      toast.error(error?.message || 'Không thể preview file import');
+      toast.error(error, { title: 'Không thể xem trước tệp nhập dữ liệu' });
       setPreview(null);
     } finally {
       setPreviewLoading(false);
@@ -82,7 +82,7 @@ const ImportDataPage = () => {
 
   const handleConfirm = async () => {
     if (!entityType || !file) {
-      toast.error('Vui lòng chọn file import');
+      toast.error('Vui lòng chọn tệp nhập dữ liệu');
       return;
     }
 
@@ -93,13 +93,13 @@ const ImportDataPage = () => {
       setPreview(payload);
       const failedRows = Number(payload?.errorRows || 0);
       if (failedRows > 0) {
-        toast.warning(`Import hoàn tất nhưng có ${failedRows} dòng lỗi`);
+        toast.warning(`Nhập dữ liệu hoàn tất nhưng có ${failedRows} dòng lỗi`);
       } else {
-        toast.success('Import dữ liệu thành công');
+        toast.success('Nhập dữ liệu thành công');
       }
     } catch (error) {
       console.error('Confirm import error:', error);
-      toast.error(error?.message || 'Không thể xác nhận import dữ liệu');
+      toast.error(error, { title: 'Không thể xác nhận nhập dữ liệu' });
     } finally {
       setConfirmLoading(false);
     }
@@ -115,10 +115,9 @@ const ImportDataPage = () => {
     <div className="animate-fade-in">
       <PageHeader
         title="Import dữ liệu"
-        description="Upload file Excel/CSV, kiểm tra preview và xác nhận nhập dữ liệu"
+        description="Upload file để nhập dữ liệu vào hệ thống"
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Quản lý nội dung' },
           { label: 'Import dữ liệu' },
         ]}
       />
@@ -203,7 +202,7 @@ const ImportDataPage = () => {
             </div>
             <div className="rounded-lg border border-border/60 bg-card p-4">
               <p className="text-xs text-muted-foreground">Dòng hợp lệ</p>
-              <p className="text-xl font-semibold text-emerald-600 mt-1">{preview.validRows ?? 0}</p>
+              <p className="text-xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1">{preview.validRows ?? 0}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-card p-4">
               <p className="text-xs text-muted-foreground">Dòng lỗi</p>
@@ -274,4 +273,3 @@ const ImportDataPage = () => {
 };
 
 export default ImportDataPage;
-

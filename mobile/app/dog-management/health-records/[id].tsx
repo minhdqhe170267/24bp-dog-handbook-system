@@ -4,11 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { assignmentService } from '../../../src/services/assignmentService';
 import { dogService } from '../../../src/services/dogService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogAssignment, DogProfile, HealthRecord } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -75,6 +77,7 @@ export default function HealthRecordDetailScreen() {
     const [dog, setDog] = useState<DogProfile | null>(null);
     const [assignment, setAssignment] = useState<DogAssignment | null>(null);
     const [loading, setLoading] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -82,6 +85,11 @@ export default function HealthRecordDetailScreen() {
         const loadData = async () => {
             try {
                 const detail = await healthRecordService.getById(id);
+                const hasAccess = await trainerDogScopeService.hasAccessToDog(detail.dogId, true);
+                if (!hasAccess) {
+                    setAccessDenied(true);
+                    return;
+                }
                 const [relatedDog, relatedAssignments] = detail.dogId
                     ? await Promise.all([dogService.getById(detail.dogId), assignmentService.getByDog(detail.dogId)])
                     : [null, []];
@@ -98,6 +106,11 @@ export default function HealthRecordDetailScreen() {
                     return;
                 }
                 const fallbackRecord = fallbackHealthRecords.find((item) => String(item.recordId) === String(id)) || fallbackHealthRecords[0];
+                const hasAccess = await trainerDogScopeService.hasAccessToDog(fallbackRecord.dogId, true);
+                if (!hasAccess) {
+                    setAccessDenied(true);
+                    return;
+                }
                 setRecord(fallbackRecord);
                 setDog(fallbackDogs.find((item) => item.dogId === fallbackRecord.dogId) || fallbackDogs[0]);
                 setAssignment(
@@ -127,6 +140,20 @@ export default function HealthRecordDetailScreen() {
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
+            </ScreenWrapper>
+        );
+    }
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể mở hồ sơ khám này"
+                    description="Hồ sơ khám đang chọn thuộc về chó ngoài phạm vi được phân công cho bạn."
+                    onPrimaryPress={() => router.replace('/dog-management/health-records' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
             </ScreenWrapper>
         );
     }

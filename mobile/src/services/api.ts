@@ -16,7 +16,20 @@ export interface PageResponse<T> {
     totalPages: number;
 }
 
+export interface ApiError {
+    status?: number;
+    data?: unknown;
+    message: string;
+    errorCode?: string;
+}
+
 export const unwrapApiData = <T>(response: ApiResponse<T>): T => response.data;
+
+export const isUnauthorizedError = (error: unknown): error is ApiError =>
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as ApiError).status === 401;
 
 const apiClient = axios.create({
     baseURL: API_CONFIG.BASE_URL,
@@ -28,12 +41,31 @@ const apiClient = axios.create({
 
 // Token management (in-memory)
 let authToken: string | null = null;
+let unauthorizedCleanupPromise: Promise<void> | null = null;
 
 export const setToken = (token: string | null) => {
     authToken = token;
 };
 
 export const getToken = () => authToken;
+
+const clearExpiredSession = async (): Promise<void> => {
+    if (!unauthorizedCleanupPromise) {
+        unauthorizedCleanupPromise = (async () => {
+            try {
+                const { clearStoredSession } = await import('../stores/authStore');
+                await clearStoredSession();
+            } catch (cleanupError) {
+                console.warn('[AUTH] Failed to clear expired session', cleanupError);
+                setToken(null);
+            } finally {
+                unauthorizedCleanupPromise = null;
+            }
+        })();
+    }
+
+    await unauthorizedCleanupPromise;
+};
 
 // Request interceptor: attach token to every request
 // Prefers in-memory token (fast), falls back to SecureStore (persisted)
@@ -66,19 +98,23 @@ apiClient.interceptors.response.use(
         // Server wraps response in ApiResponse { success, message, data }.
         return response.data;
     },
-    (error) => {
+    async (error) => {
         if (error.response?.status === 401) {
-            setToken(null);
+            await clearExpiredSession();
         }
-        return Promise.reject({
+
+        const normalizedError: ApiError = {
             status: error.response?.status,
             data: error.response?.data,
+            errorCode: error.response?.data?.errorCode,
             message:
                 (typeof error.response?.data === 'string' && error.response.data) ||
                 error.response?.data?.message ||
                 error.message ||
                 'Request failed',
-        });
+        };
+
+        return Promise.reject(normalizedError);
     }
 );
 

@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   roadmapName: '',
@@ -35,7 +36,7 @@ const RoadmapsCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -83,7 +84,7 @@ const RoadmapsCreatePage = () => {
           assessmentCriteria: detail.assessmentCriteria || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết lộ trình');
+        toast.error(error, { title: 'Không tải được chi tiết lộ trình' });
         navigate('/training/roadmaps');
       } finally {
         setLoadingDetail(false);
@@ -117,7 +118,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã lưu nháp lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp lộ trình');
+      toast.error(error, { title: 'Không thể lưu nháp lộ trình' });
     } finally {
       setSavingDraft(false);
     }
@@ -133,7 +134,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã gửi duyệt lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt lộ trình');
+      toast.error(error, { title: 'Không thể gửi duyệt lộ trình' });
     } finally {
       setSaving(false);
     }
@@ -154,7 +155,7 @@ const RoadmapsCreatePage = () => {
       toast.success('Đã xuất bản lộ trình');
       navigate('/training/roadmaps');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản lộ trình');
+      toast.error(error, { title: 'Không thể xuất bản lộ trình' });
     } finally {
       setPublishing(false);
     }
@@ -170,7 +171,7 @@ const RoadmapsCreatePage = () => {
       onCancel={() => navigate('/training/roadmaps')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {
@@ -179,7 +180,7 @@ const RoadmapsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

@@ -18,6 +18,7 @@ import vn.edu.fpt.doghandbook.backend.dto.request.ContentRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.ContentResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.UnifiedContentResponse;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
@@ -46,6 +47,21 @@ public class ContentController {
                 ? ContentStatus.PUBLISHED.name()
                 : status;
         return ApiResponse.success(contentService.getAll(page, size, search, effectiveType, effectiveStatus));
+    }
+
+    @GetMapping("/unified")
+    public ApiResponse<PageResponse<UnifiedContentResponse>> getAllUnified(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "entityType", required = false) String entityType,
+            @RequestParam(value = "status", required = false) String status,
+            Authentication authentication
+    ) {
+        String effectiveStatus = AuthenticationUtils.hasRole(authentication, UserRole.TRAINER)
+                ? ContentStatus.PUBLISHED.name()
+                : status;
+        return ApiResponse.success(contentService.getAllUnified(page, size, search, entityType, effectiveStatus));
     }
 
     @GetMapping("/{id}")

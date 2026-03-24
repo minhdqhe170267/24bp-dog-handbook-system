@@ -140,24 +140,6 @@ const FormSelect = ({
 
             {open && !disabled && (
                 <div className="absolute top-full left-0 mt-1 z-50 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-card shadow-elevated py-1">
-                    {placeholder && (
-                        <button
-                            type="button"
-                            className={cn(
-                                'w-full px-3 py-2 text-sm text-left transition-colors flex items-center gap-2',
-                                normalizedValue === '' ? 'text-accent bg-accent/5' : 'text-muted-foreground hover:bg-muted/50'
-                            )}
-                            onClick={() => {
-                                emitChange('');
-                                setOpen(false);
-                            }}
-                        >
-                            <span className={cn('h-4 w-4 flex items-center justify-center', normalizedValue !== '' && 'invisible')}>
-                                <Check className="h-3.5 w-3.5 text-accent" />
-                            </span>
-                            <span className="truncate">{placeholder}</span>
-                        </button>
-                    )}
                     {options.map((opt) => {
                         const optionValue = opt.value ?? '';
                         const isSelected = String(optionValue) === String(normalizedValue);
@@ -222,6 +204,8 @@ const Button = ({ children, variant = 'primary', size = 'md', loading, className
     const variants = {
         primary: 'bg-accent text-accent-foreground hover:bg-accent/90 shadow-none',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        success: 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 shadow-none',
+        muted: 'bg-muted text-foreground hover:bg-muted/80',
         outline: 'border border-border bg-card text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
         ghost: 'bg-transparent text-foreground hover:bg-muted',

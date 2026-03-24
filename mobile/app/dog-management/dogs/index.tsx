@@ -15,12 +15,12 @@ import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { dogService } from '../../../src/services/dogService';
-import { DogProfile } from '../../../src/types/dogManagement';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
+import { DogAssignment, DogProfile } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
     dogManagementUi,
-    fallbackDogs,
+    getAssignmentTypeMeta,
     getDogStatusMeta,
     pickDogBackupImage,
     resolveDogImageUrl,
@@ -40,14 +40,18 @@ const formatAge = (ageMonths?: number | null) => {
     if (!ageMonths) {
         return 'Chưa cập nhật tuổi';
     }
+
     const years = Math.floor(ageMonths / 12);
     const months = ageMonths % 12;
+
     if (!years) {
         return `${months} tháng`;
     }
+
     if (!months) {
         return `${years} năm`;
     }
+
     return `${years} năm ${months} tháng`;
 };
 
@@ -56,6 +60,7 @@ export default function DogListScreen() {
     const { colors, isDark } = useThemeStore();
 
     const [dogs, setDogs] = useState<DogProfile[]>([]);
+    const [assignmentMap, setAssignmentMap] = useState<Map<number, DogAssignment>>(new Map());
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
     const [loading, setLoading] = useState(true);
@@ -64,12 +69,13 @@ export default function DogListScreen() {
 
     const loadDogs = useCallback(async () => {
         try {
-            const response = await dogService.getAll(0, 60);
-            const list = response.content || [];
-            setDogs(list.length > 0 ? list : fallbackDogs);
+            const scope = await trainerDogScopeService.getScope(true);
+            setDogs(scope.dogs);
+            setAssignmentMap(new Map(scope.assignmentMap));
             setImageFailedMap({});
         } catch {
-            setDogs(fallbackDogs);
+            setDogs([]);
+            setAssignmentMap(new Map());
             setImageFailedMap({});
         } finally {
             setLoading(false);
@@ -83,6 +89,7 @@ export default function DogListScreen() {
 
     const filteredDogs = useMemo(() => {
         const term = search.trim().toLowerCase();
+
         return dogs.filter((dog) => {
             const matchesFilter = statusFilter === 'ALL' ? true : (dog.status || '').toUpperCase() === statusFilter;
             const matchesSearch =
@@ -90,6 +97,7 @@ export default function DogListScreen() {
                 (dog.dogName || '').toLowerCase().includes(term) ||
                 (dog.dogCode || '').toLowerCase().includes(term) ||
                 (dog.breedName || '').toLowerCase().includes(term);
+
             return matchesFilter && matchesSearch;
         });
     }, [dogs, search, statusFilter]);
@@ -103,16 +111,24 @@ export default function DogListScreen() {
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                     Danh sách chó
                 </Text>
-                <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
-                    <Ionicons name="options-outline" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
-                </TouchableOpacity>
+                <View style={styles.iconButton}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                </View>
             </View>
 
             <Text style={[styles.pageSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                Tra cứu hồ sơ chó nghiệp vụ theo tên, mã hoặc trạng thái hoạt động.
+                Chỉ hiển thị hồ sơ của những chó đang được giao cho bạn phụ trách.
             </Text>
 
-            <View style={[styles.searchBar, { backgroundColor: isDark ? colors.surface : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border }]}>
+            <View
+                style={[
+                    styles.searchBar,
+                    {
+                        backgroundColor: isDark ? colors.surface : '#F8FBF9',
+                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                    },
+                ]}
+            >
                 <Ionicons name="search" size={16} color={isDark ? colors.textLight : dogManagementUi.textMuted} />
                 <TextInput
                     value={search}
@@ -179,15 +195,18 @@ export default function DogListScreen() {
                                 <Ionicons name="paw-outline" size={26} color={colors.primary} />
                             </View>
                             <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Không tìm thấy chó phù hợp
+                                {dogs.length === 0 ? 'Bạn chưa được phân công chó nào' : 'Không tìm thấy chó phù hợp'}
                             </Text>
                             <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Hãy thử từ khóa khác hoặc đổi bộ lọc trạng thái.
+                                {dogs.length === 0
+                                    ? 'Khi có phân công hoạt động, danh sách chó trong phạm vi của bạn sẽ xuất hiện tại đây.'
+                                    : 'Hãy thử từ khóa khác hoặc đổi bộ lọc trạng thái.'}
                             </Text>
                         </View>
                     }
                     renderItem={({ item }) => {
                         const statusMeta = getDogStatusMeta(item.status);
+                        const assignmentMeta = getAssignmentTypeMeta(assignmentMap.get(item.dogId)?.assignmentType);
                         const dogKey = `${item.dogId}-${item.dogCode || item.dogName || 'dog'}`;
                         const imageSource = imageFailedMap[dogKey]
                             ? pickDogBackupImage(dogKey)
@@ -197,7 +216,13 @@ export default function DogListScreen() {
                             <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => router.push(`/dog-management/dogs/${item.dogId}` as any)}
-                                style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}
+                                style={[
+                                    styles.card,
+                                    {
+                                        backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                                    },
+                                ]}
                             >
                                 <View style={styles.avatarWrap}>
                                     <Image
@@ -233,21 +258,21 @@ export default function DogListScreen() {
                                     <View style={styles.metaRow}>
                                         <View style={styles.metaPill}>
                                             <Ionicons name="time-outline" size={12} color="#5F7669" />
-                                            <Text style={[styles.metaPillText, { fontFamily: dogManagementFonts.medium }]}>
-                                                {formatAge(item.ageMonths)}
-                                            </Text>
+                                            <Text style={[styles.metaPillText, { fontFamily: dogManagementFonts.medium }]}>{formatAge(item.ageMonths)}</Text>
                                         </View>
                                         <View style={styles.metaPill}>
                                             <Ionicons name="barbell-outline" size={12} color="#5F7669" />
-                                            <Text style={[styles.metaPillText, { fontFamily: dogManagementFonts.medium }]}>
-                                                {stringifyWeight(item.currentWeightKg)}
+                                            <Text style={[styles.metaPillText, { fontFamily: dogManagementFonts.medium }]}>{stringifyWeight(item.currentWeightKg)}</Text>
+                                        </View>
+                                        <View style={[styles.metaPill, { backgroundColor: assignmentMeta.bg }]}>
+                                            <Ionicons name="shield-checkmark-outline" size={12} color={assignmentMeta.text} />
+                                            <Text style={[styles.metaPillText, { color: assignmentMeta.text, fontFamily: dogManagementFonts.bold }]}>
+                                                {assignmentMeta.label}
                                             </Text>
                                         </View>
                                     </View>
 
-                                    <Text style={[styles.viewText, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
-                                        Xem chi tiết
-                                    </Text>
+                                    <Text style={[styles.viewText, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>Xem chi tiết</Text>
                                 </View>
                             </TouchableOpacity>
                         );

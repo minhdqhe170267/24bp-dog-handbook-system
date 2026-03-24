@@ -9,14 +9,14 @@ import java.util.Map;
 
 public interface ApprovalService {
 
-    void submitForReview(ApprovableEntityType entityType, Integer entityId);
+    void submitForReview(ApprovableEntityType entityType, Integer entityId, Integer senderId);
 
     ApprovalRecordResponse review(ApprovableEntityType entityType, Integer entityId,
                                   ApprovalRequest request, Integer reviewerId);
 
-    void publish(ApprovableEntityType entityType, Integer entityId);
+    void publish(ApprovableEntityType entityType, Integer entityId, Integer senderId);
 
-    void unpublish(ApprovableEntityType entityType, Integer entityId);
+    void unpublish(ApprovableEntityType entityType, Integer entityId, Integer senderId);
 
     List<ApprovalRecordResponse> getApprovalHistory(ApprovableEntityType entityType, Integer entityId);
 

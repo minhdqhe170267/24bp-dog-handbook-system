@@ -10,9 +10,11 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { healthSessionService } from '../../../src/services/healthSessionService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { HealthSession } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -36,6 +38,7 @@ export default function HealthSessionDetailScreen() {
 
     const [session, setSession] = useState<HealthSession | null>(null);
     const [loading, setLoading] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const sessionId = id;
 
@@ -44,9 +47,22 @@ export default function HealthSessionDetailScreen() {
             const loadData = async () => {
                 try {
                     const detail = await healthSessionService.getById(sessionId);
+                    setAccessDenied(false);
                     setSession(detail);
-                } catch {
-                    setSession(findFallbackHealthSession(sessionId) || fallbackHealthSessions[0] || null);
+                } catch (error) {
+                    if (trainerDogScopeService.isAccessDeniedError(error)) {
+                        setAccessDenied(true);
+                        setSession(null);
+                    } else {
+                        const fallbackSession = findFallbackHealthSession(sessionId) || fallbackHealthSessions[0] || null;
+                        if (fallbackSession && (await trainerDogScopeService.hasAccessToDog(fallbackSession.dogId, true))) {
+                            setAccessDenied(false);
+                            setSession(fallbackSession);
+                        } else {
+                            setAccessDenied(true);
+                            setSession(null);
+                        }
+                    }
                 } finally {
                     setLoading(false);
                 }
@@ -67,6 +83,20 @@ export default function HealthSessionDetailScreen() {
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
+            </ScreenWrapper>
+        );
+    }
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Khong the mo phien theo doi nay"
+                    description="Ban chi duoc xem chi tiet phien theo doi cua nhung cho dang nam trong pham vi phan cong hien tai."
+                    onPrimaryPress={() => router.replace('/dog-management/health-sessions' as any)}
+                    secondaryLabel="Quay lai"
+                    onSecondaryPress={() => router.back()}
+                />
             </ScreenWrapper>
         );
     }

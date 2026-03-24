@@ -12,10 +12,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { fieldNoteService } from '../../../src/services/fieldNoteService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { FieldNote } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -35,6 +37,7 @@ export default function FieldNoteDetailScreen() {
 
     const [note, setNote] = useState<FieldNote | null>(null);
     const [loading, setLoading] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const resolvedNoteId = id;
     const fallbackNoteId = id && Number.isFinite(Number(id)) ? Number(id) : null;
@@ -43,9 +46,28 @@ export default function FieldNoteDetailScreen() {
         const loadData = async () => {
             try {
                 const detail = await fieldNoteService.getById(resolvedNoteId);
+                setAccessDenied(false);
                 setNote(detail);
-            } catch {
-                setNote((fallbackNoteId ? findFallbackFieldNote(fallbackNoteId) : null) || fallbackFieldNotes[0] || null);
+            } catch (error) {
+                if (trainerDogScopeService.isAccessDeniedError(error)) {
+                    setAccessDenied(true);
+                    setNote(null);
+                } else {
+                    const fallbackNote = (fallbackNoteId ? findFallbackFieldNote(fallbackNoteId) : null) || fallbackFieldNotes[0] || null;
+                    if (
+                        fallbackNote &&
+                        (await trainerDogScopeService.canAccessDogScopedOwnedItem(
+                            { dogId: fallbackNote.dogId ?? null, ownerId: fallbackNote.ownerId ?? null },
+                            true,
+                        ))
+                    ) {
+                        setAccessDenied(false);
+                        setNote(fallbackNote);
+                    } else {
+                        setAccessDenied(true);
+                        setNote(null);
+                    }
+                }
             } finally {
                 setLoading(false);
             }
@@ -63,19 +85,25 @@ export default function FieldNoteDetailScreen() {
             return;
         }
 
-        Alert.alert('Xóa ghi chú', 'Bạn có chắc muốn xóa ghi chú này không?', [
-            { text: 'Hủy', style: 'cancel' },
+        Alert.alert('Xoa ghi chu', 'Ban co chac muon xoa ghi chu nay khong?', [
+            { text: 'Huy', style: 'cancel' },
             {
-                text: 'Xóa',
+                text: 'Xoa',
                 style: 'destructive',
                 onPress: async () => {
                     try {
                         await fieldNoteService.delete(note.noteId);
                         router.replace('/dog-management/field-notes' as any);
-                    } catch {
-                        Alert.alert('Đã xóa ở giao diện mẫu', 'Ghi chú đã được loại khỏi luồng frontend.', [
-                            { text: 'Tiếp tục', onPress: () => router.replace('/dog-management/field-notes' as any) },
-                        ]);
+                    } catch (error) {
+                        if (trainerDogScopeService.isAccessDeniedError(error)) {
+                            Alert.alert('Khong duoc phep', 'Ban khong the xoa ghi chu ngoai pham vi phan cong.');
+                        } else {
+                            Alert.alert(
+                                'Da xoa o giao dien mau',
+                                'Ghi chu da duoc loai khoi luong frontend.',
+                                [{ text: 'Tiep tuc', onPress: () => router.replace('/dog-management/field-notes' as any) }],
+                            );
+                        }
                     }
                 },
             },
@@ -92,13 +120,27 @@ export default function FieldNoteDetailScreen() {
         );
     }
 
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Khong the mo ghi chu nay"
+                    description="Ban chi duoc xem va thao tac voi ghi chu cua minh hoac ghi chu gan voi nhung cho dang duoc phan cong."
+                    onPrimaryPress={() => router.replace('/dog-management/field-notes' as any)}
+                    secondaryLabel="Quay lai"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
     if (!note) {
         return (
             <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <View style={styles.centered}>
                     <Ionicons name="document-text-outline" size={32} color={colors.primary} />
                     <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Không tìm thấy ghi chú
+                        Khong tim thay ghi chu
                     </Text>
                 </View>
             </ScreenWrapper>
@@ -116,10 +158,14 @@ export default function FieldNoteDetailScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Chi tiết ghi chú
+                    Chi tiet ghi chu
                 </Text>
                 <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.iconButton} activeOpacity={0.85} onPress={() => Alert.alert('Chia sẻ', 'Tính năng chia sẻ sẽ được nối ở bước tiếp theo.')}>
+                    <TouchableOpacity
+                        style={styles.iconButton}
+                        activeOpacity={0.85}
+                        onPress={() => Alert.alert('Chia se', 'Tinh nang chia se se duoc noi o buoc tiep theo.')}
+                    >
                         <Ionicons name="share-social-outline" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
@@ -140,20 +186,20 @@ export default function FieldNoteDetailScreen() {
 
                 <View style={styles.metaSection}>
                     <Text style={[styles.unitMeta, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        {note.unitName || 'Đơn vị K9'}
+                        {note.unitName || 'Don vi K9'}
                     </Text>
                     <Text style={[styles.noteTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         {note.title}
                     </Text>
                     <View style={styles.metaRow}>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                            {note.dogName || 'Không gắn chó'}
+                            {note.dogName || 'Khong gan cho'}
                         </Text>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
                             {formatDateTime(note.recordedAt)}
                         </Text>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                            {note.location || 'Chưa rõ vị trí'}
+                            {note.location || 'Chua ro vi tri'}
                         </Text>
                     </View>
                 </View>
@@ -167,10 +213,10 @@ export default function FieldNoteDetailScreen() {
 
                 <View style={styles.galleryHeader}>
                     <Text style={[styles.galleryTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Thư viện ảnh ({media.length})
+                        Thu vien anh ({media.length})
                     </Text>
                     <Text style={[styles.galleryLink, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
-                        Xem tất cả
+                        Xem tat ca
                     </Text>
                 </View>
 
@@ -192,11 +238,11 @@ export default function FieldNoteDetailScreen() {
                 <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
                     <TouchableOpacity activeOpacity={0.88} style={[styles.secondaryButton, { backgroundColor: '#EFF3F0' }]} onPress={removeNote}>
                         <Ionicons name="trash-outline" size={18} color={dogManagementUi.textNormal} />
-                        <Text style={[styles.secondaryButtonText, { color: dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>Xóa</Text>
+                        <Text style={[styles.secondaryButtonText, { color: dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>Xoa</Text>
                     </TouchableOpacity>
                     <TouchableOpacity activeOpacity={0.9} style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push(`/dog-management/field-notes/form?noteId=${String(note.noteId)}` as any)}>
                         <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Chỉnh sửa</Text>
+                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Chinh sua</Text>
                     </TouchableOpacity>
                 </View>
             ) : null}

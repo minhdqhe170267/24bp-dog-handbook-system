@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Plus, EyeOff } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
@@ -67,35 +67,44 @@ const DogAssignmentsPage = () => {
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10 });
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const getSortableTime = (row) => {
+    const value = row?.updatedAt || row?.createdAt || null;
+    const time = new Date(value || 0).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  };
+
   const normalizeRows = (rows) =>
-    rows
+    [...rows]
+      .sort((left, right) => {
+        const timeDiff = getSortableTime(right) - getSortableTime(left);
+        if (timeDiff !== 0) return timeDiff;
+        const rightId = Number(right?.assignmentId || 0);
+        const leftId = Number(left?.assignmentId || 0);
+        return rightId - leftId;
+      })
       .filter((row) => row?.assignmentId != null)
       .map((row) => ({ ...row, id: row.assignmentId }));
 
   const fetchLookups = async () => {
     setLookupLoading(true);
     try {
-      const [dogsRes, usersRes] = await Promise.all([
+      const [dogsRes, trainerList] = await Promise.all([
         dogService.getAll(0, 200, ''),
-        userService.getAll(0, 200, ''),
+        userService.getAllByRole('TRAINER'),
       ]);
 
       const dogList = dogsRes.data?.content || [];
-      const userList = usersRes.data?.content || [];
-      const trainerList = userList.filter((user) => user.role === 'TRAINER');
 
       setDogs(dogList);
-      setTrainers(trainerList);
+      setTrainers(trainerList || []);
     } catch (error) {
-      toast.error('Không tải được dữ liệu danh mục cho phân công');
+      toast.error(error, { title: 'Không tải được dữ liệu danh mục cho phân công' });
     } finally {
       setLookupLoading(false);
     }
@@ -126,7 +135,7 @@ const DogAssignmentsPage = () => {
       );
       setAssignments(normalizeRows(deduped));
     } catch (error) {
-      toast.error('Lỗi tải danh sách phân công');
+      toast.error(error, { title: 'Lỗi tải danh sách phân công' });
       setAssignments([]);
     } finally {
       setLoading(false);
@@ -169,14 +178,9 @@ const DogAssignmentsPage = () => {
     navigate(`/assignments/${row.assignmentId}/edit`);
   };
 
-  const openDetail = async (row) => {
-    try {
-      const res = await dogAssignmentService.getById(row.assignmentId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error('Không tải được chi tiết phân công');
-    }
+  const openDetail = (row) => {
+    if (!row?.assignmentId) return;
+    navigate(`/details/DOG_ASSIGNMENT/${row.assignmentId}`);
   };
 
   const buildPayload = () => ({
@@ -194,8 +198,16 @@ const DogAssignmentsPage = () => {
       toast.error('Vui lòng nhập đủ thông tin bắt buộc');
       return;
     }
+    const selectedTrainer = trainers.find(
+      (trainer) => String(trainer?.userId) === String(formData.trainerId),
+    );
+    if (!selectedTrainer || String(selectedTrainer?.role || '').toUpperCase() !== 'TRAINER') {
+      toast.error('Chỉ có thể phân công cho người dùng có vai trò Huấn luyện viên');
+      return;
+    }
 
     try {
+      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogAssignmentService.update(editing.assignmentId, payload);
@@ -207,9 +219,10 @@ const DogAssignmentsPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchAssignments();
+      setPagination((prev) => ({ ...prev, page: 0 }));
+      await fetchAssignments();
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu phân công');
+      toast.error(error, { title: 'Không thể lưu phân công' });
     }
   };
 
@@ -221,7 +234,7 @@ const DogAssignmentsPage = () => {
       setDeleteTarget(null);
       fetchAssignments();
     } catch (error) {
-      toast.error(error?.message || 'Không thể hủy phân công');
+      toast.error(error, { title: 'Không thể hủy phân công' });
     }
   };
 
@@ -240,13 +253,13 @@ const DogAssignmentsPage = () => {
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${
         isActive
-          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/25'
-          : 'bg-gray-500/10 text-gray-500 border-gray-500/25'
+          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/25'
+          : 'bg-gray-500/10 text-gray-500 dark:text-gray-300 border-gray-500/25'
       }`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-          isActive ? 'bg-emerald-500' : 'bg-gray-500'
+          isActive ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-gray-500 dark:bg-gray-400'
         }`}
       />
       {isActive ? 'Đang hiệu lực' : 'Đã hủy'}
@@ -254,13 +267,13 @@ const DogAssignmentsPage = () => {
   );
 
   const columns = [
-    { key: 'dogName', header: 'Chó', render: (row) => <span className="font-medium">{row.dogName || '—'}</span> },
     { key: 'dogCode', header: 'Mã chó', className: 'w-28', render: (row) => row.dogCode || '—' },
+    { key: 'dogName', header: 'Chó', render: (row) => <span className="font-medium">{row.dogName || '—'}</span> },
     { key: 'trainerName', header: 'Huấn luyện viên', className: 'w-56', render: (row) => row.trainerName || '—' },
     {
       key: 'assignmentType',
       header: 'Loại phân công',
-      className: 'w-36',
+      className: 'w-40 whitespace-nowrap',
       render: (row) => {
         const labels = { PRIMARY: 'Chính', SECONDARY: 'Phụ', TEMPORARY: 'Tạm thời' };
         return labels[row.assignmentType] || row.assignmentType || '—';
@@ -286,7 +299,7 @@ const DogAssignmentsPage = () => {
             <Pencil className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)} title="Ngừng hiệu lực">
-            <EyeOff className="h-4 w-4 text-destructive" />
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
@@ -356,35 +369,6 @@ const DogAssignmentsPage = () => {
         onPageSizeChange={(pageSize) => setPagination({ page: 0, pageSize })}
         emptyMessage="Chưa có phân công nào"
       />
-
-      <Modal
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="Chi tiết phân công chó"
-        width={700}
-      >
-        {detailData && (
-          <div className="space-y-3">
-            {[
-              ['Mã phân công', detailData.assignmentId],
-              ['Chó', `${detailData.dogCode || '---'} - ${detailData.dogName || '—'}`],
-              ['Huấn luyện viên', `${detailData.trainerName || '—'} (${detailData.trainerUsername || '—'})`],
-              ['Loại phân công', getAssignmentTypeLabel(detailData.assignmentType)],
-              ['Ngày bắt đầu', formatDate(detailData.startDate)],
-              ['Ngày kết thúc', formatDate(detailData.endDate)],
-              ['Trạng thái', detailData.isActive ? 'Đang hiệu lực' : 'Đã hủy'],
-              ['Ngày tạo', detailData.createdAt || '—'],
-              ['Cập nhật', detailData.updatedAt || '—'],
-              ['Ghi chú', detailData.notes || '—'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-40 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground">{value || '—'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
 
       <Modal
         open={modalOpen}

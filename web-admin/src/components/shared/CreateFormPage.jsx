@@ -15,6 +15,14 @@ const resolveActionIcon = (label, explicitIcon) => {
   return matched?.icon || null;
 };
 
+const resolveActionVariant = (label, explicitVariant) => {
+  if (explicitVariant) return explicitVariant;
+  const normalized = String(label || '').trim().toLowerCase();
+  if (normalized.includes('lưu nháp')) return 'muted';
+  if (normalized.includes('xuất bản')) return 'success';
+  return 'outline';
+};
+
 const CreateFormPage = ({
   title,
   description,
@@ -24,6 +32,7 @@ const CreateFormPage = ({
   onCancel,
   saving = false,
   saveLabel = 'Tạo mới',
+  showSubmitAction = true,
   cancelLabel = 'Quay lại danh sách',
   extraActions = [],
   children,
@@ -53,7 +62,7 @@ const CreateFormPage = ({
                   onClick={action.onClick}
                   loading={Boolean(action.loading)}
                   disabled={Boolean(action.disabled)}
-                  variant={action.variant || 'outline'}
+                  variant={resolveActionVariant(action.label, action.variant)}
                   className="w-full"
                 >
                   {ActionIcon && <ActionIcon className="h-4 w-4" />}
@@ -61,10 +70,12 @@ const CreateFormPage = ({
                 </Button>
               );
             })}
-            <Button type="submit" form={formId} loading={saving} className="w-full">
-              {SubmitIcon && <SubmitIcon className="h-4 w-4" />}
-              <span>{saveLabel}</span>
-            </Button>
+            {showSubmitAction ? (
+              <Button type="submit" form={formId} loading={saving} className="w-full">
+                {SubmitIcon && <SubmitIcon className="h-4 w-4" />}
+                <span>{saveLabel}</span>
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" onClick={onCancel} className="w-full">
               {CancelIcon && <CancelIcon className="h-4 w-4" />}
               {cancelLabel}

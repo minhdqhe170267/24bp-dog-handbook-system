@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   methodName: '',
@@ -31,7 +32,7 @@ const MethodsCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -71,7 +72,7 @@ const MethodsCreatePage = () => {
           disadvantages: detail.disadvantages || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết phương pháp');
+        toast.error(error, { title: 'Không tải được chi tiết phương pháp' });
         navigate('/training/methods');
       } finally {
         setLoadingDetail(false);
@@ -105,7 +106,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã lưu nháp phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp phương pháp');
+      toast.error(error, { title: 'Không thể lưu nháp phương pháp' });
     } finally {
       setSavingDraft(false);
     }
@@ -121,7 +122,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã gửi duyệt phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt phương pháp');
+      toast.error(error, { title: 'Không thể gửi duyệt phương pháp' });
     } finally {
       setSaving(false);
     }
@@ -142,7 +143,7 @@ const MethodsCreatePage = () => {
       toast.success('Đã xuất bản phương pháp');
       navigate('/training/methods');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản phương pháp');
+      toast.error(error, { title: 'Không thể xuất bản phương pháp' });
     } finally {
       setPublishing(false);
     }
@@ -158,7 +159,7 @@ const MethodsCreatePage = () => {
       onCancel={() => navigate('/training/methods')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {
@@ -167,7 +168,7 @@ const MethodsCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

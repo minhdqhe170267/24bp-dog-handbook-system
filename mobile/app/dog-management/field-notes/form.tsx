@@ -13,15 +13,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
+import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { dogService } from '../../../src/services/dogService';
 import { fieldNoteService } from '../../../src/services/fieldNoteService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogProfile, FieldNote } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
     dogManagementUi,
-    fallbackDogs,
     findFallbackFieldNote,
     pickNoteImage,
 } from '../../../src/features/dog-management/ui';
@@ -30,6 +31,7 @@ export default function FieldNoteFormScreen() {
     const router = useRouter();
     const { dogId, noteId } = useLocalSearchParams<{ dogId?: string; noteId?: string }>();
     const { colors, isDark } = useThemeStore();
+    const { user } = useAuthStore();
 
     const [dogs, setDogs] = useState<DogProfile[]>([]);
     const [editingNote, setEditingNote] = useState<FieldNote | null>(null);
@@ -41,6 +43,7 @@ export default function FieldNoteFormScreen() {
     const [mediaUrls, setMediaUrls] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const resolvedNoteId = noteId ?? null;
     const fallbackNoteId = noteId && Number.isFinite(Number(noteId)) ? Number(noteId) : null;
@@ -48,13 +51,21 @@ export default function FieldNoteFormScreen() {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const dogResponse = await dogService.getAll(0, 40);
-                const safeDogs = dogResponse.content?.length ? dogResponse.content : fallbackDogs;
+                const scope = await trainerDogScopeService.getScope(true);
+                const safeDogs = scope.dogs;
                 setDogs(safeDogs);
 
                 if (resolvedNoteId) {
                     try {
                         const detail = await fieldNoteService.getById(resolvedNoteId);
+                        const canAccessDog = detail.dogId == null ? true : scope.assignmentMap.has(detail.dogId);
+                        const canAccessOwner = detail.dogId != null || !detail.ownerId || detail.ownerId === (user?.userId ?? 0);
+
+                        if (!canAccessDog || !canAccessOwner) {
+                            setAccessDenied(true);
+                            return;
+                        }
+
                         setEditingNote(detail);
                         setSelectedDogId(detail.dogId || null);
                         setTitle(detail.title);
@@ -62,9 +73,17 @@ export default function FieldNoteFormScreen() {
                         setLocation(detail.location || 'Hồ Chí Minh, Việt Nam');
                         setRecordedAt(detail.recordedAt ? detail.recordedAt.replace('T', ' ').slice(0, 16) : '2026-03-18 14:30');
                         setMediaUrls((detail.media || []).map((item) => item.url));
+                        setAccessDenied(false);
+                        return;
                     } catch {
                         const fallbackNote = fallbackNoteId ? findFallbackFieldNote(fallbackNoteId) : null;
                         if (fallbackNote) {
+                            const canAccessDog = fallbackNote.dogId == null ? true : scope.assignmentMap.has(fallbackNote.dogId);
+                            if (!canAccessDog) {
+                                setAccessDenied(true);
+                                return;
+                            }
+
                             setEditingNote(fallbackNote);
                             setSelectedDogId(fallbackNote.dogId || null);
                             setTitle(fallbackNote.title);
@@ -72,38 +91,42 @@ export default function FieldNoteFormScreen() {
                             setLocation(fallbackNote.location || 'Hồ Chí Minh, Việt Nam');
                             setRecordedAt(fallbackNote.recordedAt ? fallbackNote.recordedAt.replace('T', ' ').slice(0, 16) : '2026-03-18 14:30');
                             setMediaUrls((fallbackNote.media || []).map((item) => item.url));
+                            setAccessDenied(false);
+                            return;
                         }
                     }
-                } else if (safeDogs.length > 0) {
-                    setSelectedDogId((current) => current ?? safeDogs[0].dogId);
+                }
+
+                const requestedDogId = dogId ? Number(dogId) : null;
+                if (requestedDogId && !scope.assignmentMap.has(requestedDogId)) {
+                    setAccessDenied(true);
+                    setSelectedDogId(null);
+                    return;
+                }
+
+                setAccessDenied(false);
+                if (safeDogs.length > 0) {
+                    setSelectedDogId((current) => {
+                        if (requestedDogId && scope.assignmentMap.has(requestedDogId)) {
+                            return requestedDogId;
+                        }
+                        return current ?? safeDogs[0].dogId;
+                    });
                 }
             } catch {
-                setDogs(fallbackDogs);
-                if (resolvedNoteId) {
-                    const fallbackNote = fallbackNoteId ? findFallbackFieldNote(fallbackNoteId) : null;
-                    if (fallbackNote) {
-                        setEditingNote(fallbackNote);
-                        setSelectedDogId(fallbackNote.dogId || null);
-                        setTitle(fallbackNote.title);
-                        setContent(fallbackNote.content);
-                        setLocation(fallbackNote.location || 'Hồ Chí Minh, Việt Nam');
-                        setRecordedAt(fallbackNote.recordedAt ? fallbackNote.recordedAt.replace('T', ' ').slice(0, 16) : '2026-03-18 14:30');
-                        setMediaUrls((fallbackNote.media || []).map((item) => item.url));
-                    }
-                } else if (fallbackDogs.length > 0) {
-                    setSelectedDogId((current) => current ?? fallbackDogs[0].dogId);
-                }
+                setDogs([]);
+                setSelectedDogId(null);
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, [fallbackNoteId, resolvedNoteId]);
+    }, [dogId, fallbackNoteId, resolvedNoteId, user?.userId]);
 
     const selectedDog = useMemo(
-        () => dogs.find((item) => item.dogId === selectedDogId) || fallbackDogs.find((item) => item.dogId === selectedDogId) || null,
-        [dogs, selectedDogId]
+        () => dogs.find((item) => item.dogId === selectedDogId) || null,
+        [dogs, selectedDogId],
     );
 
     const addMockImage = () => {
@@ -165,6 +188,34 @@ export default function FieldNoteFormScreen() {
         );
     }
 
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể mở ghi chú này"
+                    description="Bạn chỉ có thể tạo hoặc chỉnh sửa ghi chú trong phạm vi chó được phân công cho mình."
+                    onPrimaryPress={() => router.replace('/dog-management/field-notes' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
+    if (dogs.length === 0 && !editingNote) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Chưa có chó trong phạm vi phụ trách"
+                    description="Bạn cần được phân công chó trước khi tạo ghi chú thực địa gắn với nhiệm vụ K9."
+                    onPrimaryPress={() => router.replace('/dog-management/dogs' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
             <View style={styles.headerRow}>
@@ -174,9 +225,9 @@ export default function FieldNoteFormScreen() {
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                     {editingNote ? 'Cập nhật ghi chú' : 'Ghi chú thực địa'}
                 </Text>
-                <TouchableOpacity style={styles.iconButton} activeOpacity={0.85}>
-                    <Ionicons name="ellipsis-horizontal" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
-                </TouchableOpacity>
+                <View style={styles.iconButton}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

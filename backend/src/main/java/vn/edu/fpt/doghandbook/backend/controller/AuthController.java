@@ -11,7 +11,6 @@ import vn.edu.fpt.doghandbook.backend.dto.request.LoginRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.LoginResponse;
 import vn.edu.fpt.doghandbook.backend.entity.User;
-import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.service.AuthService;
 
 @RestController
@@ -24,13 +23,9 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<?> login(@Valid @RequestBody LoginRequest request,
                                 HttpServletRequest httpRequest) {
-        try {
-            String ipAddress = getClientIp(httpRequest);
-            LoginResponse loginResponse = authService.login(request, ipAddress);
-            return ApiResponse.success(loginResponse, "Đăng nhập thành công");
-        } catch (BadRequestException e) {
-            return ApiResponse.error(e.getMessage());
-        }
+        String ipAddress = getClientIp(httpRequest);
+        LoginResponse loginResponse = authService.login(request, ipAddress);
+        return ApiResponse.success(loginResponse, "Đăng nhập thành công");
     }
 
     @GetMapping("/me")
@@ -64,9 +59,9 @@ public class AuthController {
     public ApiResponse<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
                                          Authentication authentication) {
         CustomUserDetails customUserDetails = (CustomUserDetails) authentication.getPrincipal();
-        Integer userId = customUserDetails.getUser().getUserId();
+        User currentUser = customUserDetails.getUser();
 
-        authService.changePassword(userId, request.getCurrentPassword(), request.getNewPassword());
+        authService.changePassword(currentUser.getUserId(), request.getNewPassword());
         return ApiResponse.success(null, "Đổi mật khẩu thành công");
     }
 

@@ -3,6 +3,7 @@ import { dogProfileDBService, healthSessionDBService, sessionFollowUpDBService }
 import { isOnline, offlineFirstRead } from './offlineFirst';
 import { useAuthStore } from '../stores/authStore';
 import { syncEngine } from '../sync/syncEngine';
+import { trainerDogScopeService } from './trainerDogScopeService';
 import type { FollowUpStatus, HealthSessionRow, SessionFollowUpRow } from '../database/types';
 import type {
   HealthSession,
@@ -51,13 +52,13 @@ const parseServerId = (value: string | number): number | null => {
 const buildTimelineTitle = (status?: string | null): string => {
   switch ((status || '').toUpperCase()) {
     case 'IMPROVED':
-      return 'Cập nhật cải thiện';
+      return 'Cap nhat cai thien';
     case 'WORSE':
-      return 'Cập nhật xấu hơn';
+      return 'Cap nhat xau hon';
     case 'RESOLVED':
-      return 'Đã xử lý xong';
+      return 'Da xu ly xong';
     default:
-      return 'Cập nhật follow-up';
+      return 'Cap nhat follow-up';
   }
 };
 
@@ -154,7 +155,9 @@ const resolveLocalRow = async (sessionId: string | number): Promise<HealthSessio
   return healthSessionDBService.getByServerId(serverId);
 };
 
-const mapSessionToRow = (session: HealthSession): Omit<HealthSessionRow, 'local_id' | 'sync_status'> & { server_id: number } => ({
+const mapSessionToRow = (
+  session: HealthSession,
+): Omit<HealthSessionRow, 'local_id' | 'sync_status'> & { server_id: number } => ({
   server_id: Number(session.sessionId),
   dog_id: session.dogId,
   trainer_id: session.trainerId ?? 0,
@@ -218,6 +221,11 @@ const saveRemoteSessionsToLocal = async (sessions: HealthSession[]): Promise<voi
   }
 };
 
+const filterAccessibleSessions = async (sessions: HealthSession[]): Promise<HealthSession[]> => {
+  const assignedDogIds = new Set(await trainerDogScopeService.getAssignedDogIds());
+  return sessions.filter((session) => assignedDogIds.has(session.dogId));
+};
+
 const fetchSessionPage = async (
   path: string,
   params?: Record<string, string | number | undefined>,
@@ -237,12 +245,10 @@ export const healthSessionService = {
   getMine: (): Promise<HealthSession[]> =>
     offlineFirstRead<HealthSession[]>({
       localFetch: async () => {
-        const currentUserId = useAuthStore.getState().user?.userId ?? 0;
         const rows = await healthSessionDBService.getAll();
-        const ownRows = currentUserId > 0 ? rows.filter((row) => row.trainer_id === currentUserId) : rows;
-        return Promise.all(ownRows.map(mapRowToHealthSession));
+        return filterAccessibleSessions(await Promise.all(rows.map(mapRowToHealthSession)));
       },
-      remoteFetch: async () => fetchSessionPage('/health-sessions/my'),
+      remoteFetch: async () => filterAccessibleSessions(await fetchSessionPage('/health-sessions/my')),
       saveToLocal: async (sessions) => {
         await saveRemoteSessionsToLocal(sessions);
       },
@@ -252,10 +258,22 @@ export const healthSessionService = {
   getByDog: (dogId: number): Promise<HealthSession[]> =>
     offlineFirstRead<HealthSession[]>({
       localFetch: async () => {
+        await trainerDogScopeService.assertAccessToDog(
+          dogId,
+          true,
+          'Ban khong duoc xem phien theo doi cua cho nay',
+        );
         const rows = await healthSessionDBService.getByDog(dogId);
         return Promise.all(rows.map(mapRowToHealthSession));
       },
-      remoteFetch: async () => fetchSessionPage(`/health-sessions/by-dog/${dogId}`),
+      remoteFetch: async () => {
+        await trainerDogScopeService.assertAccessToDog(
+          dogId,
+          true,
+          'Ban khong duoc xem phien theo doi cua cho nay',
+        );
+        return fetchSessionPage(`/health-sessions/by-dog/${dogId}`);
+      },
       saveToLocal: async (sessions) => {
         await saveRemoteSessionsToLocal(sessions);
       },
@@ -265,16 +283,27 @@ export const healthSessionService = {
   getById: async (sessionId: string | number): Promise<HealthSession> => {
     const localRow = await resolveLocalRow(sessionId);
     if (localRow) {
-      return mapRowToHealthSession(localRow);
+      const localSession = await mapRowToHealthSession(localRow);
+      await trainerDogScopeService.assertAccessToDog(
+        localSession.dogId,
+        true,
+        'Ban khong duoc xem phien theo doi cua cho nay',
+      );
+      return localSession;
     }
 
     const serverId = parseServerId(sessionId);
     if (serverId == null || !isOnline()) {
-      throw new Error('KhÃ´ng tÃ¬m tháº¥y phiÃªn theo dÃµi trong bá»™ nhá»› cá»¥c bá»™');
+      throw new Error('Khong tim thay phien theo doi trong bo nho cuc bo');
     }
 
     const response = (await api.get(`/health-sessions/${serverId}`)) as ApiResponse<HealthSessionApiDto>;
     const remoteSession = mapApiToHealthSession(unwrapApiData(response));
+    await trainerDogScopeService.assertAccessToDog(
+      remoteSession.dogId,
+      true,
+      'Ban khong duoc xem phien theo doi cua cho nay',
+    );
     await saveRemoteSessionsToLocal([remoteSession]);
 
     const refreshedLocalRow = await healthSessionDBService.getByServerId(serverId);
@@ -282,6 +311,12 @@ export const healthSessionService = {
   },
 
   create: async (request: HealthSessionRequest): Promise<HealthSession> => {
+    await trainerDogScopeService.assertAccessToDog(
+      request.dogId,
+      true,
+      'Ban khong duoc tao phien theo doi cho cho nay',
+    );
+
     const user = useAuthStore.getState().user;
     const now = new Date().toISOString();
     const localId = await healthSessionDBService.create({
@@ -304,7 +339,7 @@ export const healthSessionService = {
 
     const row = await healthSessionDBService.getById(localId);
     if (!row) {
-      throw new Error('KhÃ´ng thá»ƒ táº¡o phiÃªn theo dÃµi');
+      throw new Error('Khong the tao phien theo doi');
     }
 
     return mapRowToHealthSession(row);
@@ -313,8 +348,14 @@ export const healthSessionService = {
   followUp: async (sessionId: string | number, request: HealthSessionFollowUpRequest): Promise<HealthSession> => {
     const existing = await resolveLocalRow(sessionId);
     if (!existing) {
-      throw new Error('KhÃ´ng tÃ¬m tháº¥y phiÃªn theo dÃµi');
+      throw new Error('Khong tim thay phien theo doi');
     }
+
+    await trainerDogScopeService.assertAccessToDog(
+      existing.dog_id,
+      true,
+      'Ban khong duoc cap nhat phien theo doi cua cho nay',
+    );
 
     const now = new Date().toISOString();
 
@@ -353,8 +394,14 @@ export const healthSessionService = {
   resolve: async (sessionId: string | number, request: HealthSessionResolveRequest): Promise<HealthSession> => {
     const existing = await resolveLocalRow(sessionId);
     if (!existing) {
-      throw new Error('KhÃ´ng tÃ¬m tháº¥y phiÃªn theo dÃµi');
+      throw new Error('Khong tim thay phien theo doi');
     }
+
+    await trainerDogScopeService.assertAccessToDog(
+      existing.dog_id,
+      true,
+      'Ban khong duoc ket thuc phien theo doi cua cho nay',
+    );
 
     const now = new Date().toISOString();
     await healthSessionDBService.update(existing.local_id, {

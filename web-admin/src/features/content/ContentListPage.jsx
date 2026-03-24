@@ -9,14 +9,19 @@ import { Eye, Search, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { getContentTypeLabel } from '../../utils/enumLabels';
+import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const typeOptions = [
     { value: 'all', label: 'Tất cả loại' },
-    { value: 'BREED_INFO', label: 'Giống chó' },
-    { value: 'TRAINING_GUIDE', label: 'Huấn luyện' },
-    { value: 'HEALTH_INFO', label: 'Sức khỏe' },
-    { value: 'NUTRITION_GUIDE', label: 'Dinh dưỡng' },
-    { value: 'FIRST_AID', label: 'Sơ cứu' },
+    { value: APPROVAL_ENTITY_TYPES.CONTENT, label: 'Bài viết' },
+    { value: APPROVAL_ENTITY_TYPES.DOG_BREED, label: 'Giống chó' },
+    { value: APPROVAL_ENTITY_TYPES.DISEASE, label: 'Bệnh' },
+    { value: APPROVAL_ENTITY_TYPES.MEDICATION, label: 'Thuốc' },
+    { value: APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE, label: 'Sơ cứu' },
+    { value: APPROVAL_ENTITY_TYPES.TRAINING_EXERCISE, label: 'Bài tập huấn luyện' },
+    { value: APPROVAL_ENTITY_TYPES.TRAINING_METHOD, label: 'Phương pháp huấn luyện' },
+    { value: APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD, label: 'Tiêu chuẩn dinh dưỡng' },
 ];
 
 const statusOptions = [
@@ -43,53 +48,68 @@ const ContentListPage = () => {
     const [historyRecords, setHistoryRecords] = useState([]);
     const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
 
-    const fetchContents = async () => {
+    const fetchContents = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('page', String(page));
-            params.append('size', String(pageSize));
-            if (search) params.append('search', search);
-            if (typeFilter !== 'all') params.append('type', typeFilter);
-            if (statusFilter !== 'all') params.append('status', statusFilter);
-
-            const res = await api.get(`/contents?${params.toString()}`);
-            const data = res.data || res;
-            setContents(data.content || []);
-            setTotalItems(data.totalElements || 0);
+            const allRows = await fetchAllPages((pageIndex, batchSize) => {
+                const params = new URLSearchParams();
+                params.append('page', String(pageIndex));
+                params.append('size', String(batchSize));
+                if (search) params.append('search', search);
+                if (typeFilter !== 'all') params.append('entityType', typeFilter);
+                if (statusFilter !== 'all') params.append('status', statusFilter);
+                return api.get(`/contents/unified?${params.toString()}`);
+            });
+            const sortedRows = sortByNewest(allRows, {
+                timeKeys: ['updatedAt', 'updated_at', 'createdAt', 'created_at'],
+                idKeys: ['entityId', 'contentId', 'id'],
+            });
+            const { pageRows, totalItems: safeTotal, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+            setContents(pageRows);
+            setTotalItems(safeTotal);
+            if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) {
             console.error('Fetch contents error:', err);
             setContents([]);
+            setTotalItems(0);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchContents();
+        fetchContents(page, pageSize);
     }, [page, pageSize, search, typeFilter, statusFilter]);
 
-    const getContentId = (row) => row.contentId || row.id;
+    const getEntityId = (row) => row?.entityId || row?.contentId || row?.id;
+    const getEntityType = (row) => row?.entityType || APPROVAL_ENTITY_TYPES.CONTENT;
+
     const openView = (row) => {
-        const id = getContentId(row);
-        if (!id) return;
-        navigate(`/content/${id}`);
+        const entityType = getEntityType(row);
+        const entityId = getEntityId(row);
+        if (!entityId) return;
+        const query = new URLSearchParams({
+            returnTo: '/content',
+            returnLabel: 'Nội dung',
+        });
+        navigate(`/details/${entityType}/${entityId}?${query.toString()}`);
     };
 
     const openHistory = async (row) => {
-        const id = getContentId(row);
+        const id = getEntityId(row);
+        const entityType = getEntityType(row);
         if (!id) return;
 
         setHistoryTarget({
-            title: row.title || row.contentTitle || '-',
-            typeLabel: 'Bài viết',
+            title: row.title || '-',
+            typeLabel: getContentTypeLabel(entityType),
         });
         setHistoryOpen(true);
         setHistoryLoading(true);
         setHistoryRecords([]);
 
         try {
-            const res = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.CONTENT, id);
+            const res = await approvalService.getHistory(entityType, id);
             const payload = res?.data || res || [];
             setHistoryRecords(Array.isArray(payload) ? payload : payload.content || []);
         } catch (err) {
@@ -123,11 +143,11 @@ const ContentListPage = () => {
     };
 
     const columns = [
-        { key: 'title', header: 'Tiêu đề', render: (r) => <span className="font-medium">{r.title || r.contentTitle || '-'}</span> },
-        { key: 'contentType', header: 'Loại', render: (r) => getContentTypeLabel(r.contentType || r.content_type) },
+        { key: 'title', header: 'Tiêu đề', render: (r) => <span className="font-medium">{r.title || '-'}</span> },
+        { key: 'entityType', header: 'Loại', render: (r) => getContentTypeLabel(r.entityType) },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
-        { key: 'author', header: 'Tác giả', render: (r) => r.authorName || r.author?.fullName || r.author?.full_name || '-' },
-        { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt || r.updated_at) },
+        { key: 'authorName', header: 'Tác giả', render: (r) => r.authorName || '-' },
+        { key: 'updatedAt', header: 'Cập nhật', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">

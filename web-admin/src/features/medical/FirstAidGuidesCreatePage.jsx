@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import { firstAidGuideService } from '../../services/firstAidGuideService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   guideTitle: '',
@@ -34,7 +35,7 @@ const FirstAidGuidesCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -80,7 +81,7 @@ const FirstAidGuidesCreatePage = () => {
           imageUrl: detail.imageUrl || '',
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết hướng dẫn sơ cứu');
+        toast.error(error, { title: 'Không tải được chi tiết hướng dẫn sơ cứu' });
         navigate('/medical');
       } finally {
         setLoadingDetail(false);
@@ -117,7 +118,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã lưu nháp hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể lưu nháp hướng dẫn sơ cứu' });
     } finally {
       setSavingDraft(false);
     }
@@ -133,7 +134,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã gửi duyệt hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể gửi duyệt hướng dẫn sơ cứu' });
     } finally {
       setSaving(false);
     }
@@ -155,7 +156,7 @@ const FirstAidGuidesCreatePage = () => {
       toast.success('Đã xuất bản hướng dẫn sơ cứu');
       navigate('/medical');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản hướng dẫn sơ cứu');
+      toast.error(error, { title: 'Không thể xuất bản hướng dẫn sơ cứu' });
     } finally {
       setPublishing(false);
     }
@@ -171,7 +172,7 @@ const FirstAidGuidesCreatePage = () => {
       onCancel={() => navigate('/medical')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {
@@ -180,7 +181,7 @@ const FirstAidGuidesCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

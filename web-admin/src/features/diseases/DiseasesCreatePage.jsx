@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import { diseaseService } from '../../services/diseaseService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   diseaseName: '',
@@ -33,7 +34,7 @@ const DiseasesCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -77,7 +78,7 @@ const DiseasesCreatePage = () => {
           isContagious: Boolean(detail.isContagious),
         });
       } catch (error) {
-        toast.error(error?.message || 'Không tải được chi tiết bệnh');
+        toast.error(error, { title: 'Không tải được chi tiết bệnh' });
         navigate('/diseases');
       } finally {
         setLoadingDetail(false);
@@ -111,7 +112,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã lưu nháp bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu nháp bệnh');
+      toast.error(error, { title: 'Không thể lưu nháp bệnh' });
     } finally {
       setSavingDraft(false);
     }
@@ -127,7 +128,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã gửi duyệt bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể gửi duyệt bệnh');
+      toast.error(error, { title: 'Không thể gửi duyệt bệnh' });
     } finally {
       setSaving(false);
     }
@@ -148,7 +149,7 @@ const DiseasesCreatePage = () => {
       toast.success('Đã xuất bản bệnh');
       navigate('/diseases');
     } catch (error) {
-      toast.error(error?.message || 'Không thể xuất bản bệnh');
+      toast.error(error, { title: 'Không thể xuất bản bệnh' });
     } finally {
       setPublishing(false);
     }
@@ -164,7 +165,7 @@ const DiseasesCreatePage = () => {
       onCancel={() => navigate('/diseases')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {
@@ -173,7 +174,7 @@ const DiseasesCreatePage = () => {
           onClick: handlePublish,
           loading: publishing,
           disabled: !canPublish || entityStatus !== 'APPROVED' || !entityId,
-          variant: 'secondary',
+          variant: 'success',
         },
       ]}
     >

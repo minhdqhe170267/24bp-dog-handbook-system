@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Plus, Search, EyeOff } from 'lucide-react';
+import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -17,7 +17,8 @@ import {
 import { useToast } from '../../components/ui/Toast';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
-import { getStatusLabel } from '../../utils/enumLabels';
+import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -58,9 +59,9 @@ const defaultForm = {
 };
 
 const roleStatusMap = {
-  RETIRED: { label: 'Nghỉ hưu', className: 'bg-amber-500/10 text-amber-600 border-amber-500/25' },
-  DECEASED: { label: 'Đã mất', className: 'bg-red-500/10 text-red-600 border-red-500/25' },
-  TRANSFERRED: { label: 'Chuyển đơn vị', className: 'bg-blue-500/10 text-blue-600 border-blue-500/25' },
+  RETIRED: { label: 'Nghỉ hưu', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/25' },
+  DECEASED: { label: 'Đã mất', className: 'bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/25' },
+  TRANSFERRED: { label: 'Chuyển đơn vị', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/25' },
 };
 
 const normalizeGender = (value) => {
@@ -118,8 +119,6 @@ const DogsPage = () => {
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
@@ -129,31 +128,38 @@ const DogsPage = () => {
       const res = await breedService.getAll(0, 200, '');
       setBreeds(res.data?.content || []);
     } catch (error) {
-      toast.error('Không tải được danh sách giống chó');
+      toast.error(error, { title: 'Không tải được danh sách giống chó' });
     }
   };
 
-  const fetchDogs = async (page = 0, size = pagination.pageSize) => {
+  const fetchDogs = async (nextPage = pagination.page, nextPageSize = pagination.pageSize) => {
     setLoading(true);
     try {
-      const res = await dogService.getAll(page, size, search);
-      const rawList = res.data?.content || [];
+      const allRows = await fetchAllPages((pageIndex, batchSize) => dogService.getAll(pageIndex, batchSize, search));
       const uniqueList = Array.from(
         new Map(
-          rawList.map((dog) => [
+          allRows.map((dog) => [
             dog.dogId ?? `${dog.dogCode || ''}-${dog.dogName || ''}-${dog.breedId || ''}`,
             dog,
           ])
         ).values()
       );
-      setDogs(uniqueList);
+      const selectedGender = normalizeGenderFilterValue(genderFilter);
+      const filteredRows = uniqueList.filter((dog) => {
+        if (selectedGender !== 'all' && normalizeGender(dog.gender) !== selectedGender) return false;
+        if (statusFilter !== 'all' && dog.status !== statusFilter) return false;
+        return true;
+      });
+      const sortedRows = sortByNewest(filteredRows, { idKeys: ['dogId', 'id'] });
+      const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+      setDogs(pageRows);
       setPagination((prev) => ({
         ...prev,
-        page,
-        total: res.data?.totalElements || 0,
+        page: effectivePage,
+        total: totalItems,
       }));
     } catch (error) {
-      toast.error('Lỗi tải danh sách chó');
+      toast.error(error, { title: 'Lỗi tải danh sách chó' });
     } finally {
       setLoading(false);
     }
@@ -165,7 +171,7 @@ const DogsPage = () => {
 
   useEffect(() => {
     fetchDogs(0, pagination.pageSize);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search, genderFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -180,14 +186,9 @@ const DogsPage = () => {
     navigate(`/dogs/${row.dogId}/edit`);
   };
 
-  const openDetail = async (row) => {
-    try {
-      const res = await dogService.getById(row.dogId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error('Không tải được chi tiết chó');
-    }
+  const openDetail = (row) => {
+    if (!row?.dogId) return;
+    navigate(`/details/DOG_PROFILE/${row.dogId}`);
   };
 
   const buildPayload = () => {
@@ -217,6 +218,7 @@ const DogsPage = () => {
     }
 
     try {
+      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogService.update(editing.dogId, payload);
@@ -228,9 +230,10 @@ const DogsPage = () => {
       setModalOpen(false);
       setEditing(null);
       setFormData(defaultForm);
-      fetchDogs(pagination.page, pagination.pageSize);
+      setPagination((prev) => ({ ...prev, page: 0 }));
+      await fetchDogs(0, pagination.pageSize);
     } catch (error) {
-      toast.error(error?.message || 'Không thể lưu thông tin chó');
+      toast.error(error, { title: 'Không thể lưu thông tin chó' });
     }
   };
 
@@ -238,11 +241,11 @@ const DogsPage = () => {
     if (!deleteId) return;
     try {
       await dogService.delete(deleteId);
-      toast.success('Đã ẩn hồ sơ chó');
+      toast.success('Đã xóa hồ sơ chó');
       setDeleteId(null);
       fetchDogs(pagination.page, pagination.pageSize);
     } catch (error) {
-      toast.error(error?.message || 'Không thể ẩn hồ sơ chó');
+      toast.error(error, { title: 'Không thể xóa hồ sơ chó' });
     }
   };
 
@@ -293,24 +296,13 @@ const DogsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Sửa">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Ẩn">
-            <EyeOff className="h-4 w-4 text-destructive" />
+          <Button variant="ghost" size="sm" onClick={() => setDeleteId(row.dogId)} title="Xóa">
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       ),
     },
   ];
-
-  const filteredDogs = useMemo(() => {
-    const selectedGender = normalizeGenderFilterValue(genderFilter);
-    return dogs.filter((dog) => {
-      if (selectedGender !== 'all' && normalizeGender(dog.gender) !== selectedGender) return false;
-      if (statusFilter !== 'all' && dog.status !== statusFilter) return false;
-      return true;
-    });
-  }, [dogs, genderFilter, statusFilter]);
-
-  const hasClientFilter = genderFilter !== 'all' || statusFilter !== 'all';
 
   return (
     <div className="animate-fade-in">
@@ -326,7 +318,7 @@ const DogsPage = () => {
         )}
       />
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="relative w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -337,33 +329,35 @@ const DogsPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <FilterSelect
-          value={genderFilter}
-          onChange={(value) => {
-            setGenderFilter(normalizeGenderFilterValue(value));
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={genderFilterOptions}
-          className="min-w-[170px]"
-        />
-        <FilterSelect
-          value={statusFilter}
-          onChange={(value) => {
-            setStatusFilter(value);
-            setPagination((prev) => ({ ...prev, page: 0 }));
-          }}
-          options={statusFilterOptions}
-          className="min-w-[190px]"
-        />
+        <div className="flex items-center gap-2">
+          <FilterSelect
+            value={genderFilter}
+            onChange={(value) => {
+              setGenderFilter(normalizeGenderFilterValue(value));
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={genderFilterOptions}
+            className="w-[150px]"
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              setPagination((prev) => ({ ...prev, page: 0 }));
+            }}
+            options={statusFilterOptions}
+            className="w-[168px]"
+          />
+        </div>
       </div>
 
       <DataTable
         columns={columns}
-        data={filteredDogs}
+        data={dogs}
         loading={loading}
         page={pagination.page}
         pageSize={pagination.pageSize}
-        totalItems={hasClientFilter ? filteredDogs.length : pagination.total}
+        totalItems={pagination.total}
         onPageChange={(page) => fetchDogs(page, pagination.pageSize)}
         onPageSizeChange={(size) => {
           setPagination((prev) => ({ ...prev, pageSize: size }));
@@ -441,47 +435,13 @@ const DogsPage = () => {
         </form>
       </Modal>
 
-      <Modal
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="Chi tiết hồ sơ chó"
-        width={760}
-      >
-        {detailData && (
-          <div className="space-y-3">
-            {[
-              ['Mã chó', detailData.dogCode],
-              ['Tên chó', detailData.dogName],
-              ['Giống chó', detailData.breedName],
-              ['Giới tính', getGenderLabel(detailData.gender)],
-              ['Ngày sinh', detailData.dateOfBirth || '—'],
-              ['Tuổi (tháng)', detailData.ageMonths ?? '—'],
-              ['Cân nặng', detailData.currentWeightKg == null ? '—' : `${detailData.currentWeightKg} kg`],
-              ['Chiều cao', detailData.heightCm == null ? '—' : `${detailData.heightCm} cm`],
-              ['Màu lông', detailData.color || '—'],
-              ['Microchip ID', detailData.microchipId || '—'],
-              ['Trạng thái', getStatusLabel(detailData.status)],
-              ['Ảnh', detailData.imageUrl || '—'],
-              ['Ngày tạo', detailData.createdAt || '—'],
-              ['Cập nhật', detailData.updatedAt || '—'],
-              ['Ghi chú', detailData.notes || '—'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-44 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground break-all">{value || '—'}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
-
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        title="Ẩn hồ sơ chó"
-        description="Bạn có chắc chắn muốn ẩn hồ sơ chó này không?"
+        title="Xóa hồ sơ chó"
+        description="Bạn có chắc chắn muốn xóa hồ sơ chó này không?"
         onConfirm={handleDelete}
-        confirmLabel="Ẩn"
+        confirmLabel="Xóa"
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
 import { Breed } from '../../src/types/breed';
 import { NutritionCalculateRequest, NutritionCalculateResponse } from '../../src/types/nutrition';
 import { breedService } from '../../src/services/breedService';
+import { localAlertService } from '../../src/services/localAlertService';
 import { nutritionService } from '../../src/services/nutritionService';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -60,6 +61,29 @@ const getResultColor = (status?: string) => {
 };
 
 const toNumber = (value: number | string | null | undefined) => Number(value || 0);
+
+const buildNutritionProfileKey = (request: NutritionCalculateRequest): string =>
+    [
+        request.breedId,
+        request.weightKg.toFixed(1),
+        request.ageMonths,
+        request.activityLevel,
+        request.gender,
+        request.healthCondition || 'NORMAL',
+    ].join(':');
+
+const extractFeedingSchedule = (metadata: string | null | undefined): string | null => {
+    if (!metadata) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(metadata) as { feeding_schedule?: unknown };
+        return typeof parsed.feeding_schedule === 'string' ? parsed.feeding_schedule : null;
+    } catch {
+        return null;
+    }
+};
 
 export default function RationCalculatorScreen() {
     const [breeds, setBreeds] = useState<Breed[]>([]);
@@ -123,6 +147,34 @@ export default function RationCalculatorScreen() {
 
             const data = await nutritionService.calculate(request);
             setResult(data);
+
+            let feedingSchedule: string | null = null;
+            if (data.suggestedRation?.standardId) {
+                try {
+                    const standard = await nutritionService.getById(data.suggestedRation.standardId);
+                    feedingSchedule = extractFeedingSchedule(standard.metadata);
+                } catch (snapshotError) {
+                    console.log('[SYNC_UI] Khong tai duoc metadata khau phan de tao local alert', snapshotError);
+                }
+            }
+
+            try {
+                await localAlertService.captureNutritionCalculationSnapshot({
+                    profileKey: buildNutritionProfileKey(request),
+                    breedId: selectedBreedId,
+                    breedName: selectedBreed?.breedName ?? null,
+                    rationId: data.suggestedRation?.standardId ?? null,
+                    rationCode: data.suggestedRation?.rationCode ?? null,
+                    rationName: data.suggestedRation?.rationName ?? null,
+                    weightStatus: data.weightStatus ?? null,
+                    deviationPercent: Number.isFinite(data.deviationPercent) ? data.deviationPercent : null,
+                    dailyCalories: Number.isFinite(data.dailyCalories) ? data.dailyCalories : null,
+                    feedingSchedule,
+                    createdAt: new Date().toISOString(),
+                });
+            } catch (snapshotError) {
+                console.log('[SYNC_UI] Khong luu duoc nutrition snapshot cho notification', snapshotError);
+            }
         } catch (error: any) {
             console.log('Error calculating nutrition:', error);
             setResult(null);

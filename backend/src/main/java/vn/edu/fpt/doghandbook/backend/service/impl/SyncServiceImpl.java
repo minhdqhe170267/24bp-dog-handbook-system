@@ -38,6 +38,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
@@ -55,6 +56,7 @@ import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SyncQueueRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.repository.WeightAssessmentRepository;
+import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 import vn.edu.fpt.doghandbook.backend.service.SyncService;
 
 import java.math.BigDecimal;
@@ -95,6 +97,7 @@ public class SyncServiceImpl implements SyncService {
     private final DiagnosisRecordRepository diagnosisRecordRepository;
     private final DogProfileRepository dogProfileRepository;
     private final DiseaseRepository diseaseRepository;
+    private final NotificationService notificationService;
 
     @Override
     public SyncResponse getUpdatedContent(LocalDateTime lastSyncAt, Integer userId) {
@@ -204,7 +207,9 @@ public class SyncServiceImpl implements SyncService {
         // --- dogAssignments: filtered by current user ---
         data.put("dogAssignments", fetchDogAssignments(syncWindow, userId));
 
-        // TODO: abnormalSigns — entity AbnormalSign does not exist yet
+        // --- notifications for this user since last sync ---
+        data.put("notifications", notificationService.getNotificationsSince(
+                userId, syncWindow.lastSyncAt()));
 
         return SyncResponse.builder()
                 .data(data)
@@ -340,6 +345,17 @@ public class SyncServiceImpl implements SyncService {
             item.setSyncStatus(SyncStatus.CONFLICT);
             item.setErrorMessage(e.getMessage());
             syncQueueRepository.save(item);
+
+            // Notify trainer about sync conflict
+            notificationService.notifyUser(
+                    user, null,
+                    NotificationType.SYNC_CONFLICT,
+                    "Xung đột đồng bộ: " + entityType,
+                    "Dữ liệu " + entityType + " (localId: " + localId
+                            + ") bị xung đột khi đồng bộ. Vui lòng kiểm tra lại.",
+                    entityType.toUpperCase(), item.getEntityId()
+            );
+
             // Convert serverData to a safe string to avoid LazyInitializationException
             // when Jackson serializes outside the transaction
             Object safeServerData = e.getServerData() != null

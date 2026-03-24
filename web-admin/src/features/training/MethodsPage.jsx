@@ -4,12 +4,16 @@ import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { DetailView, EditForm } from '../../components/shared/DetailModal';
+import DetailModal, { EditForm } from '../../components/shared/DetailModal';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
-import { Plus, Eye, Pencil, EyeOff, Search, Send, Globe, Undo2, History } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../components/ui/Toast';
+import { ConfirmDialog } from '../../components/ui/FormComponents';
+import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const statusOptions = [
     { value: 'all', label: 'Tất cả trạng thái' },
@@ -18,16 +22,6 @@ const statusOptions = [
     { value: 'APPROVED', label: 'Đã duyệt' },
     { value: 'PUBLISHED', label: 'Đã xuất bản' },
     { value: 'REJECTED', label: 'Từ chối' },
-];
-
-const detailFields = [
-    { key: 'methodName', label: 'Tên phương pháp' },
-    { key: 'description', label: 'Mô tả', type: 'textarea' },
-    { key: 'instructions', label: 'Hướng dẫn', type: 'textarea' },
-    { key: 'advantages', label: 'Ưu điểm', type: 'textarea' },
-    { key: 'disadvantages', label: 'Nhược điểm', type: 'textarea' },
-    { key: 'status', label: 'Trạng thái' },
-    { key: 'createdByName', label: 'Người tạo' },
 ];
 
 const editFields = [
@@ -47,7 +41,6 @@ const MethodsPage = () => {
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [detailItem, setDetailItem] = useState(null);
     const [editItem, setEditItem] = useState(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -55,10 +48,13 @@ const MethodsPage = () => {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRecords, setHistoryRecords] = useState([]);
     const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+    const [deleteId, setDeleteId] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const toast = useToast();
     const { user } = useAuth();
     const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
-    const canPublish = user?.role === 'ADMIN';
+    const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
     const toMethodPayload = (formData) => ({
         methodName: formData.methodName?.trim() || '',
@@ -68,42 +64,60 @@ const MethodsPage = () => {
         disadvantages: formData.disadvantages?.trim() || '',
     });
 
-    const fetchData = async () => {
+    const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('page', String(page));
-            params.append('size', String(pageSize));
-            if (search) params.append('search', search);
-            const res = await api.get(`/training-methods?${params.toString()}`);
-            const data = res.data || res;
-            let list = data.content || [];
-            if (statusFilter !== 'all') list = list.filter(m => m.status === statusFilter);
-            setItems(list);
-            setTotalItems(data.totalElements || list.length);
+            const allRows = await fetchAllPages((pageIndex, batchSize) => {
+                const params = new URLSearchParams();
+                params.append('page', String(pageIndex));
+                params.append('size', String(batchSize));
+                params.append('sort', 'updatedAt,desc');
+                params.append('sort', 'createdAt,desc');
+                if (search) params.append('search', search);
+                return api.get(`/training-methods?${params.toString()}`);
+            });
+            const filteredRows = statusFilter === 'all' ? allRows : allRows.filter((item) => item.status === statusFilter);
+            const sortedRows = sortByNewest(filteredRows, { idKeys: ['methodId', 'id'] });
+            const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+            setItems(pageRows);
+            setTotalItems(totalItems);
+            if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) { console.error('Fetch methods error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [page, pageSize, search, statusFilter]);
+    useEffect(() => { fetchData(page, pageSize); }, [page, pageSize, search, statusFilter]);
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Bạn có chắc chắn muốn ẩn phương pháp này?')) return;
-        try { await api.delete(`/training-methods/${id}`); fetchData(); } catch (err) { console.error('Delete error:', err); }
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        setDeleting(true);
+        try {
+            await api.delete(`/training-methods/${deleteId}`);
+            toast.success('Đã xóa phương pháp');
+            setDeleteId(null);
+            fetchData();
+        } catch (err) {
+            console.error('Delete error:', err);
+            toast.error(err, { title: 'Không thể xóa phương pháp' });
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const getMethodId = (row) => row.methodId || row.id;
     const getStatus = (row) => String(row.status || '').toUpperCase();
+    const canShowEdit = (row) => canEdit && !['PENDING', 'APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
     const handleSubmitForReview = async (row) => {
         const id = getMethodId(row);
         if (!id) return;
         try {
             await approvalService.submit(APPROVAL_ENTITY_TYPES.TRAINING_METHOD, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Submit method for review error:', err);
-            alert(err?.message || 'Không thể gửi duyệt');
+            toast.error(err, { title: 'Không thể gửi duyệt' });
         }
     };
 
@@ -112,10 +126,11 @@ const MethodsPage = () => {
         if (!id) return;
         try {
             await approvalService.publish(APPROVAL_ENTITY_TYPES.TRAINING_METHOD, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Publish method error:', err);
-            alert(err?.message || 'Không thể xuất bản');
+            toast.error(err, { title: 'Không thể xuất bản' });
         }
     };
 
@@ -124,10 +139,11 @@ const MethodsPage = () => {
         if (!id) return;
         try {
             await approvalService.unpublish(APPROVAL_ENTITY_TYPES.TRAINING_METHOD, id);
-            fetchData();
+            setPage(0);
+            await fetchData(0, pageSize);
         } catch (err) {
             console.error('Unpublish method error:', err);
-            alert(err?.message || 'Không thể gỡ xuất bản');
+            toast.error(err, { title: 'Không thể gỡ xuất bản' });
         }
     };
 
@@ -154,14 +170,19 @@ const MethodsPage = () => {
     const handleEdit = async (formData) => {
         setSaving(true);
         try { await api.put(`/training-methods/${editItem.methodId}`, toMethodPayload(formData)); setEditItem(null); fetchData(); }
-        catch (err) { console.error('Update error:', err); alert('Có lỗi xảy ra khi cập nhật'); }
+        catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' }); }
         finally { setSaving(false); }
     };
 
     const handleCreate = async (formData) => {
         setSaving(true);
-        try { await api.post('/training-methods', toMethodPayload(formData)); setCreateOpen(false); fetchData(); }
-        catch (err) { console.error('Create error:', err); alert('Có lỗi xảy ra khi tạo mới'); }
+        try {
+            await api.post('/training-methods', toMethodPayload(formData));
+            setCreateOpen(false);
+            setPage(0);
+            await fetchData(0, pageSize);
+        }
+        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
         finally { setSaving(false); }
     };
 
@@ -195,18 +216,18 @@ const MethodsPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/TRAINING_METHOD/${getMethodId(r)}`)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
-                    {canEdit && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/methods/${getMethodId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Ẩn" onClick={() => handleDelete(getMethodId(r))}><EyeOff className="h-4 w-4 text-destructive" /></button>}
+                    {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/methods/${getMethodId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
+                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getMethodId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
                     {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
-                            <Send className="h-4 w-4 text-amber-600" />
+                            <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
                         </button>
                     )}
                     {canPublish && getStatus(r) === 'APPROVED' && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xuất bản" onClick={() => handlePublish(r)}>
-                            <Globe className="h-4 w-4 text-emerald-600" />
+                            <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                         </button>
                     )}
                     {canPublish && getStatus(r) === 'PUBLISHED' && (
@@ -237,9 +258,6 @@ const MethodsPage = () => {
                 <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có phương pháp nào" />
             )}
-            <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết phương pháp" size="lg">
-                <DetailView fields={detailFields} data={detailItem} />
-            </DetailModal>
             <DetailModal open={!!editItem} onClose={() => setEditItem(null)} title="Sửa phương pháp" size="lg">
                 <EditForm fields={editFields} data={editItem} onSubmit={handleEdit} onCancel={() => setEditItem(null)} loading={saving} />
             </DetailModal>
@@ -254,8 +272,18 @@ const MethodsPage = () => {
                 entityTitle={historyTarget.title}
                 entityTypeLabel={historyTarget.typeLabel}
             />
+            <ConfirmDialog
+                open={!!deleteId}
+                onClose={() => setDeleteId(null)}
+                title="Xóa phương pháp"
+                description="Bạn có chắc chắn muốn xóa phương pháp này?"
+                onConfirm={handleDelete}
+                confirmLabel="Xóa"
+                loading={deleting}
+            />
         </div>
     );
 };
 
 export default MethodsPage;
+
