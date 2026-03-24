@@ -13,20 +13,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { dogService } from '../../../src/services/dogService';
-import { assignmentService } from '../../../src/services/assignmentService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
 import { localAlertService } from '../../../src/services/localAlertService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogAssignment, DogProfile, WeightAssessment } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
     dogManagementUi,
-    fallbackAssignments,
-    fallbackDogs,
     fallbackWeightAssessments,
-    findFallbackDog,
     findFallbackWeightAssessment,
     formatDateTime,
     getWeightAlertMeta,
@@ -47,6 +44,7 @@ export default function WeightAssessmentScreen() {
     const [assessment, setAssessment] = useState<WeightAssessment | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const numericDogId = Number(dogId);
 
@@ -57,38 +55,60 @@ export default function WeightAssessmentScreen() {
         }
 
         try {
-            const [dogResult, assignmentResult, assessmentResult] = await Promise.allSettled([
-                dogService.getById(numericDogId),
-                assignmentService.getByDog(numericDogId),
-                healthRecordService.assessWeight(numericDogId),
-            ]);
+            const scope = await trainerDogScopeService.getScope(true);
+            const currentAssignment = scope.assignmentMap.get(numericDogId) || null;
+            const currentDog = scope.dogs.find((item) => item.dogId === numericDogId) || null;
 
-            const fallbackDog = findFallbackDog(numericDogId) || fallbackDogs[0];
-            const fallbackAssignment = fallbackAssignments.find((item) => item.dogId === numericDogId) || null;
-            const fallbackAssessment = findFallbackWeightAssessment(numericDogId) || fallbackWeightAssessments[0];
+            if (!currentAssignment || !currentDog) {
+                setAccessDenied(true);
+                setDog(null);
+                setAssignment(null);
+                setAssessment(null);
+                return;
+            }
 
-            const resolvedDog = dogResult.status === 'fulfilled' ? dogResult.value : fallbackDog;
-            const resolvedAssessment = assessmentResult.status === 'fulfilled' ? assessmentResult.value : fallbackAssessment;
+            const resolvedAssessment = await healthRecordService.assessWeight(numericDogId);
 
-            setDog(resolvedDog);
-            setAssignment(
-                assignmentResult.status === 'fulfilled'
-                    ? assignmentResult.value.find((item) => item.isActive !== false) || fallbackAssignment
-                    : fallbackAssignment
-            );
+            setAccessDenied(false);
+            setDog(currentDog);
+            setAssignment(currentAssignment);
             setAssessment(resolvedAssessment);
 
-            if ((resolvedAssessment?.alertLevel || '').toUpperCase() !== 'NORMAL') {
+            if ((resolvedAssessment.alertLevel || '').toUpperCase() !== 'NORMAL') {
                 await localAlertService.captureWeightAssessmentSnapshot({
                     dogId: resolvedAssessment.dogId,
-                    dogName: resolvedAssessment.dogName ?? resolvedDog?.dogName ?? null,
-                    dogCode: resolvedAssessment.dogCode ?? resolvedDog?.dogCode ?? null,
+                    dogName: resolvedAssessment.dogName ?? currentDog.dogName ?? null,
+                    dogCode: resolvedAssessment.dogCode ?? currentDog.dogCode ?? null,
                     weightStatus: resolvedAssessment.weightStatus ?? null,
                     alertLevel: resolvedAssessment.alertLevel ?? null,
                     currentWeightKg: resolvedAssessment.currentWeightKg ?? null,
                     deviationPercent: resolvedAssessment.deviationPercent ?? null,
                     createdAt: resolvedAssessment.lastAssessmentAt ?? new Date().toISOString(),
                 });
+            }
+        } catch (error) {
+            if (trainerDogScopeService.isAccessDeniedError(error)) {
+                setAccessDenied(true);
+                setDog(null);
+                setAssignment(null);
+                setAssessment(null);
+            } else {
+                const scope = await trainerDogScopeService.getScope(true);
+                const currentAssignment = scope.assignmentMap.get(numericDogId) || null;
+                const currentDog = scope.dogs.find((item) => item.dogId === numericDogId) || null;
+                const fallbackAssessment = findFallbackWeightAssessment(numericDogId) || fallbackWeightAssessments[0] || null;
+
+                if (currentAssignment && currentDog && fallbackAssessment) {
+                    setAccessDenied(false);
+                    setDog(currentDog);
+                    setAssignment(currentAssignment);
+                    setAssessment(fallbackAssessment);
+                } else {
+                    setAccessDenied(true);
+                    setDog(null);
+                    setAssignment(null);
+                    setAssessment(null);
+                }
             }
         } finally {
             setLoading(false);
@@ -125,20 +145,16 @@ export default function WeightAssessmentScreen() {
     }, [assessment]);
 
     const onRefresh = () => {
-        Alert.alert(
-            'Làm mới đánh giá',
-            'Làm mới có thể tạo bản đánh giá thể trạng mới từ dữ liệu cân nặng gần nhất. Bạn có muốn tiếp tục không?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Làm mới',
-                    onPress: () => {
-                        setRefreshing(true);
-                        loadData();
-                    },
+        Alert.alert('Lam moi danh gia', 'Lam moi co the tao ban danh gia moi tu du lieu can nang gan nhat. Ban co muon tiep tuc khong?', [
+            { text: 'Huy', style: 'cancel' },
+            {
+                text: 'Lam moi',
+                onPress: () => {
+                    setRefreshing(true);
+                    loadData();
                 },
-            ]
-        );
+            },
+        ]);
     };
 
     if (loading) {
@@ -151,16 +167,30 @@ export default function WeightAssessmentScreen() {
         );
     }
 
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Khong the mo danh gia can nang nay"
+                    description="Ban chi duoc xem va danh gia can nang cua nhung cho dang duoc phan cong cho minh."
+                    onPrimaryPress={() => router.replace('/dog-management/dogs' as any)}
+                    secondaryLabel="Quay lai"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
     if (!dog || !assessment) {
         return (
             <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <View style={styles.centered}>
                     <Ionicons name="barbell-outline" size={34} color={colors.primary} />
                     <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Không tìm thấy dữ liệu đánh giá
+                        Khong tim thay du lieu danh gia
                     </Text>
                     <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
-                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Quay lại</Text>
+                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Quay lai</Text>
                     </TouchableOpacity>
                 </View>
             </ScreenWrapper>
@@ -177,7 +207,7 @@ export default function WeightAssessmentScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Đánh giá cân nặng
+                    Danh gia can nang
                 </Text>
                 <TouchableOpacity onPress={onRefresh} style={styles.iconButton} activeOpacity={0.85}>
                     <Ionicons name="refresh-outline" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
@@ -201,14 +231,14 @@ export default function WeightAssessmentScreen() {
                             {dog.dogName}
                         </Text>
                         <Text style={[styles.profileMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                            {dog.breedName || 'Chưa rõ giống'} • {assignment?.assignmentType === 'TEMPORARY' ? 'Theo dõi tạm thời' : 'Nhiệm vụ đang hoạt động'}
+                            {dog.breedName || 'Chua ro giong'} • {assignment?.assignmentType === 'TEMPORARY' ? 'Theo doi tam thoi' : 'Nhiem vu dang hoat dong'}
                         </Text>
                         <View style={styles.weightRow}>
                             <Text style={[styles.weightValue, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
                                 {assessment.currentWeightKg?.toFixed(1) || '--'} kg
                             </Text>
                             <Text style={[styles.weightHint, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Cập nhật gần nhất: {formatDateTime(assessment.lastAssessmentAt)}
+                                Cap nhat gan nhat: {formatDateTime(assessment.lastAssessmentAt)}
                             </Text>
                         </View>
                     </View>
@@ -217,18 +247,18 @@ export default function WeightAssessmentScreen() {
                 <View style={[styles.gaugeCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <View style={styles.cardHeader}>
                         <Text style={[styles.cardEyebrow, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                            Chỉ số thể trạng
+                            Chi so the trang
                         </Text>
                         <View style={styles.inlineBadge}>
                             <View style={styles.inlineDot} />
-                            <Text style={[styles.inlineBadgeText, { color: '#2D7D57', fontFamily: dogManagementFonts.bold }]}>Vùng tối ưu</Text>
+                            <Text style={[styles.inlineBadgeText, { color: '#2D7D57', fontFamily: dogManagementFonts.bold }]}>Vung toi uu</Text>
                         </View>
                     </View>
 
                     <View style={styles.scaleLabels}>
-                        <Text style={[styles.scaleLabelWarn, { fontFamily: dogManagementFonts.bold }]}>Thiếu cân</Text>
-                        <Text style={[styles.scaleLabelMid, { fontFamily: dogManagementFonts.bold }]}>Tối ưu</Text>
-                        <Text style={[styles.scaleLabelWarn, { fontFamily: dogManagementFonts.bold }]}>Thừa cân</Text>
+                        <Text style={[styles.scaleLabelWarn, { fontFamily: dogManagementFonts.bold }]}>Thieu can</Text>
+                        <Text style={[styles.scaleLabelMid, { fontFamily: dogManagementFonts.bold }]}>Toi uu</Text>
+                        <Text style={[styles.scaleLabelWarn, { fontFamily: dogManagementFonts.bold }]}>Thua can</Text>
                     </View>
 
                     <View style={styles.gaugeWrap}>
@@ -245,7 +275,7 @@ export default function WeightAssessmentScreen() {
                         <View style={[styles.gaugeMarker, { left: `${gauge.leftPercent}%` }]}>
                             <View style={styles.gaugeMarkerBubble}>
                                 <Text style={[styles.gaugeMarkerText, { fontFamily: dogManagementFonts.bold }]}>
-                                    Hiện tại: {assessment.currentWeightKg?.toFixed(1) || '--'} kg
+                                    Hien tai: {assessment.currentWeightKg?.toFixed(1) || '--'} kg
                                 </Text>
                             </View>
                             <View style={styles.gaugeMarkerPin} />
@@ -258,7 +288,7 @@ export default function WeightAssessmentScreen() {
                                 {assessment.standardMinKg?.toFixed(0) || '--'} kg
                             </Text>
                             <Text style={[styles.scaleMeta, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Mốc thấp
+                                Moc thap
                             </Text>
                         </View>
                         <View style={{ alignItems: 'center' }}>
@@ -268,7 +298,7 @@ export default function WeightAssessmentScreen() {
                                 </Text>
                             </View>
                             <Text style={[styles.deviationText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                Lệch {assessment.deviationPercent?.toFixed(1) || '0.0'}%
+                                Lech {assessment.deviationPercent?.toFixed(1) || '0.0'}%
                             </Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
@@ -276,7 +306,7 @@ export default function WeightAssessmentScreen() {
                                 {assessment.standardMaxKg?.toFixed(0) || '--'} kg
                             </Text>
                             <Text style={[styles.scaleMeta, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Mốc cao
+                                Moc cao
                             </Text>
                         </View>
                     </View>
@@ -285,29 +315,29 @@ export default function WeightAssessmentScreen() {
                 <View style={styles.statRow}>
                     <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                         <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                            Tình trạng
+                            Tinh trang
                         </Text>
                         <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                            {assessment.weightStatus || 'Chưa rõ'}
+                            {assessment.weightStatus || 'Chua ro'}
                         </Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                         <Text style={[styles.statLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                            Người phụ trách
+                            Nguoi phu trach
                         </Text>
                         <Text style={[styles.statValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                            {assessment.handlerName || assignment?.trainerName || 'Chưa rõ'}
+                            {assessment.handlerName || assignment?.trainerName || 'Chua ro'}
                         </Text>
                     </View>
                 </View>
 
                 <View style={[styles.historyCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Lịch sử cân nặng gần đây
+                        Lich su can nang gan day
                     </Text>
                     {history.length === 0 ? (
                         <Text style={[styles.emptyText, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                            Chưa có dữ liệu lịch sử.
+                            Chua co du lieu lich su.
                         </Text>
                     ) : (
                         history.map((item) => (
@@ -317,7 +347,7 @@ export default function WeightAssessmentScreen() {
                                         {formatDateTime(item.recordDate).split(' ')[0]}
                                     </Text>
                                     <Text style={[styles.historyMeta, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                        {item.changeKg == null ? 'Không có chênh lệch' : `${item.changeKg > 0 ? '+' : ''}${item.changeKg.toFixed(1)} kg`}
+                                        {item.changeKg == null ? 'Khong co chenh lech' : `${item.changeKg > 0 ? '+' : ''}${item.changeKg.toFixed(1)} kg`}
                                     </Text>
                                 </View>
                                 <Text style={[styles.historyWeight, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
@@ -330,7 +360,7 @@ export default function WeightAssessmentScreen() {
 
                 <View style={[styles.recommendationCard, { backgroundColor: alertMeta.bg, borderColor: alertMeta.bg }]}>
                     <Text style={[styles.sectionTitle, { color: alertMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                        Khuyến nghị cho người phụ trách
+                        Khuyen nghi cho nguoi phu trach
                     </Text>
                     {(assessment.recommendations || []).map((item) => (
                         <View key={item.title} style={styles.recommendationRow}>
@@ -357,9 +387,9 @@ export default function WeightAssessmentScreen() {
                 <TouchableOpacity
                     activeOpacity={0.9}
                     style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-                    onPress={() => Alert.alert('Đang chuẩn bị', 'Chức năng xuất báo cáo sẽ được nối ở bước tiếp theo của frontend.')}
+                    onPress={() => Alert.alert('Dang chuan bi', 'Chuc nang xuat bao cao se duoc noi o buoc tiep theo cua frontend.')}
                 >
-                    <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Tạo báo cáo đánh giá</Text>
+                    <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Tao bao cao danh gia</Text>
                 </TouchableOpacity>
             </View>
         </ScreenWrapper>
