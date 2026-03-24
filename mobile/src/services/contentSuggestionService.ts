@@ -3,8 +3,8 @@ import { exerciseService } from './exerciseService';
 import { isOnline } from './offlineFirst';
 import { contentSuggestionDBService } from '../database/services/contentSuggestionDBService';
 import { offlineCacheDBService } from '../database/services/offlineCacheDBService';
+import { syncQueueDBService } from '../database/services/syncQueueDBService';
 import { useAuthStore } from '../stores/authStore';
-import { syncEngine } from '../sync/syncEngine';
 import type {
   ContentSuggestionRow,
   SuggestionStatus,
@@ -99,6 +99,33 @@ const saveCachedRemoteSuggestions = async (items: ContentSuggestionResponse[]): 
   await offlineCacheDBService.set(CACHE_KEY, JSON.stringify(items));
 };
 
+const upsertCachedRemoteSuggestion = async (item: ContentSuggestionResponse): Promise<void> => {
+  const cached = await getCachedRemoteSuggestions();
+  const nextItems = [
+    item,
+    ...cached
+      .map((entry) => ({
+        suggestionId: entry.serverId ?? 0,
+        trainerId: entry.trainerId,
+        trainerName: entry.trainerName,
+        suggestionType: entry.suggestionType,
+        relatedExerciseId: entry.relatedExerciseId,
+        relatedExerciseName: entry.relatedExerciseName,
+        title: entry.title,
+        description: entry.description,
+        status: entry.status,
+        adminResponse: entry.adminResponse,
+        reviewedById: entry.reviewedById,
+        reviewedByName: entry.reviewedByName,
+        reviewedAt: entry.reviewedAt,
+        submittedAt: entry.submittedAt,
+      }))
+      .filter((entry) => entry.suggestionId !== item.suggestionId),
+  ];
+
+  await saveCachedRemoteSuggestions(nextItems);
+};
+
 const mergeSuggestions = (
   localItems: ContentSuggestionItem[],
   remoteItems: ContentSuggestionItem[],
@@ -146,6 +173,49 @@ const getLocalSuggestions = async (): Promise<ContentSuggestionItem[]> => {
   const trainerName = useAuthStore.getState().user?.fullName ?? null;
   const rows = await contentSuggestionDBService.getByTrainer(trainerId);
   return rows.map((row) => mapRowToSuggestion(row, trainerName));
+};
+
+const buildSubmitPayload = (row: ContentSuggestionRow) => ({
+  localId: row.local_id,
+  suggestionType: row.suggestion_type,
+  relatedExerciseId: row.related_exercise_id,
+  title: row.title,
+  description: row.description,
+  localUpdatedAt: row.updated_at,
+});
+
+const syncLocalSuggestionToServer = async (localId: string): Promise<void> => {
+  const localRow = await contentSuggestionDBService.getById(localId);
+  if (!localRow) {
+    throw new Error('Không tìm thấy góp ý nội dung trong bộ nhớ cục bộ');
+  }
+
+  const response = (await api.post('/suggestions', buildSubmitPayload(localRow))) as ApiResponse<ContentSuggestionResponse>;
+  const submitted = unwrapApiData(response);
+
+  await contentSuggestionDBService.applyServerSnapshot(localId, {
+    server_id: submitted.suggestionId,
+    suggestion_type: submitted.suggestionType,
+    related_exercise_id: submitted.relatedExerciseId ?? null,
+    title: submitted.title,
+    description: submitted.description,
+    status: submitted.status,
+    admin_response: submitted.adminResponse ?? null,
+    reviewed_by: submitted.reviewedById ?? null,
+    reviewed_at: submitted.reviewedAt ?? null,
+    submitted_at: submitted.submittedAt,
+  });
+
+  const queueItems = await syncQueueDBService.getByEntity('content_suggestion', localId);
+  const createItems = queueItems.filter((item) => item.action === 'CREATE' && item.status !== 'SYNCED');
+  for (const queueItem of createItems) {
+    await syncQueueDBService.markSynced(queueItem.id);
+  }
+  if (createItems.length > 0) {
+    await syncQueueDBService.deleteSynced();
+  }
+
+  await upsertCachedRemoteSuggestion(submitted);
 };
 
 const inflateRelatedExerciseName = async (
@@ -238,9 +308,13 @@ export const contentSuggestionService = {
 
   create: async (input: CreateContentSuggestionInput): Promise<ContentSuggestionItem> => {
     const user = useAuthStore.getState().user;
+    if (!user?.userId) {
+      throw new Error('Không tìm thấy tài khoản đăng nhập để gửi góp ý');
+    }
+
     const submittedAt = new Date().toISOString();
     const localId = await contentSuggestionDBService.create({
-      trainer_id: user?.userId ?? 0,
+      trainer_id: user.userId,
       suggestion_type: input.suggestionType,
       related_exercise_id: input.relatedExerciseId ?? null,
       title: input.title.trim(),
@@ -250,7 +324,11 @@ export const contentSuggestionService = {
     });
 
     if (isOnline()) {
-      await syncEngine.quickPush();
+      try {
+        await syncLocalSuggestionToServer(localId);
+      } catch (error) {
+        console.warn('[CONTENT_SUGGESTION] Không thể gửi ngay, đã lưu cục bộ để đồng bộ sau:', error);
+      }
     }
 
     return contentSuggestionService.getByRouteId(localId);

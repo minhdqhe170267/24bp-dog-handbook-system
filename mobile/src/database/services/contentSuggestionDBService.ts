@@ -67,6 +67,42 @@ export const contentSuggestionDBService = {
     );
   },
 
+  applyServerSnapshot: async (
+    localId: string,
+    data: {
+      server_id: number;
+      suggestion_type: ContentSuggestionRow['suggestion_type'];
+      related_exercise_id: number | null;
+      title: string;
+      description: string;
+      status: ContentSuggestionRow['status'];
+      admin_response: string | null;
+      reviewed_by: number | null;
+      reviewed_at: string | null;
+      submitted_at: string;
+    },
+  ): Promise<void> => {
+    await repository.update(
+      TABLE,
+      localId,
+      {
+        server_id: data.server_id,
+        suggestion_type: data.suggestion_type,
+        related_exercise_id: data.related_exercise_id,
+        title: data.title,
+        description: data.description,
+        status: data.status,
+        admin_response: data.admin_response,
+        reviewed_by: data.reviewed_by,
+        reviewed_at: data.reviewed_at,
+        submitted_at: data.submitted_at,
+        sync_status: 'SYNCED',
+        updated_at: new Date().toISOString(),
+      },
+      ID_COL,
+    );
+  },
+
   getCount: (): Promise<number> =>
     repository.count(TABLE),
 };
