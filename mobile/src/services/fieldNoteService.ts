@@ -3,6 +3,7 @@ import { offlineFirstRead, isOnline } from './offlineFirst';
 import { fieldNoteDBService, dogProfileDBService } from '../database/services';
 import { useAuthStore } from '../stores/authStore';
 import { syncEngine } from '../sync/syncEngine';
+import { trainerDogScopeService } from './trainerDogScopeService';
 import type { FieldNoteRow } from '../database/types';
 import type { FieldNote, FieldNoteRequest } from '../types/dogManagement';
 
@@ -153,7 +154,9 @@ const resolveLocalRow = async (noteId: string | number): Promise<FieldNoteRow | 
   return fieldNoteDBService.getByServerId(serverId);
 };
 
-const mapApiToRow = (note: FieldNoteApiDto): Omit<FieldNoteRow, 'local_id' | 'sync_status' | 'is_deleted' | 'deleted_at'> & { server_id: number } => ({
+const mapApiToRow = (
+  note: FieldNoteApiDto,
+): Omit<FieldNoteRow, 'local_id' | 'sync_status' | 'is_deleted' | 'deleted_at'> & { server_id: number } => ({
   server_id: note.noteId,
   trainer_id: note.trainerId ?? 0,
   dog_id: note.dogId ?? null,
@@ -167,17 +170,52 @@ const mapApiToRow = (note: FieldNoteApiDto): Omit<FieldNoteRow, 'local_id' | 'sy
   updated_at: note.updatedAt ?? note.createdAt ?? new Date().toISOString(),
 });
 
-const saveRemoteNotesToLocal = async (notes: FieldNoteApiDto[]): Promise<void> => {
-  if (notes.length === 0) {
+const saveRemoteNotesToLocal = async (notes: FieldNote[]): Promise<void> => {
+  const serverNotes = notes.filter((note): note is FieldNote & { noteId: number } => typeof note.noteId === 'number');
+
+  if (serverNotes.length === 0) {
     return;
   }
-  await fieldNoteDBService.upsertFromServer(notes.map(mapApiToRow));
+
+  await fieldNoteDBService.upsertFromServer(
+    serverNotes.map((note) =>
+      mapApiToRow({
+        noteId: note.noteId,
+        trainerId: note.ownerId ?? null,
+        trainerName: note.ownerName ?? null,
+        dogId: note.dogId ?? null,
+        dogName: note.dogName ?? null,
+        dogCode: note.dogCode ?? null,
+        title: note.title,
+        content: note.content,
+        photoUrls: stringifyPhotoUrls(note.media?.map((item) => item.url) ?? []),
+        recordingDate: note.recordedAt ?? null,
+        location: note.location ?? null,
+        linkedContentId: null,
+        createdAt: note.recordedAt ?? null,
+        updatedAt: note.recordedAt ?? null,
+      }),
+    ),
+  );
+};
+
+const filterAccessibleNotes = async (notes: FieldNote[]): Promise<FieldNote[]> => {
+  const accessibleChecks = await Promise.all(
+    notes.map((note) =>
+      trainerDogScopeService.canAccessDogScopedOwnedItem(
+        { dogId: note.dogId ?? null, ownerId: note.ownerId ?? null },
+        true,
+      ),
+    ),
+  );
+
+  return notes.filter((_, index) => accessibleChecks[index]);
 };
 
 const fetchNotePage = async (
   path: string,
   params?: Record<string, string | number | undefined>,
-): Promise<FieldNoteApiDto[]> => {
+): Promise<FieldNote[]> => {
   const response = (await api.get(path, {
     params: {
       page: 0,
@@ -186,7 +224,7 @@ const fetchNotePage = async (
     },
   })) as ApiResponse<PageResponse<FieldNoteApiDto>>;
 
-  return unwrapApiData(response).content ?? [];
+  return (unwrapApiData(response).content ?? []).map(mapApiToFieldNote);
 };
 
 export const fieldNoteService = {
@@ -194,102 +232,42 @@ export const fieldNoteService = {
     offlineFirstRead<FieldNote[]>({
       localFetch: async () => {
         const rows = await fieldNoteDBService.getAll();
-        return Promise.all(rows.map(mapRowToFieldNote));
+        return filterAccessibleNotes(await Promise.all(rows.map(mapRowToFieldNote)));
       },
-      remoteFetch: async () => {
-        const notes = await fetchNotePage('/field-notes');
-        return notes.map(mapApiToFieldNote);
-      },
+      remoteFetch: async () => filterAccessibleNotes(await fetchNotePage('/field-notes')),
       saveToLocal: async (notes) => {
-        const apiNotes = notes
-          .filter((note): note is FieldNote & { noteId: number } => typeof note.noteId === 'number')
-          .map((note) => ({
-            noteId: note.noteId,
-            trainerId: note.ownerId ?? null,
-            trainerName: note.ownerName ?? null,
-            dogId: note.dogId ?? null,
-            dogName: note.dogName ?? null,
-            dogCode: note.dogCode ?? null,
-            title: note.title,
-            content: note.content,
-            photoUrls: stringifyPhotoUrls(note.media?.map((item) => item.url) ?? []),
-            recordingDate: note.recordedAt ?? null,
-            location: note.location ?? null,
-            linkedContentId: null,
-            createdAt: note.recordedAt ?? null,
-            updatedAt: note.recordedAt ?? null,
-          }));
-        await saveRemoteNotesToLocal(apiNotes);
+        await saveRemoteNotesToLocal(notes);
       },
       entityName: 'field-notes',
     }),
 
-  getMine: async (): Promise<FieldNote[]> => {
-    const currentUserId = useAuthStore.getState().user?.userId ?? 0;
-    return offlineFirstRead<FieldNote[]>({
+  getMine: async (): Promise<FieldNote[]> =>
+    offlineFirstRead<FieldNote[]>({
       localFetch: async () => {
+        const currentUserId = useAuthStore.getState().user?.userId ?? 0;
         const rows = await fieldNoteDBService.getByTrainer(currentUserId);
-        return Promise.all(rows.map(mapRowToFieldNote));
+        return filterAccessibleNotes(await Promise.all(rows.map(mapRowToFieldNote)));
       },
-      remoteFetch: async () => {
-        const notes = await fetchNotePage('/field-notes/my');
-        return notes.map(mapApiToFieldNote);
-      },
+      remoteFetch: async () => filterAccessibleNotes(await fetchNotePage('/field-notes/my')),
       saveToLocal: async (notes) => {
-        const apiNotes = notes
-          .filter((note): note is FieldNote & { noteId: number } => typeof note.noteId === 'number')
-          .map((note) => ({
-            noteId: note.noteId,
-            trainerId: note.ownerId ?? null,
-            trainerName: note.ownerName ?? null,
-            dogId: note.dogId ?? null,
-            dogName: note.dogName ?? null,
-            dogCode: note.dogCode ?? null,
-            title: note.title,
-            content: note.content,
-            photoUrls: stringifyPhotoUrls(note.media?.map((item) => item.url) ?? []),
-            recordingDate: note.recordedAt ?? null,
-            location: note.location ?? null,
-            linkedContentId: null,
-            createdAt: note.recordedAt ?? null,
-            updatedAt: note.recordedAt ?? null,
-          }));
-        await saveRemoteNotesToLocal(apiNotes);
+        await saveRemoteNotesToLocal(notes);
       },
       entityName: 'field-notes:mine',
-    });
-  },
+    }),
 
   getByDog: (dogId: number): Promise<FieldNote[]> =>
     offlineFirstRead<FieldNote[]>({
       localFetch: async () => {
+        await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc xem ghi chu cua cho nay');
         const rows = await fieldNoteDBService.getByDog(dogId);
         return Promise.all(rows.map(mapRowToFieldNote));
       },
       remoteFetch: async () => {
-        const notes = await fetchNotePage(`/field-notes/by-dog/${dogId}`);
-        return notes.map(mapApiToFieldNote);
+        await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc xem ghi chu cua cho nay');
+        return fetchNotePage(`/field-notes/by-dog/${dogId}`);
       },
       saveToLocal: async (notes) => {
-        const apiNotes = notes
-          .filter((note): note is FieldNote & { noteId: number } => typeof note.noteId === 'number')
-          .map((note) => ({
-            noteId: note.noteId,
-            trainerId: note.ownerId ?? null,
-            trainerName: note.ownerName ?? null,
-            dogId: note.dogId ?? null,
-            dogName: note.dogName ?? null,
-            dogCode: note.dogCode ?? null,
-            title: note.title,
-            content: note.content,
-            photoUrls: stringifyPhotoUrls(note.media?.map((item) => item.url) ?? []),
-            recordingDate: note.recordedAt ?? null,
-            location: note.location ?? null,
-            linkedContentId: null,
-            createdAt: note.recordedAt ?? null,
-            updatedAt: note.recordedAt ?? null,
-          }));
-        await saveRemoteNotesToLocal(apiNotes);
+        await saveRemoteNotesToLocal(notes);
       },
       entityName: `field-notes:dog:${dogId}`,
     }),
@@ -297,23 +275,38 @@ export const fieldNoteService = {
   getById: async (noteId: string | number): Promise<FieldNote> => {
     const localRow = await resolveLocalRow(noteId);
     if (localRow) {
-      return mapRowToFieldNote(localRow);
+      const localNote = await mapRowToFieldNote(localRow);
+      await trainerDogScopeService.assertAccessToDogScopedOwnedItem(
+        { dogId: localNote.dogId ?? null, ownerId: localNote.ownerId ?? null },
+        true,
+        'Ban khong duoc xem ghi chu nay',
+      );
+      return localNote;
     }
 
     const serverId = parseServerId(noteId);
     if (serverId == null || !isOnline()) {
-      throw new Error('Không tìm thấy ghi chú trong bộ nhớ cục bộ');
+      throw new Error('Khong tim thay ghi chu trong bo nho cuc bo');
     }
 
     const response = (await api.get(`/field-notes/${serverId}`)) as ApiResponse<FieldNoteApiDto>;
-    const remoteNote = unwrapApiData(response);
+    const remoteNote = mapApiToFieldNote(unwrapApiData(response));
+    await trainerDogScopeService.assertAccessToDogScopedOwnedItem(
+      { dogId: remoteNote.dogId ?? null, ownerId: remoteNote.ownerId ?? null },
+      true,
+      'Ban khong duoc xem ghi chu nay',
+    );
     await saveRemoteNotesToLocal([remoteNote]);
 
     const refreshedLocalRow = await fieldNoteDBService.getByServerId(serverId);
-    return refreshedLocalRow ? mapRowToFieldNote(refreshedLocalRow) : mapApiToFieldNote(remoteNote);
+    return refreshedLocalRow ? mapRowToFieldNote(refreshedLocalRow) : remoteNote;
   },
 
   create: async (request: FieldNoteRequest): Promise<FieldNote> => {
+    if (request.dogId) {
+      await trainerDogScopeService.assertAccessToDog(request.dogId, true, 'Ban khong duoc tao ghi chu cho cho nay');
+    }
+
     const user = useAuthStore.getState().user;
     const localId = await fieldNoteDBService.create({
       trainer_id: user?.userId ?? 0,
@@ -332,7 +325,7 @@ export const fieldNoteService = {
 
     const row = await fieldNoteDBService.getById(localId);
     if (!row) {
-      throw new Error('Không thể lưu ghi chú thực địa');
+      throw new Error('Khong the luu ghi chu thuc dia');
     }
 
     return mapRowToFieldNote(row);
@@ -341,7 +334,17 @@ export const fieldNoteService = {
   update: async (noteId: string | number, request: FieldNoteRequest): Promise<FieldNote> => {
     const existing = await resolveLocalRow(noteId);
     if (!existing) {
-      throw new Error('Không tìm thấy ghi chú để cập nhật');
+      throw new Error('Khong tim thay ghi chu de cap nhat');
+    }
+
+    await trainerDogScopeService.assertAccessToDogScopedOwnedItem(
+      { dogId: existing.dog_id ?? null, ownerId: existing.trainer_id },
+      true,
+      'Ban khong duoc cap nhat ghi chu nay',
+    );
+
+    if (request.dogId) {
+      await trainerDogScopeService.assertAccessToDog(request.dogId, true, 'Ban khong duoc cap nhat ghi chu cho cho nay');
     }
 
     await fieldNoteDBService.update(existing.local_id, {
@@ -360,7 +363,7 @@ export const fieldNoteService = {
 
     const refreshed = await fieldNoteDBService.getById(existing.local_id);
     if (!refreshed) {
-      throw new Error('Không thể cập nhật ghi chú thực địa');
+      throw new Error('Khong the cap nhat ghi chu thuc dia');
     }
 
     return mapRowToFieldNote(refreshed);
@@ -372,11 +375,25 @@ export const fieldNoteService = {
     if (!existing) {
       const serverId = parseServerId(noteId);
       if (serverId == null) {
-        throw new Error('Không tìm thấy ghi chú để xóa');
+        throw new Error('Khong tim thay ghi chu de xoa');
       }
+
+      const response = (await api.get(`/field-notes/${serverId}`)) as ApiResponse<FieldNoteApiDto>;
+      const remoteNote = mapApiToFieldNote(unwrapApiData(response));
+      await trainerDogScopeService.assertAccessToDogScopedOwnedItem(
+        { dogId: remoteNote.dogId ?? null, ownerId: remoteNote.ownerId ?? null },
+        true,
+        'Ban khong duoc xoa ghi chu nay',
+      );
       await api.delete(`/field-notes/${serverId}`);
       return;
     }
+
+    await trainerDogScopeService.assertAccessToDogScopedOwnedItem(
+      { dogId: existing.dog_id ?? null, ownerId: existing.trainer_id },
+      true,
+      'Ban khong duoc xoa ghi chu nay',
+    );
 
     await fieldNoteDBService.softDelete(existing.local_id);
 

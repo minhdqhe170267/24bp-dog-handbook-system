@@ -12,12 +12,13 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { dogService } from '../../../src/services/dogService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogProfile } from '../../../src/types/dogManagement';
-import { dogManagementFonts, dogManagementUi, fallbackDogs } from '../../../src/features/dog-management/ui';
+import { dogManagementFonts, dogManagementUi } from '../../../src/features/dog-management/ui';
 
 const appetiteOptions = [
     { label: 'Bình thường', value: 'NORMAL' },
@@ -68,26 +69,41 @@ export default function NewHealthRecordScreen() {
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     useEffect(() => {
         let mounted = true;
 
         const loadDogs = async () => {
             try {
-                const response = await dogService.getAll(0, 40);
                 if (!mounted) {
                     return;
                 }
-                const list = response.content || [];
-                const safeDogs = list.length > 0 ? list : fallbackDogs;
+                const scope = await trainerDogScopeService.getScope(true);
+                const safeDogs = scope.dogs;
+                const requestedDogId = dogId ? Number(dogId) : null;
+
+                if (requestedDogId && !scope.assignmentMap.has(requestedDogId)) {
+                    setAccessDenied(true);
+                    setDogs([]);
+                    setSelectedDogId(null);
+                    return;
+                }
+
+                setAccessDenied(false);
                 setDogs(safeDogs);
-                setSelectedDogId((current) => current ?? safeDogs[0]?.dogId ?? null);
+                setSelectedDogId((current) => {
+                    if (requestedDogId && scope.assignmentMap.has(requestedDogId)) {
+                        return requestedDogId;
+                    }
+                    return current ?? safeDogs[0]?.dogId ?? null;
+                });
             } catch {
                 if (!mounted) {
                     return;
                 }
-                setDogs(fallbackDogs);
-                setSelectedDogId((current) => current ?? fallbackDogs[0]?.dogId ?? null);
+                setDogs([]);
+                setSelectedDogId(null);
             } finally {
                 if (mounted) {
                     setLoading(false);
@@ -102,7 +118,7 @@ export default function NewHealthRecordScreen() {
     }, [dogId]);
 
     const selectedDog = useMemo(
-        () => dogs.find((item) => item.dogId === selectedDogId) || fallbackDogs.find((item) => item.dogId === selectedDogId) || null,
+        () => dogs.find((item) => item.dogId === selectedDogId) || null,
         [dogs, selectedDogId]
     );
 
@@ -165,6 +181,34 @@ export default function NewHealthRecordScreen() {
                 <View style={styles.centered}>
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
+            </ScreenWrapper>
+        );
+    }
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể tạo hồ sơ cho chó này"
+                    description="Bạn chỉ có thể tạo hồ sơ sức khỏe cho những chó đang được phân công cho mình."
+                    onPrimaryPress={() => router.replace('/dog-management/health-records' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
+    if (dogs.length === 0) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Chưa có chó trong phạm vi phụ trách"
+                    description="Bạn cần được phân công ít nhất một chó trước khi tạo hồ sơ sức khỏe mới."
+                    onPrimaryPress={() => router.replace('/dog-management/dogs' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
             </ScreenWrapper>
         );
     }

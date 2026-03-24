@@ -12,9 +12,11 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../../src/constants/theme';
 import { useThemeStore } from '../../../../src/stores/themeStore';
 import { healthSessionService } from '../../../../src/services/healthSessionService';
+import { trainerDogScopeService } from '../../../../src/services/trainerDogScopeService';
 import { HealthSession, HealthSessionFollowUpStatus } from '../../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -24,10 +26,10 @@ import {
 } from '../../../../src/features/dog-management/ui';
 
 const followUpOptions: { key: HealthSessionFollowUpStatus; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: 'IMPROVED', label: 'Cải thiện', icon: 'checkmark-circle' },
-    { key: 'SAME', label: 'Ổn định', icon: 'remove-circle' },
-    { key: 'WORSE', label: 'Xấu hơn', icon: 'warning' },
-    { key: 'RESOLVED', label: 'Đã xử lý', icon: 'shield-checkmark' },
+    { key: 'IMPROVED', label: 'Cai thien', icon: 'checkmark-circle' },
+    { key: 'SAME', label: 'On dinh', icon: 'remove-circle' },
+    { key: 'WORSE', label: 'Xau hon', icon: 'warning' },
+    { key: 'RESOLVED', label: 'Da xu ly', icon: 'shield-checkmark' },
 ];
 
 export default function HealthSessionFollowUpScreen() {
@@ -38,6 +40,7 @@ export default function HealthSessionFollowUpScreen() {
     const [session, setSession] = useState<HealthSession | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
     const [statusUpdate, setStatusUpdate] = useState<HealthSessionFollowUpStatus>('IMPROVED');
     const [weightKg, setWeightKg] = useState('');
     const [temperatureC, setTemperatureC] = useState('');
@@ -50,9 +53,22 @@ export default function HealthSessionFollowUpScreen() {
         const loadData = async () => {
             try {
                 const detail = await healthSessionService.getById(sessionId);
+                setAccessDenied(false);
                 setSession(detail);
-            } catch {
-                setSession(findFallbackHealthSession(sessionId) || fallbackHealthSessions[0] || null);
+            } catch (error) {
+                if (trainerDogScopeService.isAccessDeniedError(error)) {
+                    setAccessDenied(true);
+                    setSession(null);
+                } else {
+                    const fallbackSession = findFallbackHealthSession(sessionId) || fallbackHealthSessions[0] || null;
+                    if (fallbackSession && (await trainerDogScopeService.hasAccessToDog(fallbackSession.dogId, true))) {
+                        setAccessDenied(false);
+                        setSession(fallbackSession);
+                    } else {
+                        setAccessDenied(true);
+                        setSession(null);
+                    }
+                }
             } finally {
                 setLoading(false);
             }
@@ -63,7 +79,7 @@ export default function HealthSessionFollowUpScreen() {
 
     const submit = async () => {
         if (!statusUpdate) {
-            Alert.alert('Thiếu thông tin', 'Vui lòng chọn trạng thái follow-up.');
+            Alert.alert('Thieu thong tin', 'Vui long chon trang thai follow-up.');
             return;
         }
 
@@ -77,10 +93,16 @@ export default function HealthSessionFollowUpScreen() {
                 nextAction: nextAction.trim() || null,
             });
             router.replace(`/dog-management/health-sessions/${String(sessionId)}` as any);
-        } catch {
-            Alert.alert('Đã lưu ở giao diện mẫu', 'Bản cập nhật follow-up đã được hoàn tất ở luồng frontend.', [
-                { text: 'Tiếp tục', onPress: () => router.replace(`/dog-management/health-sessions/${sessionId}` as any) },
-            ]);
+        } catch (error) {
+            if (trainerDogScopeService.isAccessDeniedError(error)) {
+                Alert.alert('Khong duoc phep', 'Ban khong the cap nhat follow-up cho cho ngoai pham vi phan cong.');
+            } else {
+                Alert.alert(
+                    'Da luu o giao dien mau',
+                    'Ban cap nhat follow-up da duoc hoan tat o luong frontend.',
+                    [{ text: 'Tiep tuc', onPress: () => router.replace(`/dog-management/health-sessions/${sessionId}` as any) }],
+                );
+            }
         } finally {
             setSaving(false);
         }
@@ -96,6 +118,20 @@ export default function HealthSessionFollowUpScreen() {
         );
     }
 
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Khong the cap nhat phien nay"
+                    description="Ban chi co the them follow-up cho nhung phien theo doi cua cho dang duoc phan cong cho minh."
+                    onPrimaryPress={() => router.replace('/dog-management/health-sessions' as any)}
+                    secondaryLabel="Quay lai"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
+
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
             <View style={styles.headerRow}>
@@ -103,7 +139,7 @@ export default function HealthSessionFollowUpScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Cập nhật follow-up
+                    Cap nhat follow-up
                 </Text>
                 <View style={styles.iconButton} />
             </View>
@@ -111,16 +147,16 @@ export default function HealthSessionFollowUpScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.heroTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        {session?.issueSummary || 'Phiên theo dõi'}
+                        {session?.issueSummary || 'Phien theo doi'}
                     </Text>
                     <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                        {session?.dogName || 'Chưa rõ chó'} • {session?.dogCode || 'Chưa rõ mã'}
+                        {session?.dogName || 'Chua ro cho'} • {session?.dogCode || 'Chua ro ma'}
                     </Text>
                 </View>
 
                 <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        Trạng thái hồi phục
+                        Trang thai hoi phuc
                     </Text>
                     <View style={styles.statusGrid}>
                         {followUpOptions.map((item) => {
@@ -144,12 +180,12 @@ export default function HealthSessionFollowUpScreen() {
 
                 <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        Thông số sức khỏe
+                        Thong so suc khoe
                     </Text>
                     <View style={styles.inlineFields}>
                         <View style={styles.fieldCol}>
                             <Text style={[styles.fieldTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Cân nặng (kg)
+                                Can nang (kg)
                             </Text>
                             <TextInput
                                 value={weightKg}
@@ -162,7 +198,7 @@ export default function HealthSessionFollowUpScreen() {
                         </View>
                         <View style={styles.fieldCol}>
                             <Text style={[styles.fieldTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Nhiệt độ (°C)
+                                Nhiet do (°C)
                             </Text>
                             <TextInput
                                 value={temperatureC}
@@ -178,14 +214,14 @@ export default function HealthSessionFollowUpScreen() {
 
                 <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        Ghi chú diễn biến
+                        Ghi chu dien bien
                     </Text>
                     <TextInput
                         value={notes}
                         onChangeText={setNotes}
                         multiline
                         textAlignVertical="top"
-                        placeholder="Nhập diễn biến sức khỏe chi tiết của K9..."
+                        placeholder="Nhap dien bien suc khoe chi tiet cua K9..."
                         placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                         style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#FAFCFB', borderColor: isDark ? colors.border : dogManagementUi.border }]}
                     />
@@ -193,14 +229,14 @@ export default function HealthSessionFollowUpScreen() {
 
                 <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        Hành động tiếp theo
+                        Hanh dong tiep theo
                     </Text>
                     <TextInput
                         value={nextAction}
                         onChangeText={setNextAction}
                         multiline
                         textAlignVertical="top"
-                        placeholder="Kế hoạch chăm sóc tiếp theo, lịch tái đánh giá hoặc điều chỉnh nhiệm vụ..."
+                        placeholder="Ke hoach cham soc tiep theo, lich tai danh gia hoac dieu chinh nhiem vu..."
                         placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                         style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#FAFCFB', borderColor: isDark ? colors.border : dogManagementUi.border }]}
                     />
@@ -214,7 +250,7 @@ export default function HealthSessionFollowUpScreen() {
                     ) : (
                         <>
                             <Ionicons name="save-outline" size={18} color="#FFFFFF" />
-                            <Text style={[styles.saveButtonText, { fontFamily: dogManagementFonts.bold }]}>Lưu follow-up</Text>
+                            <Text style={[styles.saveButtonText, { fontFamily: dogManagementFonts.bold }]}>Luu follow-up</Text>
                         </>
                     )}
                 </TouchableOpacity>

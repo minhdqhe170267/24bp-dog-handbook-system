@@ -12,12 +12,11 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
-import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { assignmentService } from '../../../src/services/assignmentService';
-import { dogService } from '../../../src/services/dogService';
 import { healthRecordService } from '../../../src/services/healthRecordService';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
 import { DogAssignment, DogProfile, HealthRecord } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -114,7 +113,6 @@ const shortEnum = (value?: string | null, kind?: 'appetite' | 'activity' | 'fece
 export default function HealthRecordTimelineScreen() {
     const router = useRouter();
     const { dogId } = useLocalSearchParams<{ dogId?: string }>();
-    const { user } = useAuthStore();
     const { colors, isDark } = useThemeStore();
 
     const [records, setRecords] = useState<HealthRecord[]>([]);
@@ -126,23 +124,30 @@ export default function HealthRecordTimelineScreen() {
     const [timeRange, setTimeRange] = useState<TimeRangeKey>('30');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
+            const scope = await trainerDogScopeService.getScope(true);
+
             if (dogId) {
                 const numericDogId = Number(dogId);
-                const [recordResult, dogResult, assignmentResult] = await Promise.allSettled([
+                if (!scope.assignmentMap.has(numericDogId)) {
+                    setAccessDenied(true);
+                    setContextDog(null);
+                    setAssignmentMap(new Map());
+                    setManagedDogCount(0);
+                    setRecords([]);
+                    return;
+                }
+
+                const [recordResult] = await Promise.allSettled([
                     healthRecordService.getByDog(numericDogId, 0, 30),
-                    dogService.getById(numericDogId),
-                    assignmentService.getByDog(numericDogId),
                 ]);
 
-                setContextDog(dogResult.status === 'fulfilled' ? dogResult.value : fallbackDogs.find((item) => item.dogId === numericDogId) || null);
-                setAssignmentMap(
-                    buildAssignmentMap(
-                        assignmentResult.status === 'fulfilled' ? assignmentResult.value : fallbackAssignments.filter((item) => item.dogId === numericDogId)
-                    )
-                );
+                setAccessDenied(false);
+                setContextDog(scope.dogs.find((item) => item.dogId === numericDogId) || null);
+                setAssignmentMap(new Map(scope.assignmentMap));
                 setManagedDogCount(1);
                 setRecords(
                     recordResult.status === 'fulfilled'
@@ -150,15 +155,14 @@ export default function HealthRecordTimelineScreen() {
                         : dedupe(fallbackHealthRecords.filter((item) => item.dogId === numericDogId))
                 );
             } else {
-                const trainerId = user?.userId ?? 0;
-                const assignments = trainerId > 0 ? await assignmentService.getByTrainer(trainerId) : fallbackAssignments;
-                const dogIds = [...new Set(assignments.filter((item) => item.isActive !== false).map((item) => item.dogId))];
+                const dogIds = scope.assignedDogIds;
                 const recordResults = dogIds.length
                     ? await Promise.allSettled(dogIds.map((value) => healthRecordService.getByDog(value, 0, 20)))
                     : [];
 
+                setAccessDenied(false);
                 setContextDog(null);
-                setAssignmentMap(buildAssignmentMap(assignments));
+                setAssignmentMap(new Map(scope.assignmentMap));
                 setManagedDogCount(dogIds.length);
                 setRecords(
                     dedupe(recordResults.flatMap((result) => (result.status === 'fulfilled' ? result.value.content || [] : []))).length
@@ -169,14 +173,24 @@ export default function HealthRecordTimelineScreen() {
         } catch {
             if (dogId) {
                 const numericDogId = Number(dogId);
-                setContextDog(fallbackDogs.find((item) => item.dogId === numericDogId) || null);
-                setAssignmentMap(buildAssignmentMap(fallbackAssignments.filter((item) => item.dogId === numericDogId)));
-                setManagedDogCount(1);
-                setRecords(dedupe(fallbackHealthRecords.filter((item) => item.dogId === numericDogId)));
+                if (await trainerDogScopeService.hasAccessToDog(numericDogId, true)) {
+                    setAccessDenied(false);
+                    setContextDog(fallbackDogs.find((item) => item.dogId === numericDogId) || null);
+                    setAssignmentMap(buildAssignmentMap(fallbackAssignments.filter((item) => item.dogId === numericDogId)));
+                    setManagedDogCount(1);
+                    setRecords(dedupe(fallbackHealthRecords.filter((item) => item.dogId === numericDogId)));
+                } else {
+                    setAccessDenied(true);
+                    setContextDog(null);
+                    setAssignmentMap(new Map());
+                    setManagedDogCount(0);
+                    setRecords([]);
+                }
             } else {
-                const dogIds = [...new Set(fallbackAssignments.map((item) => item.dogId))];
+                const dogIds = await trainerDogScopeService.getAssignedDogIds(true);
+                setAccessDenied(false);
                 setContextDog(null);
-                setAssignmentMap(buildAssignmentMap(fallbackAssignments));
+                setAssignmentMap(buildAssignmentMap(fallbackAssignments.filter((item) => dogIds.includes(item.dogId))));
                 setManagedDogCount(dogIds.length);
                 setRecords(dedupe(fallbackHealthRecords.filter((item) => dogIds.includes(item.dogId))));
             }
@@ -184,7 +198,7 @@ export default function HealthRecordTimelineScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [dogId, user?.userId]);
+    }, [dogId]);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -211,6 +225,20 @@ export default function HealthRecordTimelineScreen() {
     const visibleDogCount = filteredRecords.length ? new Set(filteredRecords.map((item) => item.dogId)).size : managedDogCount;
     const upcomingCount = filteredRecords.filter((item) => isUpcomingCheckup(item.nextCheckupDate)).length;
     const latestWeight = filteredRecords[0]?.weightKg;
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể mở hồ sơ của chó này"
+                    description="Bạn chỉ được xem hồ sơ sức khỏe của những chó đang nằm trong phạm vi phân công hiện tại."
+                    onPrimaryPress={() => router.replace('/dog-management/health-records' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>

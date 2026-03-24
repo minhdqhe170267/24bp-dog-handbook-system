@@ -1,6 +1,6 @@
 import { db } from '../index';
 import { repository } from '../repository';
-import type { SyncQueueRow, EntityType, SyncStatus } from '../types';
+import type { SyncQueueRow, EntityType } from '../types';
 
 const TABLE = 'sync_queue';
 
@@ -35,6 +35,10 @@ export const syncQueueDBService = {
     await db.runAsync(
       `UPDATE ${TABLE} SET status = 'PENDING', error_message = NULL WHERE status = 'FAILED'`,
     );
+  },
+
+  deleteById: async (id: number): Promise<void> => {
+    await db.runAsync(`DELETE FROM ${TABLE} WHERE id = ?`, [id]);
   },
 
   deleteSynced: async (): Promise<void> => {
