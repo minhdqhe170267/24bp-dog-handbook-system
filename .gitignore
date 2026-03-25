@@ -24,3 +24,9 @@ out/
 # Misc
 *.log
 .tmp/
+diagrams/backend-package-diagram.puml
+diagrams/backend_package_diagram.xml
+diagrams/mobile_package_diagram.xml
+diagrams/mobile-package-diagram.puml
+diagrams/webcms_package_diagram.xml
+diagrams/webcms-package-diagram.puml
