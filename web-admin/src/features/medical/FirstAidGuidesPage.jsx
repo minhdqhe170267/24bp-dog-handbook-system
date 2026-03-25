@@ -30,7 +30,6 @@ const EMPTY_FORM = {
   requiredMaterials: '',
   doNotActions: '',
   whenToSeekVet: '',
-  imageUrl: '',
 };
 
 const statusOptions = [
@@ -114,7 +113,6 @@ const FirstAidGuidesPage = () => {
     requiredMaterials: formData.requiredMaterials?.trim() || '',
     doNotActions: formData.doNotActions?.trim() || '',
     whenToSeekVet: formData.whenToSeekVet?.trim() || '',
-    imageUrl: formData.imageUrl?.trim() || '',
   });
 
   const handleSubmit = async (e) => {
@@ -360,7 +358,6 @@ const FirstAidGuidesPage = () => {
               ['Vật tư cần thiết', detailData.requiredMaterials],
               ['Không nên làm', detailData.doNotActions],
               ['Khi nào cần bác sĩ', detailData.whenToSeekVet],
-              ['Ảnh minh họa', detailData.imageUrl],
               ['Trạng thái', getStatusLabel(detailData.status)],
               ['Người tạo', detailData.createdByName],
               ['Ngày tạo', formatDateTime(detailData.createdAt)],
@@ -448,13 +445,6 @@ const FirstAidGuidesPage = () => {
             />
           </FormField>
 
-          <FormField label="URL ảnh minh họa">
-            <FormInput
-              placeholder="https://..."
-              value={formData.imageUrl}
-              onChange={(e) => updateField('imageUrl', e.target.value)}
-            />
-          </FormField>
         </form>
       </Modal>
 

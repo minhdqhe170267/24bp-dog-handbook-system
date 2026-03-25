@@ -55,7 +55,6 @@ const defaultForm = {
   color: '',
   microchipId: '',
   status: 'ACTIVE',
-  imageUrl: '',
   notes: '',
 };
 
@@ -201,7 +200,6 @@ const DogsPage = () => {
       heightCm: toNullableNumber(formData.heightCm),
       color: formData.color?.trim() || null,
       microchipId: formData.microchipId?.trim() || null,
-      imageUrl: formData.imageUrl?.trim() || null,
       notes: formData.notes?.trim() || null,
     };
 
@@ -435,12 +433,6 @@ const DogsPage = () => {
             </FormField>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-            <FormField label="Ảnh (URL)">
-              <FormInput value={formData.imageUrl} onChange={(event) => updateField('imageUrl', event.target.value)} />
-            </FormField>
-          </div>
-
           <FormField label="Ghi chú">
             <FormTextarea rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
           </FormField>
@@ -467,7 +459,6 @@ const DogsPage = () => {
               ['Màu lông', detailData.color || '—'],
               ['Microchip ID', detailData.microchipId || '—'],
               ['Trạng thái', getStatusLabel(detailData.status)],
-              ['Ảnh', detailData.imageUrl || '—'],
               ['Ngày tạo', detailData.createdAt || '—'],
               ['Cập nhật', detailData.updatedAt || '—'],
               ['Ghi chú', detailData.notes || '—'],
