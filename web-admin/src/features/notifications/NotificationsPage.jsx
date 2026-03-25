@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Eye, Loader2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
+import FilterSelect from '../../components/shared/FilterSelect';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../hooks/useAuth';
 import { notificationService } from '../../services/notificationService';
+import { approvalService } from '../../services/approvalService';
 import {
   formatNotificationTime,
   getNotificationEntityLabel,
   getNotificationTypeLabel,
+  isNotificationToday,
   resolveNotificationRoute,
 } from '../../utils/notificationUtils';
 
@@ -24,23 +28,66 @@ const NotificationStatusBadge = ({ isRead }) => (
     className={[
       'inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border whitespace-nowrap',
       isRead
-        ? 'bg-muted text-muted-foreground border-border'
-        : 'bg-accent/10 text-accent border-accent/25',
+        ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25'
+        : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
     ].join(' ')}
   >
-    <span className={['h-1.5 w-1.5 rounded-full flex-shrink-0', isRead ? 'bg-muted-foreground' : 'bg-accent'].join(' ')} />
+    <span className={['h-1.5 w-1.5 rounded-full flex-shrink-0', isRead ? 'bg-sky-500 dark:bg-sky-400' : 'bg-emerald-500 dark:bg-emerald-400'].join(' ')} />
     {isRead ? 'Đã đọc' : 'Chưa đọc'}
   </span>
 );
 
+const NotificationTypeBadge = ({ type }) => {
+  const config = {
+    CONTENT_SUBMITTED: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
+    CONTENT_APPROVED: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
+    CONTENT_REJECTED: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25',
+    CONTENT_REVISION_REQUESTED: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-500/25',
+    CONTENT_PUBLISHED: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25',
+    CONTENT_UNPUBLISHED: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/25',
+    SUGGESTION_SUBMITTED: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/25',
+    SUGGESTION_REVIEWED: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25',
+  };
+
+  return (
+    <span className={['inline-flex items-center px-2 py-1 rounded-full border text-[11px] font-medium', config[type] || 'bg-muted text-muted-foreground border-border'].join(' ')}>
+      {getNotificationTypeLabel(type)}
+    </span>
+  );
+};
+
+const unreadFilterOptions = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'unread', label: 'Chưa đọc' },
+  { value: 'read', label: 'Đã đọc' },
+];
+
+const REVIEW_RESULT_TYPES = new Set([
+  'CONTENT_APPROVED',
+  'CONTENT_REJECTED',
+  'CONTENT_REVISION_REQUESTED',
+]);
+
+const getFeedbackKey = (notification) => {
+  const type = String(notification?.type || '').trim().toUpperCase();
+  if (!REVIEW_RESULT_TYPES.has(type)) return null;
+  const entityType = String(notification?.entityType || '').trim().toUpperCase();
+  const entityId = Number(notification?.entityId);
+  if (!entityType || !Number.isFinite(entityId) || entityId <= 0) return null;
+  return `${entityType}:${entityId}`;
+};
+
 const NotificationsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
+  const [readFilter, setReadFilter] = useState('all');
+  const [reviewFeedbackByKey, setReviewFeedbackByKey] = useState({});
   const [pagination, setPagination] = useState({
     page: 0,
     pageSize: 20,
@@ -116,6 +163,73 @@ const NotificationsPage = () => {
     [rows]
   );
 
+  const todayCountInPage = useMemo(
+    () => rows.filter((item) => isNotificationToday(item?.createdAt)).length,
+    [rows]
+  );
+
+  const previousCountInPage = useMemo(
+    () => rows.filter((item) => !isNotificationToday(item?.createdAt)).length,
+    [rows]
+  );
+
+  const filteredRows = useMemo(() => {
+    if (readFilter === 'unread') return rows.filter((item) => !item?.isRead);
+    if (readFilter === 'read') return rows.filter((item) => item?.isRead);
+    return rows;
+  }, [readFilter, rows]);
+
+  useEffect(() => {
+    let active = true;
+
+    const targetKeys = Array.from(
+      new Set(
+        rows
+          .map((notification) => getFeedbackKey(notification))
+          .filter(Boolean)
+      )
+    );
+
+    const missingKeys = targetKeys.filter((key) => !(key in reviewFeedbackByKey));
+    if (missingKeys.length === 0) return () => { active = false; };
+
+    const fetchFeedback = async () => {
+      const nextMap = {};
+      await Promise.all(
+        missingKeys.map(async (key) => {
+          try {
+            const [entityType, entityIdRaw] = key.split(':');
+            const entityId = Number(entityIdRaw);
+            if (!entityType || !Number.isFinite(entityId) || entityId <= 0) {
+              nextMap[key] = null;
+              return;
+            }
+            const res = await approvalService.getHistory(entityType, entityId);
+            const payload = res?.data || res || [];
+            const records = Array.isArray(payload) ? payload : payload.content || [];
+            const latestRecord = records[0];
+            nextMap[key] = latestRecord && String(latestRecord?.comments || '').trim()
+              ? {
+                  comments: latestRecord.comments,
+                  reviewerName: latestRecord.reviewerName,
+                }
+              : null;
+          } catch {
+            nextMap[key] = null;
+          }
+        })
+      );
+      if (!active) return;
+      setReviewFeedbackByKey((prev) => ({ ...prev, ...nextMap }));
+    };
+
+    fetchFeedback();
+
+    return () => {
+      active = false;
+    };
+  }, [reviewFeedbackByKey, rows]);
+
   const columns = [
     {
       key: 'title',
@@ -127,6 +241,19 @@ const NotificationsPage = () => {
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
             {row?.message || 'Không có nội dung'}
           </p>
+          {(() => {
+            const feedbackKey = getFeedbackKey(row);
+            const feedback = feedbackKey ? reviewFeedbackByKey[feedbackKey] : null;
+            if (!feedback?.comments) return null;
+            return (
+              <p className="text-xs text-foreground mt-1 line-clamp-2">
+                <span className="font-medium">
+                  Phản hồi reviewer{feedback?.reviewerName ? ` (${feedback.reviewerName})` : ''}:
+                </span>{' '}
+                {feedback.comments}
+              </p>
+            );
+          })()}
         </div>
       ),
     },
@@ -134,11 +261,7 @@ const NotificationsPage = () => {
       key: 'type',
       header: 'Loại',
       className: 'whitespace-nowrap',
-      render: (row) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-full bg-muted text-muted-foreground text-[11px] font-medium">
-          {getNotificationTypeLabel(row?.type)}
-        </span>
-      ),
+      render: (row) => <NotificationTypeBadge type={row?.type} />,
     },
     {
       key: 'entityType',
@@ -174,7 +297,7 @@ const NotificationsPage = () => {
       header: 'Thao tác',
       className: 'whitespace-nowrap',
       render: (row) => {
-        const route = resolveNotificationRoute(row);
+        const route = resolveNotificationRoute(row, { role: user?.role });
         const isRowLoading = rowActionLoadingId === row?.notificationId;
 
         return (
@@ -227,13 +350,34 @@ const NotificationsPage = () => {
       />
 
       <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <FilterSelect value={readFilter} onChange={setReadFilter} options={unreadFilterOptions} className="w-[140px]" />
+          <span className="inline-flex items-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-xs px-2.5 py-1">
+            Chưa đọc: {unreadCountInPage}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/25 text-xs px-2.5 py-1">
+            Hôm nay: {todayCountInPage}
+          </span>
+          <span className="inline-flex items-center rounded-full bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/25 text-xs px-2.5 py-1">
+            Trước đó: {previousCountInPage}
+          </span>
+        </div>
+
+        {filteredRows.some((item) => isNotificationToday(item?.createdAt)) && (
+          <div className="text-sm font-semibold text-foreground mb-2">Hôm nay</div>
+        )}
+
+        {filteredRows.every((item) => !isNotificationToday(item?.createdAt)) && filteredRows.length > 0 && (
+          <div className="text-sm font-semibold text-foreground mb-2">Trước đó</div>
+        )}
+
         <DataTable
           columns={columns}
-          data={rows}
+          data={filteredRows}
           loading={loading}
           page={pagination.page}
           pageSize={pagination.pageSize}
-          totalItems={pagination.totalItems}
+          totalItems={readFilter === 'all' ? pagination.totalItems : filteredRows.length}
           onPageChange={(nextPage) => fetchData(nextPage, pagination.pageSize)}
           onPageSizeChange={(nextPageSize) => fetchData(0, nextPageSize)}
           emptyMessage="Chưa có thông báo"
@@ -245,4 +389,3 @@ const NotificationsPage = () => {
 };
 
 export default NotificationsPage;
-

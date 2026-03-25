@@ -364,6 +364,33 @@ export default function SyncScreen() {
     }
   };
 
+  const handleRemoveFailedItem = (item: SyncQueueRow) => {
+    Alert.alert(
+      'Xóa mục đồng bộ lỗi',
+      'Mục này sẽ bị xóa khỏi hàng chờ đồng bộ. Dữ liệu cục bộ vẫn được giữ lại trên thiết bị.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await syncQueueDBService.deleteById(item.id);
+                await refreshSyncCounts();
+                await refreshData();
+              } catch (error) {
+                const message = getErrorMessage(error);
+                console.error('[SYNC_UI] Không thể xóa mục đồng bộ lỗi:', message);
+                Alert.alert('Không thể xóa', message);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
+
   const handleDismissConflict = async (id: number) => {
     try {
       await syncConflictDBService.dismiss(id);
@@ -609,6 +636,27 @@ export default function SyncScreen() {
                       <Text style={[styles.queueItemError, { color: colors.error }]}>
                         {item.error_message}
                       </Text>
+                    ) : null}
+
+                    {activeTab === 'failed' ? (
+                      <View style={styles.queueItemActions}>
+                        <TouchableOpacity
+                          style={[
+                            styles.removeFailedButton,
+                            {
+                              backgroundColor:
+                                isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(254, 242, 242, 1)',
+                            },
+                          ]}
+                          activeOpacity={0.85}
+                          onPress={() => handleRemoveFailedItem(item)}
+                        >
+                          <Ionicons name="trash-outline" size={14} color={colors.error} />
+                          <Text style={[styles.removeFailedButtonText, { color: colors.error }]}>
+                            Xóa
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     ) : null}
                   </View>
                 </View>
@@ -954,6 +1002,23 @@ const styles = StyleSheet.create({
   queueItemError: {
     fontSize: fontSize.sm,
     lineHeight: 18,
+  },
+  queueItemActions: {
+    marginTop: spacing.xs,
+    flexDirection: 'row',
+  },
+  removeFailedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  removeFailedButtonText: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
   },
   metadataRow: {
     flexDirection: 'row',

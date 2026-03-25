@@ -115,10 +115,9 @@ const ImportDataPage = () => {
     <div className="animate-fade-in">
       <PageHeader
         title="Import dữ liệu"
-        description="Upload file Excel/CSV, kiểm tra preview và xác nhận nhập dữ liệu"
+        description="Upload file để nhập dữ liệu vào hệ thống"
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
-          { label: 'Quản lý nội dung' },
           { label: 'Import dữ liệu' },
         ]}
       />
@@ -203,7 +202,7 @@ const ImportDataPage = () => {
             </div>
             <div className="rounded-lg border border-border/60 bg-card p-4">
               <p className="text-xs text-muted-foreground">Dòng hợp lệ</p>
-              <p className="text-xl font-semibold text-emerald-600 mt-1">{preview.validRows ?? 0}</p>
+              <p className="text-xl font-semibold text-emerald-600 dark:text-emerald-300 mt-1">{preview.validRows ?? 0}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-card p-4">
               <p className="text-xs text-muted-foreground">Dòng lỗi</p>

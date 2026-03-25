@@ -5,7 +5,6 @@ import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import StatusBadge from '../../components/shared/StatusBadge';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
-import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import { Modal, FormField, FormInput, FormTextarea, Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { medicationService } from '../../services/medicationService';
@@ -13,6 +12,7 @@ import { Plus, Pencil, Trash2, Eye, Search, Send, Globe, Undo2, History } from '
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -29,8 +29,6 @@ const MedicationsPage = () => {
   const [medications, setMedications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
@@ -44,16 +42,20 @@ const MedicationsPage = () => {
   const { user } = useAuth();
   const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
   const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
-  const fetchData = async (page = 0, size = 10) => {
+  const fetchData = async (nextPage = pagination.page, nextPageSize = pagination.pageSize) => {
     setLoading(true);
     try {
       const statusQuery = status === 'all' ? '' : status;
-      const res = await medicationService.getAll(page, size, search, statusQuery);
-      const list = res.data.content || [];
-      setMedications(sortByNewest(list, { idKeys: ['medicationId', 'id'] }));
-      setPagination((prev) => ({ ...prev, total: res.data.totalElements, page }));
+      const allRows = await fetchAllPages((pageIndex, batchSize) =>
+        medicationService.getAll(pageIndex, batchSize, search, statusQuery)
+      );
+      const filteredRows = status === 'all' ? allRows : allRows.filter((item) => item.status === status);
+      const sortedRows = sortByNewest(filteredRows, { idKeys: ['medicationId', 'id'] });
+      const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+      setMedications(pageRows);
+      setPagination((prev) => ({ ...prev, total: totalItems, page: effectivePage }));
     } catch (err) { toast.error(err, { title: 'Lỗi tải danh sách thuốc' }); }
     finally { setLoading(false); }
   };
@@ -84,7 +86,7 @@ const MedicationsPage = () => {
 
   const getMedicationId = (row) => row.medicationId || row.id;
   const getStatus = (row) => String(row.status || '').toUpperCase();
-  const canShowEdit = (row) => canEdit && !['APPROVED', 'PUBLISHED'].includes(getStatus(row));
+  const canShowEdit = (row) => canEdit && !['PENDING', 'APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
   const handleSubmitForReview = async (row) => {
     const id = getMedicationId(row);
@@ -145,9 +147,10 @@ const MedicationsPage = () => {
     }
   };
 
-  const openDetail = async (r) => {
-    try { const res = await medicationService.getById(r.medicationId); setDetailData(res.data); setDetailOpen(true); }
-    catch (err) { toast.error(err, { title: 'Lỗi tải chi tiết thuốc' }); }
+  const openDetail = (r) => {
+    const id = getMedicationId(r);
+    if (!id) return;
+    navigate(`/details/MEDICATION/${id}`);
   };
 
   const openEdit = (r) => {
@@ -198,10 +201,10 @@ const MedicationsPage = () => {
           {canShowEdit(r) && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
           {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getMedicationId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
-            <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600" /></Button>
+            <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600 dark:text-amber-300" /></Button>
           )}
           {canPublish && getStatus(r) === 'APPROVED' && (
-            <Button variant="ghost" size="sm" title="Xuất bản" onClick={() => handlePublish(r)}><Globe className="h-4 w-4 text-emerald-600" /></Button>
+            <Button variant="ghost" size="sm" title="Xuất bản" onClick={() => handlePublish(r)}><Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /></Button>
           )}
           {canPublish && getStatus(r) === 'PUBLISHED' && (
             <Button variant="ghost" size="sm" title="Gỡ xuất bản" onClick={() => handleUnpublish(r)}><Undo2 className="h-4 w-4 text-muted-foreground" /></Button>
@@ -222,29 +225,10 @@ const MedicationsPage = () => {
           <input type="text" placeholder="Tìm kiếm..." className="w-full pl-9 h-9 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <FilterSelect value={status} onChange={(value) => setStatus(value)} options={statusOptions} className="w-48" />
+        <FilterSelect value={status} onChange={(value) => { setStatus(value); setPagination((prev) => ({ ...prev, page: 0 })); }} options={statusOptions} className="w-48" />
       </div>
       <DataTable columns={columns} data={medications} loading={loading} page={pagination.page} pageSize={pagination.pageSize} totalItems={pagination.total}
         onPageChange={(p) => fetchData(p, pagination.pageSize)} onPageSizeChange={(s) => { setPagination((prev) => ({ ...prev, pageSize: s })); fetchData(0, s); }} emptyMessage="Chưa có thuốc nào" />
-
-      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Chi tiết thuốc" width={650}>
-        {detailData && (
-          <div className="space-y-3">
-            {[['Tên thuốc', detailData.medicationName], ['Mô tả', detailData.description], ['Liều dùng', detailData.dosageInstructions],
-            ['Phương pháp', detailData.administrationMethod], ['Tác dụng phụ', detailData.sideEffects], ['Chống chỉ định', detailData.contraindications],
-            ['Bảo quản', detailData.storageRequirements]].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-36 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground">{value || '—'}</span>
-              </div>
-            ))}
-            <EntityMediaPreview
-              entityType={APPROVAL_ENTITY_TYPES.MEDICATION}
-              entityId={detailData?.medicationId}
-            />
-          </div>
-        )}
-      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa thuốc' : 'Thêm thuốc mới'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
@@ -270,3 +254,4 @@ const MedicationsPage = () => {
 };
 
 export default MedicationsPage;
+

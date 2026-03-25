@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
 import {
   Button,
   ConfirmDialog,
@@ -18,8 +17,8 @@ import {
 import { useToast } from '../../components/ui/Toast';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
-import { getStatusLabel } from '../../utils/enumLabels';
 import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -55,13 +54,14 @@ const defaultForm = {
   color: '',
   microchipId: '',
   status: 'ACTIVE',
+  imageUrl: '',
   notes: '',
 };
 
 const roleStatusMap = {
-  RETIRED: { label: 'Nghỉ hưu', className: 'bg-amber-500/10 text-amber-600 border-amber-500/25' },
-  DECEASED: { label: 'Đã mất', className: 'bg-red-500/10 text-red-600 border-red-500/25' },
-  TRANSFERRED: { label: 'Chuyển đơn vị', className: 'bg-blue-500/10 text-blue-600 border-blue-500/25' },
+  RETIRED: { label: 'Nghỉ hưu', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/25' },
+  DECEASED: { label: 'Đã mất', className: 'bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/25' },
+  TRANSFERRED: { label: 'Chuyển đơn vị', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/25' },
 };
 
 const normalizeGender = (value) => {
@@ -119,8 +119,6 @@ const DogsPage = () => {
   const [pagination, setPagination] = useState({ page: 0, pageSize: 10, total: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
@@ -134,24 +132,31 @@ const DogsPage = () => {
     }
   };
 
-  const fetchDogs = async (page = 0, size = pagination.pageSize) => {
+  const fetchDogs = async (nextPage = pagination.page, nextPageSize = pagination.pageSize) => {
     setLoading(true);
     try {
-      const res = await dogService.getAll(page, size, search);
-      const rawList = res.data?.content || [];
+      const allRows = await fetchAllPages((pageIndex, batchSize) => dogService.getAll(pageIndex, batchSize, search));
       const uniqueList = Array.from(
         new Map(
-          rawList.map((dog) => [
+          allRows.map((dog) => [
             dog.dogId ?? `${dog.dogCode || ''}-${dog.dogName || ''}-${dog.breedId || ''}`,
             dog,
           ])
         ).values()
       );
-      setDogs(sortByNewest(uniqueList, { idKeys: ['dogId', 'id'] }));
+      const selectedGender = normalizeGenderFilterValue(genderFilter);
+      const filteredRows = uniqueList.filter((dog) => {
+        if (selectedGender !== 'all' && normalizeGender(dog.gender) !== selectedGender) return false;
+        if (statusFilter !== 'all' && dog.status !== statusFilter) return false;
+        return true;
+      });
+      const sortedRows = sortByNewest(filteredRows, { idKeys: ['dogId', 'id'] });
+      const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+      setDogs(pageRows);
       setPagination((prev) => ({
         ...prev,
-        page,
-        total: res.data?.totalElements || 0,
+        page: effectivePage,
+        total: totalItems,
       }));
     } catch (error) {
       toast.error(error, { title: 'Lỗi tải danh sách chó' });
@@ -166,7 +171,7 @@ const DogsPage = () => {
 
   useEffect(() => {
     fetchDogs(0, pagination.pageSize);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search, genderFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -181,14 +186,9 @@ const DogsPage = () => {
     navigate(`/dogs/${row.dogId}/edit`);
   };
 
-  const openDetail = async (row) => {
-    try {
-      const res = await dogService.getById(row.dogId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error(error, { title: 'Không tải được chi tiết chó' });
-    }
+  const openDetail = (row) => {
+    if (!row?.dogId) return;
+    navigate(`/details/DOG_PROFILE/${row.dogId}`);
   };
 
   const buildPayload = () => {
@@ -200,6 +200,7 @@ const DogsPage = () => {
       heightCm: toNullableNumber(formData.heightCm),
       color: formData.color?.trim() || null,
       microchipId: formData.microchipId?.trim() || null,
+      imageUrl: formData.imageUrl?.trim() || null,
       notes: formData.notes?.trim() || null,
     };
 
@@ -303,17 +304,6 @@ const DogsPage = () => {
     },
   ];
 
-  const filteredDogs = useMemo(() => {
-    const selectedGender = normalizeGenderFilterValue(genderFilter);
-    return dogs.filter((dog) => {
-      if (selectedGender !== 'all' && normalizeGender(dog.gender) !== selectedGender) return false;
-      if (statusFilter !== 'all' && dog.status !== statusFilter) return false;
-      return true;
-    });
-  }, [dogs, genderFilter, statusFilter]);
-
-  const hasClientFilter = genderFilter !== 'all' || statusFilter !== 'all';
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -363,11 +353,11 @@ const DogsPage = () => {
 
       <DataTable
         columns={columns}
-        data={filteredDogs}
+        data={dogs}
         loading={loading}
         page={pagination.page}
         pageSize={pagination.pageSize}
-        totalItems={hasClientFilter ? filteredDogs.length : pagination.total}
+        totalItems={pagination.total}
         onPageChange={(page) => fetchDogs(page, pagination.pageSize)}
         onPageSizeChange={(size) => {
           setPagination((prev) => ({ ...prev, pageSize: size }));
@@ -433,44 +423,16 @@ const DogsPage = () => {
             </FormField>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+            <FormField label="Ảnh (URL)">
+              <FormInput value={formData.imageUrl} onChange={(event) => updateField('imageUrl', event.target.value)} />
+            </FormField>
+          </div>
+
           <FormField label="Ghi chú">
             <FormTextarea rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
           </FormField>
         </form>
-      </Modal>
-
-      <Modal
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        title="Chi tiết hồ sơ chó"
-        width={760}
-      >
-        {detailData && (
-          <div className="space-y-3">
-            {[
-              ['Mã chó', detailData.dogCode],
-              ['Tên chó', detailData.dogName],
-              ['Giống chó', detailData.breedName],
-              ['Giới tính', getGenderLabel(detailData.gender)],
-              ['Ngày sinh', detailData.dateOfBirth || '—'],
-              ['Tuổi (tháng)', detailData.ageMonths ?? '—'],
-              ['Cân nặng', detailData.currentWeightKg == null ? '—' : `${detailData.currentWeightKg} kg`],
-              ['Chiều cao', detailData.heightCm == null ? '—' : `${detailData.heightCm} cm`],
-              ['Màu lông', detailData.color || '—'],
-              ['Microchip ID', detailData.microchipId || '—'],
-              ['Trạng thái', getStatusLabel(detailData.status)],
-              ['Ngày tạo', detailData.createdAt || '—'],
-              ['Cập nhật', detailData.updatedAt || '—'],
-              ['Ghi chú', detailData.notes || '—'],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-44 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground break-all">{value || '—'}</span>
-              </div>
-            ))}
-            <EntityMediaPreview entityType="DOG_PROFILE" entityId={detailData?.dogId} />
-          </div>
-        )}
       </Modal>
 
       <ConfirmDialog

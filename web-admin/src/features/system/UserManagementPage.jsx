@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import { userService } from '../../services/userService';
 import { cn } from '../../utils/utils';
 import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const roleOptions = [
   { value: 'ADMIN', label: 'Admin' },
@@ -45,13 +46,6 @@ const defaultForm = {
   role: '',
   militaryRank: '',
   unit: '',
-};
-
-const formatDateTime = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('vi-VN');
 };
 
 const getDateTimeParts = (value) => {
@@ -90,27 +84,31 @@ const UserManagementPage = () => {
   const [pagination, setPagination] = useState({ page: 0, pageSize: 20, total: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailData, setDetailData] = useState(null);
   const [editing, setEditing] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [lockTarget, setLockTarget] = useState(null);
   const [formData, setFormData] = useState(defaultForm);
 
-  const fetchData = async (page = 0, size = pagination.pageSize) => {
+  const fetchData = async (nextPage = pagination.page, nextPageSize = pagination.pageSize) => {
     setLoading(true);
     try {
-      const res = await userService.getAll(page, size, search);
-      const rawList = res.data?.content || [];
-      const hiddenAdminCount = rawList.filter((item) => String(item?.role || '').toUpperCase() === 'ADMIN').length;
-      const list = rawList
+      const allRows = await fetchAllPages((pageIndex, batchSize) => userService.getAll(pageIndex, batchSize, search));
+      const list = allRows
         .filter((item) => String(item?.role || '').toUpperCase() !== 'ADMIN')
+        .filter((item) => {
+          const matchRole = roleFilter === 'all' || item.role === roleFilter;
+          const normalizedStatus = item.isLocked ? 'LOCKED' : 'ACTIVE';
+          const matchStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
+          return matchRole && matchStatus;
+        })
         .map((item) => ({ ...item, id: item.userId }));
-      setUsers(sortByNewest(list, { idKeys: ['userId', 'id'] }));
+      const sortedRows = sortByNewest(list, { idKeys: ['userId', 'id'] });
+      const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+      setUsers(pageRows);
       setPagination((prev) => ({
         ...prev,
-        page,
-        total: Math.max(0, (res.data?.totalElements || 0) - hiddenAdminCount),
+        page: effectivePage,
+        total: totalItems,
       }));
     } catch (err) {
       toast.error(err, { title: 'Lỗi tải danh sách người dùng' });
@@ -121,7 +119,7 @@ const UserManagementPage = () => {
 
   useEffect(() => {
     fetchData(0, pagination.pageSize);
-  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [search, roleFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -136,14 +134,9 @@ const UserManagementPage = () => {
     navigate(`/system/users/${row.userId}/edit`);
   };
 
-  const openDetail = async (row) => {
-    try {
-      const res = await userService.getById(row.userId);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (err) {
-      toast.error(err, { title: 'Không tải được chi tiết người dùng' });
-    }
+  const openDetail = (row) => {
+    if (!row?.userId) return;
+    navigate(`/details/USER/${row.userId}`);
   };
 
   const makePayload = () => {
@@ -263,15 +256,6 @@ const UserManagementPage = () => {
     },
   ];
 
-  const filteredUsers = users.filter((user) => {
-    if (String(user?.role || '').toUpperCase() === 'ADMIN') return false;
-    const matchRole = roleFilter === 'all' || user.role === roleFilter;
-    const normalizedStatus = user.isLocked ? 'LOCKED' : 'ACTIVE';
-    const matchStatus = statusFilter === 'all' || normalizedStatus === statusFilter;
-    return matchRole && matchStatus;
-  });
-  const hasClientFilter = roleFilter !== 'all' || statusFilter !== 'all';
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -325,11 +309,11 @@ const UserManagementPage = () => {
 
       <DataTable
         columns={columns}
-        data={filteredUsers}
+        data={users}
         loading={loading}
         page={pagination.page}
         pageSize={pagination.pageSize}
-        totalItems={hasClientFilter ? filteredUsers.length : pagination.total}
+        totalItems={pagination.total}
         onPageChange={(page) => fetchData(page, pagination.pageSize)}
         onPageSizeChange={(size) => {
           setPagination((prev) => ({ ...prev, pageSize: size }));
@@ -389,32 +373,6 @@ const UserManagementPage = () => {
             </FormField>
           </div>
         </form>
-      </Modal>
-
-      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title="Chi tiết người dùng" width={700}>
-        {detailData && (
-          <div className="space-y-3">
-            {[
-              ['ID', detailData.userId],
-              ['Tên đăng nhập', detailData.username],
-              ['Họ tên', detailData.fullName],
-              ['Vai trò', roleLabelMap[detailData.role] || detailData.role || '—'],
-              ['Email', detailData.email || '—'],
-              ['Số điện thoại', detailData.phone || '—'],
-              ['Quân hàm', detailData.militaryRank || '—'],
-              ['Đơn vị', detailData.unit || '—'],
-              ['Trạng thái khóa', detailData.isLocked ? 'Đã khóa' : 'Hoạt động'],
-              ['Số lần đăng nhập sai', detailData.failedLoginCount ?? '—'],
-              ['Đăng nhập gần nhất', formatDateTime(detailData.lastLoginAt)],
-              ['Ngày tạo', formatDateTime(detailData.createdAt)],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-4 py-2 border-b border-border/40">
-                <span className="text-sm font-medium text-muted-foreground w-40 flex-shrink-0">{label}</span>
-                <span className="text-sm text-foreground">{value || '—'}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </Modal>
 
       <ConfirmDialog

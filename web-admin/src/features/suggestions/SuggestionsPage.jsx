@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { DetailView } from '../../components/shared/DetailModal';
 import { Eye, MessageSquare, Search } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
 import { Button, FormTextarea, Modal } from '../../components/ui/FormComponents';
+import { sortByNewest } from '../../utils/sortByNewest';
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const suggestionStatusConfig = {
-    PENDING: { label: 'Chờ xử lý', badge: 'bg-amber-500/10 text-amber-700 border-amber-500/30', dot: 'bg-amber-500' },
-    SUBMITTED: { label: 'Đã gửi', badge: 'bg-sky-500/10 text-sky-700 border-sky-500/30', dot: 'bg-sky-500' },
-    UNDER_REVIEW: { label: 'Đang xem xét', badge: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30', dot: 'bg-indigo-500' },
-    ACCEPTED: { label: 'Đã chấp nhận', badge: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30', dot: 'bg-emerald-500' },
-    REJECTED: { label: 'Từ chối', badge: 'bg-rose-500/10 text-rose-700 border-rose-500/30', dot: 'bg-rose-500' },
+    PENDING: { label: 'Chờ xử lý', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30', dot: 'bg-amber-500 dark:bg-amber-400' },
+    SUBMITTED: { label: 'Đã gửi', badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30', dot: 'bg-sky-500 dark:bg-sky-400' },
+    UNDER_REVIEW: { label: 'Đang xem xét', badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30', dot: 'bg-indigo-500 dark:bg-indigo-400' },
+    ACCEPTED: { label: 'Đã chấp nhận', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-500 dark:bg-emerald-400' },
+    REJECTED: { label: 'Từ chối', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30', dot: 'bg-rose-500 dark:bg-rose-400' },
 };
 
 const getSuggestionStatusLabel = (status) => suggestionStatusConfig[status]?.label || status || '—';
@@ -37,16 +39,8 @@ const statusOptions = [
     { value: 'REJECTED', label: getSuggestionStatusLabel('REJECTED') },
 ];
 
-const detailFields = [
-    { key: 'title', label: 'Tiêu đề' },
-    { key: 'contentType', label: 'Loại nội dung' },
-    { key: 'status', label: 'Trạng thái', render: (d) => getSuggestionStatusLabel(d.status) },
-    { key: 'submitterName', label: 'Người gửi', render: (d) => d.submitterName || d.trainerName || '-' },
-    { key: 'description', label: 'Nội dung đề xuất', type: 'textarea' },
-    { key: 'adminResponse', label: 'Phản hồi admin', type: 'textarea' },
-];
-
 const SuggestionsPage = () => {
+    const navigate = useNavigate();
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [page, setPage] = useState(0);
@@ -54,28 +48,39 @@ const SuggestionsPage = () => {
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [detailItem, setDetailItem] = useState(null);
     const [responseTarget, setResponseTarget] = useState(null);
     const [responseText, setResponseText] = useState('');
     const [responding, setResponding] = useState(false);
     const toast = useToast();
 
-    const fetchData = async () => {
+    const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.append('page', String(page));
-            params.append('size', String(pageSize));
-            if (statusFilter !== 'all') params.append('status', statusFilter);
-            const res = await api.get(`/suggestions?${params.toString()}`);
-            const data = res.data || res;
-            setItems(data.content || []);
-            setTotalItems(data.totalElements || 0);
+            const allRows = await fetchAllPages((pageIndex, batchSize) => {
+                const params = new URLSearchParams();
+                params.append('page', String(pageIndex));
+                params.append('size', String(batchSize));
+                if (statusFilter !== 'all') params.append('status', statusFilter);
+                return api.get(`/suggestions?${params.toString()}`);
+            });
+
+            const normalizedSearch = search.trim().toLowerCase();
+            const filteredRows = allRows.filter((item) => (
+                !normalizedSearch || (item.title || '').toLowerCase().includes(normalizedSearch)
+            ));
+            const sortedRows = sortByNewest(filteredRows, {
+                timeKeys: ['updatedAt', 'updated_at', 'createdAt', 'created_at'],
+                idKeys: ['suggestionId', 'id'],
+            });
+            const { pageRows, totalItems: safeTotal, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+            setItems(pageRows);
+            setTotalItems(safeTotal);
+            if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) { console.error('Fetch suggestions error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(); }, [page, pageSize, statusFilter]);
+    useEffect(() => { fetchData(page, pageSize); }, [page, pageSize, search, statusFilter]);
 
     const openRespondModal = (row) => {
         setResponseTarget(row);
@@ -101,7 +106,8 @@ const SuggestionsPage = () => {
             await api.put(`/suggestions/${id}/respond`, { adminResponse, status });
             toast.success(status === 'ACCEPTED' ? 'Đã chấp nhận đề xuất' : 'Đã từ chối đề xuất');
             closeRespondModal();
-            fetchData();
+            setPage(0);
+            fetchData(0, pageSize);
         } catch (err) {
             console.error('Respond error:', err);
             toast.error(err, { title: 'Không thể phản hồi đề xuất' });
@@ -141,7 +147,7 @@ const SuggestionsPage = () => {
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => setDetailItem(r)}><Eye className="h-4 w-4" /></button>
+                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/SUGGESTION/${r.suggestionId || r.id}`)}><Eye className="h-4 w-4" /></button>
                     {(r.status === 'PENDING' || r.status === 'SUBMITTED' || r.status === 'UNDER_REVIEW') && (
                         <button className="p-1.5 rounded-md hover:bg-accent/10 transition-colors" title="Phản hồi" onClick={() => openRespondModal(r)}>
                             <MessageSquare className="h-4 w-4 text-accent" />
@@ -151,13 +157,6 @@ const SuggestionsPage = () => {
             )
         },
     ];
-
-    const normalizedSearch = search.trim().toLowerCase();
-    const filteredItems = items.filter((item) => {
-        if (!normalizedSearch) return true;
-        return (item.title || '').toLowerCase().includes(normalizedSearch);
-    });
-    const hasClientFilter = Boolean(normalizedSearch);
 
     return (
         <div className="animate-fade-in">
@@ -177,12 +176,9 @@ const SuggestionsPage = () => {
                 <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả trạng thái" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-                <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
+                <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có đề xuất nào" />
             )}
-            <DetailModal open={!!detailItem} onClose={() => setDetailItem(null)} title="Chi tiết đề xuất" size="lg">
-                <DetailView fields={detailFields} data={detailItem} />
-            </DetailModal>
 
             <Modal
                 open={!!responseTarget}

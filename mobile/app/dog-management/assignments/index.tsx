@@ -1,11 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Animated,
+    Easing,
     FlatList,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -13,92 +16,169 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
+import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
-import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
-import { assignmentService } from '../../../src/services/assignmentService';
-import { dogService } from '../../../src/services/dogService';
-import { DogAssignment, DogProfile } from '../../../src/types/dogManagement';
+import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
+import { AssignmentType, DogAssignment, DogProfile } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
     dogManagementUi,
-    fallbackAssignments,
-    fallbackDogs,
     formatDate,
     getAssignmentTypeMeta,
-    getBooleanMeta,
     resolveDogImageUrl,
 } from '../../../src/features/dog-management/ui';
 
-type AssignmentTab = 'BY_DOG' | 'MY_ASSIGNMENTS';
+type AssignmentTypeFilter = 'ALL' | AssignmentType;
 
-const tabOptions: { key: AssignmentTab; label: string }[] = [
-    { key: 'BY_DOG', label: 'Theo chó' },
-    { key: 'MY_ASSIGNMENTS', label: 'Của tôi' },
+const typeFilters: { key: AssignmentTypeFilter; label: string }[] = [
+    { key: 'ALL', label: 'Tất cả' },
+    { key: 'PRIMARY', label: 'Chính' },
+    { key: 'SECONDARY', label: 'Phối hợp' },
+    { key: 'TEMPORARY', label: 'Tạm thời' },
 ];
+
+const formatRange = (assignment: DogAssignment): string => {
+    if (!assignment.startDate && !assignment.endDate) {
+        return 'Đang áp dụng';
+    }
+
+    if (!assignment.endDate) {
+        return `Từ ${formatDate(assignment.startDate)}`;
+    }
+
+    return `${formatDate(assignment.startDate)} - ${formatDate(assignment.endDate)}`;
+};
+
+const typeHeadline = (assignmentType?: string | null): string => {
+    switch ((assignmentType || '').toUpperCase()) {
+        case 'PRIMARY':
+            return 'Chịu trách nhiệm chính';
+        case 'SECONDARY':
+            return 'Phối hợp xử lý';
+        case 'TEMPORARY':
+            return 'Tăng cường tạm thời';
+        default:
+            return 'Đang phụ trách';
+    }
+};
 
 export default function AssignmentListScreen() {
     const router = useRouter();
     const { dogId } = useLocalSearchParams<{ dogId?: string }>();
-    const { user } = useAuthStore();
     const { colors, isDark } = useThemeStore();
 
     const [dogs, setDogs] = useState<DogProfile[]>([]);
+    const [assignmentMap, setAssignmentMap] = useState<Map<number, DogAssignment>>(new Map());
+    const [search, setSearch] = useState('');
     const [selectedDogId, setSelectedDogId] = useState<number | null>(dogId ? Number(dogId) : null);
-    const [tab, setTab] = useState<AssignmentTab>(dogId ? 'BY_DOG' : 'MY_ASSIGNMENTS');
-    const [assignments, setAssignments] = useState<DogAssignment[]>([]);
+    const [typeFilter, setTypeFilter] = useState<AssignmentTypeFilter>('ALL');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [accessDenied, setAccessDenied] = useState(false);
 
-    const loadDogs = useCallback(async () => {
-        try {
-            const response = await dogService.getAll(0, 60);
-            const list = response.content || [];
-            const safeDogs = list.length > 0 ? list : fallbackDogs;
-            setDogs(safeDogs);
-            setSelectedDogId((current) => current ?? safeDogs[0]?.dogId ?? null);
-        } catch {
-            setDogs(fallbackDogs);
-            setSelectedDogId((current) => current ?? fallbackDogs[0]?.dogId ?? null);
-        }
-    }, []);
+    const heroAnim = useRef(new Animated.Value(0)).current;
 
-    const loadAssignments = useCallback(async () => {
-        setLoading(true);
+    const loadData = React.useCallback(async () => {
         try {
-            if (tab === 'MY_ASSIGNMENTS') {
-                const list = user?.userId ? await assignmentService.getByTrainer(user.userId) : [];
-                const safeList = list.length > 0 ? list : fallbackAssignments.filter((item) => item.trainerId === (user?.userId ?? -1));
-                setAssignments(safeList);
-            } else if (selectedDogId) {
-                const list = await assignmentService.getByDog(selectedDogId);
-                const safeList = list.length > 0 ? list : fallbackAssignments.filter((item) => item.dogId === selectedDogId);
-                setAssignments(safeList);
-            } else {
-                setAssignments([]);
+            const scope = await trainerDogScopeService.getScope(true);
+            const nextAssignmentMap = new Map(scope.assignmentMap);
+
+            if (dogId && (!Number.isFinite(Number(dogId)) || !nextAssignmentMap.has(Number(dogId)))) {
+                setAccessDenied(true);
+                setDogs([]);
+                setAssignmentMap(new Map());
+                return;
             }
-        } catch {
-            setAssignments(
-                tab === 'MY_ASSIGNMENTS'
-                    ? fallbackAssignments.filter((item) => item.trainerId === (user?.userId ?? -1))
-                    : fallbackAssignments.filter((item) => item.dogId === selectedDogId)
-            );
+
+            setAccessDenied(false);
+            setDogs(scope.dogs);
+            setAssignmentMap(nextAssignmentMap);
+            setSelectedDogId((current) => {
+                if (dogId && nextAssignmentMap.has(Number(dogId))) {
+                    return Number(dogId);
+                }
+                if (current && nextAssignmentMap.has(current)) {
+                    return current;
+                }
+                return null;
+            });
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [selectedDogId, tab, user?.userId]);
+    }, [dogId]);
 
     useEffect(() => {
-        loadDogs();
-    }, [loadDogs]);
+        loadData();
+    }, [loadData]);
 
     useEffect(() => {
-        loadAssignments();
-    }, [loadAssignments]);
+        Animated.timing(heroAnim, {
+            toValue: loading ? 0 : 1,
+            duration: 420,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start();
+    }, [heroAnim, loading]);
 
-    const dogMap = useMemo(() => new Map(dogs.map((item) => [item.dogId, item])), [dogs]);
-    const selectedDog = useMemo(() => dogs.find((item) => item.dogId === selectedDogId) || null, [dogs, selectedDogId]);
+    const cards = useMemo(() => {
+        const term = search.trim().toLowerCase();
+
+        return dogs
+            .map((dog) => {
+                const assignment = assignmentMap.get(dog.dogId) ?? null;
+                return assignment ? { dog, assignment } : null;
+            })
+            .filter((item): item is { dog: DogProfile; assignment: DogAssignment } => item != null)
+            .filter(({ dog, assignment }) => {
+                const matchesDog = selectedDogId ? dog.dogId === selectedDogId : true;
+                const matchesType = typeFilter === 'ALL' ? true : (assignment.assignmentType || '').toUpperCase() === typeFilter;
+                const matchesSearch =
+                    !term ||
+                    (dog.dogName || '').toLowerCase().includes(term) ||
+                    (dog.dogCode || '').toLowerCase().includes(term) ||
+                    (dog.breedName || '').toLowerCase().includes(term);
+
+                return matchesDog && matchesType && matchesSearch;
+            });
+    }, [assignmentMap, dogs, search, selectedDogId, typeFilter]);
+
+    const summary = useMemo(() => {
+        const total = dogs.length;
+        const primary = [...assignmentMap.values()].filter((assignment) => (assignment.assignmentType || '').toUpperCase() === 'PRIMARY').length;
+        const temporary = [...assignmentMap.values()].filter((assignment) => (assignment.assignmentType || '').toUpperCase() === 'TEMPORARY').length;
+
+        return {
+            total,
+            primary,
+            temporary,
+        };
+    }, [assignmentMap, dogs.length]);
+
+    if (loading) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <View style={styles.centered}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </ScreenWrapper>
+        );
+    }
+
+    if (accessDenied) {
+        return (
+            <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
+                <TrainerRestrictedState
+                    title="Không thể mở phân công này"
+                    description="Màn này chỉ hiển thị những chó đang được giao cho bạn. Liên kết vừa mở nằm ngoài phạm vi phụ trách hiện tại."
+                    onPrimaryPress={() => router.replace('/dog-management/assignments' as any)}
+                    secondaryLabel="Quay lại"
+                    onSecondaryPress={() => router.back()}
+                />
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
@@ -107,179 +187,268 @@ export default function AssignmentListScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Phân công
+                    Chó được phân công
                 </Text>
-                <TouchableOpacity
-                    onPress={() =>
-                        router.push(
-                            (selectedDogId ? `/dog-management/assignments/new?dogId=${selectedDogId}` : '/dog-management/assignments/new') as any
-                        )
-                    }
-                    style={styles.iconButton}
-                    activeOpacity={0.85}
-                >
-                    <Ionicons name="add" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
-                </TouchableOpacity>
+                <View style={styles.iconButton}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                </View>
             </View>
 
-            <Text style={[styles.pageSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                Theo dõi huấn luyện viên phụ trách, loại phân công và thời hạn áp dụng cho từng chó.
-            </Text>
+            <Animated.View
+                style={[
+                    styles.heroCard,
+                    {
+                        opacity: heroAnim,
+                        transform: [
+                            {
+                                translateY: heroAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [18, 0],
+                                }),
+                            },
+                        ],
+                    },
+                ]}
+            >
+                <Text style={[styles.heroOverline, { fontFamily: dogManagementFonts.bold }]}>PHẠM VI CÔNG TÁC</Text>
+                <Text style={[styles.heroTitle, { fontFamily: dogManagementFonts.bold }]}>Chỉ hiển thị chó bạn đang trực tiếp phụ trách</Text>
+                <Text style={[styles.heroSubtitle, { fontFamily: dogManagementFonts.medium }]}>
+                    Mọi thao tác riêng tư như hồ sơ sức khỏe, phiên theo dõi, ghi chú thực địa và đánh giá cân nặng đều được giới hạn trong đúng phạm vi này.
+                </Text>
+                <View style={styles.heroStats}>
+                    {[
+                        { label: 'Chó đang giao', value: String(summary.total) },
+                        { label: 'Phụ trách chính', value: String(summary.primary) },
+                        { label: 'Tạm thời', value: String(summary.temporary) },
+                    ].map((item) => (
+                        <View key={item.label} style={styles.heroStatCard}>
+                            <Text style={[styles.heroStatLabel, { fontFamily: dogManagementFonts.bold }]}>{item.label}</Text>
+                            <Text style={[styles.heroStatValue, { fontFamily: dogManagementFonts.bold }]}>{item.value}</Text>
+                        </View>
+                    ))}
+                </View>
+            </Animated.View>
 
-            <View style={[styles.segmentWrap, { backgroundColor: isDark ? colors.surface : '#EAF0EC' }]}>
-                {tabOptions.map((item) => {
-                    const active = tab === item.key;
-                    return (
-                        <TouchableOpacity
-                            key={item.key}
-                            activeOpacity={0.9}
-                            onPress={() => setTab(item.key)}
-                            style={[styles.segmentButton, active && styles.segmentButtonActive]}
-                        >
-                            <Text style={[styles.segmentText, { color: active ? colors.primary : isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                                {item.label}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
+            <View
+                style={[
+                    styles.searchBar,
+                    {
+                        backgroundColor: isDark ? colors.surface : '#F8FBF9',
+                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                    },
+                ]}
+            >
+                <Ionicons name="search" size={16} color={isDark ? colors.textLight : dogManagementUi.textMuted} />
+                <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Tìm theo tên, mã hoặc giống chó"
+                    placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
+                    style={[
+                        styles.searchInput,
+                        {
+                            color: isDark ? colors.text : dogManagementUi.textStrong,
+                            fontFamily: dogManagementFonts.medium,
+                        },
+                    ]}
+                />
             </View>
 
-            {tab === 'BY_DOG' ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dogRow}>
+            <View style={styles.filterBlock}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                    <TouchableOpacity
+                        activeOpacity={0.88}
+                        onPress={() => setSelectedDogId(null)}
+                        style={[
+                            styles.filterChip,
+                            {
+                                backgroundColor: selectedDogId == null ? colors.primary : '#EEF3F0',
+                                borderColor: selectedDogId == null ? colors.primary : '#DCE6E0',
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.filterChipText, { color: selectedDogId == null ? '#FFFFFF' : dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>
+                            Tất cả chó
+                        </Text>
+                    </TouchableOpacity>
                     {dogs.map((dog) => {
-                        const active = dog.dogId === selectedDogId;
+                        const active = selectedDogId === dog.dogId;
                         return (
                             <TouchableOpacity
                                 key={dog.dogId}
                                 activeOpacity={0.88}
                                 onPress={() => setSelectedDogId(dog.dogId)}
-                                style={[styles.dogChip, { backgroundColor: active ? colors.primary : '#F4F8F5', borderColor: active ? colors.primary : '#DDE6E1' }]}
+                                style={[
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: active ? colors.primary : '#EEF3F0',
+                                        borderColor: active ? colors.primary : '#DCE6E0',
+                                    },
+                                ]}
                             >
-                                <Text style={[styles.dogChipText, { color: active ? '#FFFFFF' : dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>
+                                <Text style={[styles.filterChipText, { color: active ? '#FFFFFF' : dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>
                                     {dog.dogName}
                                 </Text>
                             </TouchableOpacity>
                         );
                     })}
                 </ScrollView>
-            ) : null}
 
-            {tab === 'BY_DOG' && selectedDog ? (
-                <View style={[styles.contextCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-                    <Text style={[styles.contextLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        Đang xem theo chó
-                    </Text>
-                    <Text style={[styles.contextTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        {selectedDog.dogName}
-                    </Text>
-                    <Text style={[styles.contextMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                        {selectedDog.dogCode} • {selectedDog.breedName || 'Chưa rõ giống'}
-                    </Text>
-                </View>
-            ) : null}
-
-            {loading ? (
-                <View style={styles.centered}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                </View>
-            ) : (
-                <FlatList
-                    data={assignments}
-                    keyExtractor={(item) => String(item.assignmentId)}
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.listContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={() => {
-                                setRefreshing(true);
-                                loadAssignments();
-                            }}
-                            tintColor={colors.primary}
-                        />
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyWrap}>
-                            <View style={styles.emptyIconWrap}>
-                                <Ionicons name="clipboard-outline" size={26} color={colors.primary} />
-                            </View>
-                            <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Chưa có phân công phù hợp
-                            </Text>
-                            <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                {tab === 'MY_ASSIGNMENTS'
-                                    ? 'Tài khoản hiện tại chưa có phân công nào được gán.'
-                                    : 'Chó đang chọn chưa có bản ghi phân công.'}
-                            </Text>
-                        </View>
-                    }
-                    renderItem={({ item }) => {
-                        const dog = dogMap.get(item.dogId);
-                        const typeMeta = getAssignmentTypeMeta(item.assignmentType);
-                        const activeMeta = getBooleanMeta(item.isActive);
-                        const imageSource = resolveDogImageUrl(dog?.imageUrl, `${item.dogId}-${item.dogCode || item.dogName || 'dog'}`);
-
+                <View style={styles.typeFilterRow}>
+                    {typeFilters.map((item) => {
+                        const active = typeFilter === item.key;
                         return (
-                            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-                                <Image source={imageSource} style={styles.coverImage} contentFit="cover" />
-                                <View style={styles.cardBody}>
-                                    <View style={styles.badgeRow}>
-                                        <View style={[styles.badge, { backgroundColor: typeMeta.bg }]}>
-                                            <Text style={[styles.badgeText, { color: typeMeta.text, fontFamily: dogManagementFonts.bold }]}>{typeMeta.label}</Text>
-                                        </View>
-                                        <View style={[styles.badge, { backgroundColor: activeMeta.bg }]}>
-                                            <Text style={[styles.badgeText, { color: activeMeta.text, fontFamily: dogManagementFonts.bold }]}>{activeMeta.label}</Text>
-                                        </View>
-                                    </View>
+                            <TouchableOpacity
+                                key={item.key}
+                                activeOpacity={0.88}
+                                onPress={() => setTypeFilter(item.key)}
+                                style={[
+                                    styles.typeChip,
+                                    {
+                                        backgroundColor: active ? '#173D2B' : '#FFFFFF',
+                                        borderColor: active ? '#173D2B' : '#DCE6E0',
+                                    },
+                                ]}
+                            >
+                                <Text style={[styles.typeChipText, { color: active ? '#FFFFFF' : dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </View>
 
+            <FlatList
+                data={cards}
+                keyExtractor={({ dog }) => String(dog.dogId)}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={() => {
+                            setRefreshing(true);
+                            loadData();
+                        }}
+                        tintColor={colors.primary}
+                    />
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyWrap}>
+                        <View style={styles.emptyIconWrap}>
+                            <Ionicons name="paw-outline" size={28} color={colors.primary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                            {dogs.length === 0 ? 'Bạn chưa được phân công chó nào' : 'Không có kết quả phù hợp'}
+                        </Text>
+                        <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
+                            {dogs.length === 0
+                                ? 'Khi admin giao chó cho bạn, danh sách tác nghiệp sẽ xuất hiện ở đây.'
+                                : 'Thử bỏ bớt bộ lọc hoặc từ khóa để xem lại toàn bộ phạm vi được giao.'}
+                        </Text>
+                    </View>
+                }
+                renderItem={({ item, index }) => {
+                    const { dog, assignment } = item;
+                    const typeMeta = getAssignmentTypeMeta(assignment.assignmentType);
+                    const imageSource = resolveDogImageUrl(dog.imageUrl, `${dog.dogId}-${dog.dogCode || dog.dogName || 'dog'}`);
+
+                    return (
+                        <Animated.View
+                            style={{
+                                opacity: heroAnim,
+                                transform: [
+                                    {
+                                        translateY: heroAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [24 + index * 3, 0],
+                                        }),
+                                    },
+                                ],
+                            }}
+                        >
+                            <View
+                                style={[
+                                    styles.card,
+                                    {
+                                        backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                                    },
+                                ]}
+                            >
+                                <Image source={imageSource} style={styles.coverImage} contentFit="cover" />
+                                <View style={styles.cardOverlay} />
+                                <View style={styles.badgeRow}>
+                                    <View style={[styles.badge, { backgroundColor: typeMeta.bg }]}>
+                                        <Text style={[styles.badgeText, { color: typeMeta.text, fontFamily: dogManagementFonts.bold }]}>{typeMeta.label}</Text>
+                                    </View>
+                                    <View style={styles.liveBadge}>
+                                        <Text style={[styles.liveBadgeText, { fontFamily: dogManagementFonts.bold }]}>Đang hiệu lực</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.cardBody}>
                                     <Text style={[styles.cardTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                        {tab === 'MY_ASSIGNMENTS' ? item.dogName || item.dogCode || 'Chưa rõ chó' : item.trainerName || 'Chưa rõ trainer'}
+                                        {dog.dogName}
                                     </Text>
                                     <Text style={[styles.cardMeta, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                        {tab === 'MY_ASSIGNMENTS'
-                                            ? `${item.dogCode || 'Không có mã'} • ${dog?.breedName || 'Chưa rõ giống'}`
-                                            : `${item.dogName || 'Chưa rõ chó'} • ${item.dogCode || 'Không có mã'}`}
+                                        {dog.dogCode} • {dog.breedName || 'Chưa rõ giống'}
                                     </Text>
 
                                     <View style={styles.infoRow}>
                                         <View style={styles.infoCell}>
                                             <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                                                Từ ngày
+                                                Vai trò
                                             </Text>
                                             <Text style={[styles.infoValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                                {formatDate(item.startDate)}
+                                                {typeHeadline(assignment.assignmentType)}
                                             </Text>
                                         </View>
                                         <View style={styles.infoCell}>
                                             <Text style={[styles.infoLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                                                Đến ngày
+                                                Thời gian
                                             </Text>
                                             <Text style={[styles.infoValue, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                                {item.endDate ? formatDate(item.endDate) : 'Hiện tại'}
+                                                {formatRange(assignment)}
                                             </Text>
                                         </View>
                                     </View>
 
-                                    {item.notes ? (
+                                    {assignment.notes ? (
                                         <Text style={[styles.noteText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                                            {item.notes}
+                                            {assignment.notes}
                                         </Text>
-                                    ) : null}
+                                    ) : (
+                                        <Text style={[styles.noteText, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
+                                            Không có ghi chú vận hành bổ sung cho phân công này.
+                                        </Text>
+                                    )}
 
-                                    <TouchableOpacity
-                                        activeOpacity={0.9}
-                                        onPress={() => router.push(`/dog-management/assignments/new?assignmentId=${item.assignmentId}` as any)}
-                                        style={[styles.editButton, { backgroundColor: colors.primary }]}
-                                    >
-                                        <Text style={[styles.editButtonText, { fontFamily: dogManagementFonts.bold }]}>Sửa</Text>
-                                        <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-                                    </TouchableOpacity>
+                                    <View style={styles.actionRow}>
+                                        <TouchableOpacity
+                                            activeOpacity={0.88}
+                                            onPress={() => router.push(`/dog-management/dogs/${dog.dogId}` as any)}
+                                            style={[styles.secondaryButton, { borderColor: isDark ? colors.border : '#DCE6E0' }]}
+                                        >
+                                            <Text style={[styles.secondaryButtonText, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                                                Hồ sơ chó
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            activeOpacity={0.9}
+                                            onPress={() => router.push(`/dog-management/health-records?dogId=${dog.dogId}` as any)}
+                                            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                                        >
+                                            <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Sức khỏe</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
-                        );
-                    }}
-                />
-            )}
+                        </Animated.View>
+                    );
+                }}
+            />
         </ScreenWrapper>
     );
 }
@@ -287,7 +456,7 @@ export default function AssignmentListScreen() {
 const styles = StyleSheet.create({
     headerRow: {
         marginTop: spacing.sm,
-        marginBottom: spacing.xs,
+        marginBottom: spacing.sm,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -304,73 +473,104 @@ const styles = StyleSheet.create({
         fontSize: 20,
         lineHeight: 24,
     },
-    pageSubtitle: {
+    heroCard: {
+        borderRadius: 30,
+        padding: 20,
+        backgroundColor: '#173D2B',
+        marginBottom: 14,
+    },
+    heroOverline: {
+        fontSize: 11,
+        lineHeight: 14,
+        letterSpacing: 0.8,
+        color: '#B7D7C5',
+    },
+    heroTitle: {
+        marginTop: 14,
+        fontSize: 28,
+        lineHeight: 34,
+        color: '#FFFFFF',
+    },
+    heroSubtitle: {
+        marginTop: 8,
+        fontSize: 13,
+        lineHeight: 20,
+        color: '#D0E6DA',
+    },
+    heroStats: {
+        marginTop: 18,
+        flexDirection: 'row',
+        gap: 10,
+    },
+    heroStatCard: {
+        flex: 1,
+        borderRadius: 18,
+        padding: 12,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.14)',
+    },
+    heroStatLabel: {
+        fontSize: 10,
+        lineHeight: 12,
+        color: '#B7D7C5',
+    },
+    heroStatValue: {
+        marginTop: 10,
+        fontSize: 26,
+        lineHeight: 30,
+        color: '#FFFFFF',
+    },
+    searchBar: {
+        minHeight: 50,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         marginBottom: 12,
+    },
+    searchInput: {
+        flex: 1,
         fontSize: 13,
         lineHeight: 18,
     },
-    segmentWrap: {
-        borderRadius: 18,
-        padding: 5,
-        flexDirection: 'row',
+    filterBlock: {
         marginBottom: 12,
+        gap: 10,
     },
-    segmentButton: {
-        flex: 1,
-        minHeight: 46,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    segmentButtonActive: {
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#153224',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 2,
-    },
-    segmentText: {
-        fontSize: 14,
-        lineHeight: 18,
-    },
-    dogRow: {
+    filterRow: {
         gap: 8,
-        paddingBottom: 4,
-        marginBottom: 12,
     },
-    dogChip: {
-        minHeight: 38,
-        borderRadius: 19,
+    filterChip: {
+        minHeight: 36,
+        borderRadius: 18,
         borderWidth: 1,
         paddingHorizontal: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    dogChipText: {
-        fontSize: 12,
-        lineHeight: 16,
-    },
-    contextCard: {
-        borderWidth: 1,
-        borderRadius: 22,
-        padding: 14,
-        marginBottom: 12,
-    },
-    contextLabel: {
+    filterChipText: {
         fontSize: 11,
         lineHeight: 14,
-        textTransform: 'uppercase',
     },
-    contextTitle: {
-        marginTop: 6,
-        fontSize: 18,
-        lineHeight: 22,
+    typeFilterRow: {
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
     },
-    contextMeta: {
-        marginTop: 4,
-        fontSize: 12,
-        lineHeight: 16,
+    typeChip: {
+        minHeight: 34,
+        borderRadius: 17,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    typeChipText: {
+        fontSize: 11,
+        lineHeight: 14,
     },
     centered: {
         flex: 1,
@@ -378,41 +578,58 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     listContent: {
-        paddingBottom: 100,
-        gap: 12,
+        paddingBottom: 36,
+        gap: 14,
     },
     card: {
         borderWidth: 1,
-        borderRadius: 24,
+        borderRadius: 28,
         overflow: 'hidden',
     },
     coverImage: {
         width: '100%',
-        height: 170,
+        height: 210,
     },
-    cardBody: {
-        padding: 16,
+    cardOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(8, 15, 10, 0.16)',
     },
     badgeRow: {
+        position: 'absolute',
+        top: 14,
+        left: 14,
+        right: 14,
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginBottom: 12,
+        justifyContent: 'space-between',
     },
     badge: {
-        minHeight: 24,
-        borderRadius: 12,
+        minHeight: 26,
+        borderRadius: 13,
         paddingHorizontal: 10,
-        alignItems: 'center',
         justifyContent: 'center',
     },
     badgeText: {
         fontSize: 10,
         lineHeight: 13,
     },
+    liveBadge: {
+        minHeight: 26,
+        borderRadius: 13,
+        paddingHorizontal: 10,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.92)',
+    },
+    liveBadgeText: {
+        color: '#214C37',
+        fontSize: 10,
+        lineHeight: 13,
+    },
+    cardBody: {
+        padding: 16,
+    },
     cardTitle: {
-        fontSize: 22,
-        lineHeight: 26,
+        fontSize: 24,
+        lineHeight: 28,
     },
     cardMeta: {
         marginTop: 4,
@@ -420,17 +637,17 @@ const styles = StyleSheet.create({
         lineHeight: 17,
     },
     infoRow: {
-        marginTop: 14,
+        marginTop: 16,
         flexDirection: 'row',
         gap: 10,
     },
     infoCell: {
         flex: 1,
-        borderRadius: 16,
+        borderRadius: 18,
         padding: 12,
         backgroundColor: '#F6FAF7',
         borderWidth: 1,
-        borderColor: '#E4ECE6',
+        borderColor: '#E3ECE6',
     },
     infoLabel: {
         fontSize: 10,
@@ -440,45 +657,60 @@ const styles = StyleSheet.create({
     infoValue: {
         marginTop: 8,
         fontSize: 14,
-        lineHeight: 18,
+        lineHeight: 19,
     },
     noteText: {
-        marginTop: 12,
+        marginTop: 14,
         fontSize: 13,
         lineHeight: 19,
     },
-    editButton: {
-        marginTop: 14,
+    actionRow: {
+        marginTop: 16,
+        flexDirection: 'row',
+        gap: 10,
+    },
+    secondaryButton: {
+        flex: 1,
+        minHeight: 46,
+        borderRadius: 16,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    secondaryButtonText: {
+        fontSize: 13,
+        lineHeight: 17,
+    },
+    primaryButton: {
+        flex: 1,
         minHeight: 46,
         borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
-        flexDirection: 'row',
-        gap: 8,
     },
-    editButtonText: {
+    primaryButtonText: {
         color: '#FFFFFF',
-        fontSize: 14,
-        lineHeight: 18,
+        fontSize: 13,
+        lineHeight: 17,
     },
     emptyWrap: {
-        paddingTop: 60,
+        paddingTop: 54,
         alignItems: 'center',
-        justifyContent: 'center',
         paddingHorizontal: 24,
     },
     emptyIconWrap: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#EAF2ED',
         marginBottom: 14,
     },
     emptyTitle: {
-        fontSize: 17,
-        lineHeight: 21,
+        fontSize: 18,
+        lineHeight: 22,
         textAlign: 'center',
     },
     emptySubtitle: {

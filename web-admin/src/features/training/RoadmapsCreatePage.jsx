@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
+import { getStatusLabel } from '../../utils/enumLabels';
 
 const defaultForm = {
   roadmapName: '',
@@ -35,7 +36,7 @@ const RoadmapsCreatePage = () => {
   const [entityId, setEntityId] = useState(null);
   const [entityStatus, setEntityStatus] = useState('DRAFT');
   const [formData, setFormData] = useState(defaultForm);
-  const canPublish = user?.role === 'ADMIN';
+  const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -170,7 +171,7 @@ const RoadmapsCreatePage = () => {
       onCancel={() => navigate('/training/roadmaps')}
       saving={saving || loadingDetail}
       saveLabel="Gửi duyệt"
-      actionHint={`Trạng thái hiện tại: ${entityStatus}`}
+      actionHint={`Trạng thái hiện tại: ${getStatusLabel(entityStatus)}`}
       extraActions={[
         { key: 'draft', label: 'Lưu nháp', onClick: handleSaveDraft, loading: savingDraft },
         {

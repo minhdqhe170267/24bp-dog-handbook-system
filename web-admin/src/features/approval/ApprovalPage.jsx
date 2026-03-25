@@ -1,23 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { DetailView } from '../../components/shared/DetailModal';
-import { CheckCircle, XCircle, Eye, Loader2, Image as ImageIcon, Video, Search, History } from 'lucide-react';
+import DetailModal from '../../components/shared/DetailModal';
+import { CheckCircle, XCircle, Eye, Loader2, Search, History } from 'lucide-react';
 import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useToast } from '../../components/ui/Toast';
 import { Button, FormTextarea, Modal } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
-
-const detailFields = [
-    { key: 'title', label: 'Tiêu đề', render: (d) => d.title || d.entityTitle || '-' },
-    { key: 'entityType', label: 'Loại nội dung' },
-    { key: 'status', label: 'Trạng thái' },
-    { key: 'authorName', label: 'Tác giả' },
-    { key: 'body', label: 'Nội dung', type: 'textarea' },
-];
+import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
 const entityTypeLabels = {
     CONTENT: 'Bài viết',
@@ -61,16 +55,6 @@ const entityTitleKeys = {
     FIRST_AID_GUIDE: 'guideTitle',
 };
 
-const detailBodyKeys = [
-    'body',
-    'description',
-    'instructions',
-    'immediateSteps',
-    'indications',
-    'operationalCapabilities',
-    'summary',
-];
-
 const decisionLabels = {
     APPROVED: 'Đã duyệt',
     REJECTED: 'Từ chối',
@@ -87,6 +71,7 @@ const entityTypeOptions = [
 ];
 
 const ApprovalPage = () => {
+    const navigate = useNavigate();
     const [page, setPage] = useState(0);
     const [pageSize, setPageSize] = useState(10);
     const [entityTypeFilter, setEntityTypeFilter] = useState('ALL');
@@ -94,10 +79,6 @@ const ApprovalPage = () => {
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [detailItem, setDetailItem] = useState(null);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [detailMedia, setDetailMedia] = useState([]);
-    const [failedMediaPreviews, setFailedMediaPreviews] = useState({});
     const [historyOpen, setHistoryOpen] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRecords, setHistoryRecords] = useState([]);
@@ -107,7 +88,6 @@ const ApprovalPage = () => {
     const [reviewComment, setReviewComment] = useState('');
     const [reviewSubmitting, setReviewSubmitting] = useState(false);
     const toast = useToast();
-    const detailRequestRef = useRef(0);
 
     const getEntityType = (row) => row?.entityType || 'CONTENT';
     const getEntityId = (row) => row?.entityId || row?.id;
@@ -122,15 +102,6 @@ const ApprovalPage = () => {
         if (detail.title) return detail.title;
         if (detail.entityTitle) return detail.entityTitle;
         return fallbackTitle || '-';
-    };
-
-    const resolveEntityBodyFromDetail = (detail) => {
-        if (!detail || typeof detail !== 'object') return '';
-        for (const key of detailBodyKeys) {
-            const value = detail[key];
-            if (typeof value === 'string' && value.trim()) return value;
-        }
-        return '';
     };
 
     const resolveEntityAuthorFromDetail = (detail, row) =>
@@ -157,61 +128,12 @@ const ApprovalPage = () => {
         row?.submitted_at ||
         resolveEntityUpdatedAt(detail, row);
 
-    const normalizeApiBase = (value) => {
-        if (!value) return '/api/v1';
-        const normalized = value.trim().replace(/\/+$/, '');
-        if (/^https?:\/\//i.test(normalized)) return normalized;
-        return normalized.startsWith('/') ? normalized : `/${normalized}`;
-    };
-
-    const apiBase = normalizeApiBase(api?.defaults?.baseURL || import.meta.env.VITE_API_BASE_URL || '/api/v1');
-
-    const resolveApiOrigin = () => {
-        if (typeof window === 'undefined') return '';
-        if (/^https?:\/\//i.test(apiBase)) {
-            try {
-                return new URL(apiBase).origin;
-            } catch {
-                return window.location.origin;
-            }
-        }
-        return window.location.origin;
-    };
-
-    const apiOrigin = resolveApiOrigin();
-
-    const buildAbsoluteUrl = (path) => {
-        if (!path) return '';
-        if (/^https?:\/\//i.test(path) || path.startsWith('blob:') || path.startsWith('data:')) {
-            return path;
-        }
-        const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-        return `${apiOrigin}${normalizedPath}`;
-    };
-
-    const getMediaPreviewUrl = (media) => {
-        const rawUrl = (media?.fileUrl || media?.url || '').trim();
-        if (rawUrl) return buildAbsoluteUrl(rawUrl);
-        if (!media?.mediaId) return '';
-
-        if (/^https?:\/\//i.test(apiBase)) {
-            try {
-                const parsed = new URL(apiBase);
-                const basePath = parsed.pathname.replace(/\/+$/, '');
-                return `${parsed.origin}${basePath}/media/${media.mediaId}/file`;
-            } catch {
-                return `${apiOrigin}/media/${media.mediaId}/file`;
-            }
-        }
-        return `${apiOrigin}${apiBase}/media/${media.mediaId}/file`;
-    };
-
     const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
-            const res = await approvalService.getPending(entityTypeFilter, nextPage, nextPageSize);
-            const payload = res?.data || res || {};
-            const rawItems = Array.isArray(payload) ? payload : payload.content || [];
+            const rawItems = await fetchAllPages((pageIndex, batchSize) =>
+                approvalService.getPending(entityTypeFilter, pageIndex, batchSize)
+            );
             const normalizedRows = rawItems.map((row, index) => ({
                 ...row,
                 id: `${getEntityType(row)}-${getEntityId(row) || index}`,
@@ -244,83 +166,30 @@ const ApprovalPage = () => {
                 timeKeys: ['submittedAt', 'submitted_at', 'updatedAt', 'updated_at', 'createdAt', 'created_at'],
                 idKeys: ['entityId', 'id'],
             });
-
-            setItems(sortedRows);
-            setTotalItems(Array.isArray(payload) ? normalizedRows.length : payload.totalElements || normalizedRows.length);
+            const normalizedSearch = search.trim().toLowerCase();
+            const filteredRows = sortedRows.filter((item) => {
+                const title = getEntityTitle(item);
+                return !normalizedSearch || title.toLowerCase().includes(normalizedSearch);
+            });
+            const { pageRows, totalItems: safeTotal, effectivePage } = paginateRows(filteredRows, nextPage, nextPageSize);
+            setItems(pageRows);
+            setTotalItems(safeTotal);
+            if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) { console.error('Fetch pending reviews error:', err); setItems([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchData(page, pageSize); }, [entityTypeFilter, page, pageSize]);
+    useEffect(() => { fetchData(page, pageSize); }, [entityTypeFilter, page, pageSize, search]);
 
-    const openDetail = async (row) => {
+    const openDetail = (row) => {
         const entityType = getEntityType(row);
         const entityId = getEntityId(row);
-        if (!entityId) {
-            setDetailItem(row || null);
-            setDetailMedia([]);
-            return;
-        }
-
-        const requestId = detailRequestRef.current + 1;
-        detailRequestRef.current = requestId;
-        setDetailItem({
-            ...row,
-            title: getEntityTitle(row),
-            entityType: getEntityTypeLabel(entityType),
+        if (!entityId) return;
+        const query = new URLSearchParams({
+            returnTo: '/approval',
+            returnLabel: 'Duyệt nội dung',
         });
-        setDetailMedia([]);
-        setFailedMediaPreviews({});
-        setDetailLoading(true);
-
-        try {
-            const detailEndpoint = getEntityDetailEndpoint(entityType);
-            const [detailRes, mediaRes] = await Promise.allSettled([
-                detailEndpoint ? api.get(`${detailEndpoint}/${entityId}`) : Promise.resolve(null),
-                api.get(`/media/entity/${entityType}/${entityId}`),
-            ]);
-
-            const entityDetail =
-                detailRes.status === 'fulfilled'
-                    ? detailRes.value?.data || detailRes.value || {}
-                    : {};
-            const mediaPayload =
-                mediaRes.status === 'fulfilled'
-                    ? mediaRes.value?.data || mediaRes.value || []
-                    : [];
-            const mediaList = Array.isArray(mediaPayload)
-                ? mediaPayload
-                : Array.isArray(mediaPayload.content)
-                    ? mediaPayload.content
-                    : [];
-
-            if (detailRequestRef.current !== requestId) return;
-            setDetailItem({
-                ...row,
-                ...entityDetail,
-                title: resolveEntityTitleFromDetail(entityType, entityDetail, getEntityTitle(row)),
-                entityType: getEntityTypeLabel(entityType),
-                body: resolveEntityBodyFromDetail(entityDetail),
-                authorName: resolveEntityAuthorFromDetail(entityDetail, row),
-                updatedAt: resolveEntityUpdatedAt(entityDetail, row),
-            });
-            setDetailMedia(mediaList);
-        } catch (err) {
-            console.error('Fetch reviewer detail error:', err);
-            if (detailRequestRef.current !== requestId) return;
-            setDetailMedia([]);
-        } finally {
-            if (detailRequestRef.current !== requestId) return;
-            setDetailLoading(false);
-        }
-    };
-
-    const closeDetail = () => {
-        detailRequestRef.current = 0;
-        setDetailItem(null);
-        setDetailMedia([]);
-        setFailedMediaPreviews({});
-        setDetailLoading(false);
+        navigate(`/details/${entityType}/${entityId}?${query.toString()}`);
     };
 
     const closeHistory = () => {
@@ -437,23 +306,16 @@ const ApprovalPage = () => {
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}>
                         <History className="h-4 w-4 text-muted-foreground" />
                     </button>
-                    <button className="p-1.5 rounded-md hover:bg-green-100 transition-colors" title="Duyệt" onClick={() => openReviewModal(r, 'APPROVED')}>
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+                    <button className="p-1.5 rounded-md hover:bg-emerald-500/15 transition-colors" title="Duyệt" onClick={() => openReviewModal(r, 'APPROVED')}>
+                        <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                     </button>
-                    <button className="p-1.5 rounded-md hover:bg-red-100 transition-colors" title="Từ chối" onClick={() => openReviewModal(r, 'REJECTED')}>
-                        <XCircle className="h-4 w-4 text-red-500" />
+                    <button className="p-1.5 rounded-md hover:bg-red-500/15 transition-colors" title="Từ chối" onClick={() => openReviewModal(r, 'REJECTED')}>
+                        <XCircle className="h-4 w-4 text-red-500 dark:text-red-300" />
                     </button>
                 </div>
             )
         },
     ];
-
-    const normalizedSearch = search.trim().toLowerCase();
-    const filteredItems = items.filter((item) => {
-        const title = getEntityTitle(item);
-        return !normalizedSearch || title.toLowerCase().includes(normalizedSearch);
-    });
-    const hasClientFilter = Boolean(normalizedSearch);
 
     return (
         <div className="animate-fade-in">
@@ -473,77 +335,9 @@ const ApprovalPage = () => {
                 <FilterSelect value={entityTypeFilter} onChange={(value) => { setEntityTypeFilter(value); setPage(0); }} options={entityTypeOptions} className="min-w-[180px]" />
             </div>
             {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-                <DataTable columns={columns} data={filteredItems} page={page} pageSize={pageSize} totalItems={hasClientFilter ? filteredItems.length : totalItems}
+                <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
                            onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Không có nội dung nào chờ duyệt" />
             )}
-            <DetailModal open={!!detailItem} onClose={closeDetail} title="Chi tiết nội dung" size="xl">
-                <DetailView fields={detailFields} data={detailItem} />
-                <div className="mt-5 pt-4 border-t border-border space-y-3">
-                    <h3 className="text-sm font-semibold text-foreground">Media đính kèm</h3>
-                    {detailLoading ? (
-                        <div className="h-28 rounded-lg border border-border/60 bg-muted/20 flex items-center justify-center">
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : detailMedia.length === 0 ? (
-                        <div className="h-28 rounded-lg border border-dashed border-border/80 bg-muted/10 flex items-center justify-center">
-                            <p className="text-sm text-muted-foreground">Không có media cho nội dung này</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {detailMedia.map((media) => {
-                                const mediaKey = media.mediaId || media.fileUrl || media.fileName;
-                                const previewUrl = getMediaPreviewUrl(media);
-                                const previewFailed = failedMediaPreviews[mediaKey];
-                                const isVideo = media.mediaType === 'VIDEO';
-                                const canPreview = Boolean(previewUrl) && !previewFailed;
-
-                                return (
-                                    <div key={mediaKey} className="rounded-lg border border-border/60 bg-background p-2">
-                                        <div className="aspect-video w-full rounded-md border border-border/60 bg-muted/15 overflow-hidden flex items-center justify-center">
-                                            {canPreview && isVideo ? (
-                                                <video
-                                                    src={previewUrl}
-                                                    controls
-                                                    preload="metadata"
-                                                    className="h-full w-full object-cover"
-                                                    onError={() => setFailedMediaPreviews((prev) => ({ ...prev, [mediaKey]: true }))}
-                                                />
-                                            ) : canPreview ? (
-                                                <img
-                                                    src={previewUrl}
-                                                    alt={media.fileName || media.filename || 'Media'}
-                                                    className="h-full w-full object-cover"
-                                                    loading="lazy"
-                                                    onError={() => setFailedMediaPreviews((prev) => ({ ...prev, [mediaKey]: true }))}
-                                                />
-                                            ) : (
-                                                <div className="flex flex-col items-center gap-1 text-muted-foreground">
-                                                    {isVideo ? <Video className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
-                                                    <span className="text-xs">Không xem trước được</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-2 min-w-0">
-                                            <p className="text-sm text-foreground truncate">{media.fileName || media.filename || '-'}</p>
-                                            <p className="text-xs text-muted-foreground">{media.mediaType || 'MEDIA'}</p>
-                                            {previewUrl && (
-                                                <a
-                                                    href={previewUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-xs text-accent hover:underline"
-                                                >
-                                                    Mở trong tab mới
-                                                </a>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            </DetailModal>
             <Modal
                 open={!!reviewTarget}
                 onClose={closeReviewModal}
