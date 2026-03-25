@@ -207,7 +207,7 @@ public class DocumentImportServiceImpl implements DocumentImportService {
                 req.setSizeClassification(str(row.get("sizeClassification")));
                 req.setDescription(str(row.get("description")));
                 req.setTrainabilityLevel(str(row.get("trainabilityLevel")));
-                breedService.create(req, userId);
+                breedService.create(req, userId, null);
             }
             case "DISEASE" -> {
                 DiseaseRequest req = new DiseaseRequest();
@@ -223,7 +223,7 @@ public class DocumentImportServiceImpl implements DocumentImportService {
                         .dosageInstructions(str(row.get("dosageInstructions")))
                         .sideEffects(str(row.get("sideEffects")))
                         .build();
-                medicationService.create(req, userId);
+                medicationService.create(req, userId, null);
             }
             case "EXERCISE" -> {
                 TrainingExerciseRequest req = new TrainingExerciseRequest();

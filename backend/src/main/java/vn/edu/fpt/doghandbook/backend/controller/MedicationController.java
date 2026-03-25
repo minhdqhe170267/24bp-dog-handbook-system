@@ -3,17 +3,11 @@ package vn.edu.fpt.doghandbook.backend.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.MedicationRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ApiResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.MedicationResponse;
@@ -55,23 +49,45 @@ public class MedicationController {
         return ApiResponse.success(response);
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<MedicationResponse>> create(
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<MedicationResponse>> createJson(
             @Valid @RequestBody MedicationRequest request,
             Authentication authentication
     ) {
-        MedicationResponse response = medicationService.create(request, AuthenticationUtils.extractUserId(authentication));
+        MedicationResponse response = medicationService.create(request, AuthenticationUtils.extractUserId(authentication), null);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<MedicationResponse> update(
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<MedicationResponse>> createMultipart(
+            @Valid @RequestPart("data") MedicationRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            Authentication authentication
+    ) {
+        MedicationResponse response = medicationService.create(request, AuthenticationUtils.extractUserId(authentication), image);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<MedicationResponse> updateJson(
             @PathVariable("id") Integer id,
             @Valid @RequestBody MedicationRequest request,
             Authentication authentication
     ) {
         return ApiResponse.success(
-                medicationService.update(id, request, AuthenticationUtils.extractUserId(authentication))
+                medicationService.update(id, request, AuthenticationUtils.extractUserId(authentication), null)
+        );
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<MedicationResponse> updateMultipart(
+            @PathVariable("id") Integer id,
+            @Valid @RequestPart("data") MedicationRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            Authentication authentication
+    ) {
+        return ApiResponse.success(
+                medicationService.update(id, request, AuthenticationUtils.extractUserId(authentication), image)
         );
     }
 

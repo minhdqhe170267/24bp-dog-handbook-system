@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service;
 
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.FirstAidGuideRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.FirstAidGuideResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -10,9 +11,9 @@ public interface FirstAidGuideService {
 
     FirstAidGuideResponse getById(Integer id);
 
-    FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId);
+    FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId, MultipartFile image);
 
-    FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId);
+    FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId, MultipartFile image);
 
     void delete(Integer id);
 }
