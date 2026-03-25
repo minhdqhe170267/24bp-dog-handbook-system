@@ -37,9 +37,6 @@ public class MedicationRequest {
     @Size(max = 5000, message = "storageRequirements must not exceed 5000 characters")
     private String storageRequirements;
 
-    @Size(max = 500, message = "imageUrl must not exceed 500 characters")
-    private String imageUrl;
-
     @ValidEnum(enumClass = ContentStatus.class, message = "status không hợp lệ")
     private String status;
 }

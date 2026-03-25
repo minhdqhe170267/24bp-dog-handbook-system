@@ -2,7 +2,6 @@ package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -16,20 +15,14 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.MediaType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.*;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService.UploadResult;
 import vn.edu.fpt.doghandbook.backend.service.MediaService;
-import vn.edu.fpt.doghandbook.backend.util.MediaUrlResolver;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -52,10 +45,7 @@ public class MediaServiceImpl implements MediaService {
     private final MedicationRepository medicationRepository;
     private final FirstAidGuideRepository firstAidGuideRepository;
     private final UserRepository userRepository;
-    private final MediaUrlResolver mediaUrlResolver;
-
-    @Value("${app.upload.dir:uploads/}")
-    private String uploadDir;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     @Transactional
@@ -82,26 +72,17 @@ public class MediaServiceImpl implements MediaService {
         String cleanOriginalName = sanitizeFilename(file.getOriginalFilename());
         MediaType mediaType = detectMediaType(file.getContentType(), cleanOriginalName);
         validateFile(file, mediaType);
-        String storedName = UUID.randomUUID() + "_" + cleanOriginalName;
 
-        Path uploadRoot = resolveUploadDir();
-        Path targetPath = uploadRoot.resolve(storedName).normalize();
-        if (!targetPath.startsWith(uploadRoot)) {
-            throw new BadRequestException("Invalid file path");
-        }
-
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException ex) {
-            throw new BadRequestException("Could not store file: " + ex.getMessage());
-        }
+        String resourceType = mediaType == MediaType.VIDEO ? "video" : "image";
+        UploadResult uploadResult = cloudinaryService.upload(file, resourceType);
 
         Media media = Media.builder()
                 .entityType(parsedType)
                 .entityId(entityId)
                 .filename(cleanOriginalName)
                 .mediaType(mediaType)
-                .fileUrl(buildFileUrl(storedName))
+                .fileUrl(uploadResult.secureUrl())
+                .cloudinaryPublicId(uploadResult.publicId())
                 .fileSizeBytes(file.getSize())
                 .mimeType(file.getContentType())
                 .altText(normalizeAltText(altText))
@@ -163,7 +144,12 @@ public class MediaServiceImpl implements MediaService {
             }
             mediaRepository.saveAll(remainingMedia);
         }
-        tryDeleteLocalFile(media.getFileUrl());
+
+        String publicId = media.getCloudinaryPublicId();
+        if (publicId != null && !publicId.isBlank()) {
+            String resourceType = media.getMediaType() == MediaType.VIDEO ? "video" : "image";
+            cloudinaryService.delete(publicId, resourceType);
+        }
     }
 
     // ── Entity validation ───────────────────────────────────────────
@@ -208,20 +194,6 @@ public class MediaServiceImpl implements MediaService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
 
-    private Path resolveUploadDir() {
-        Path path = Paths.get(uploadDir).toAbsolutePath().normalize();
-        try {
-            Files.createDirectories(path);
-        } catch (IOException ex) {
-            throw new BadRequestException("Could not create upload directory: " + ex.getMessage());
-        }
-        return path;
-    }
-
-    private String buildFileUrl(String storedName) {
-        return "uploads/" + storedName;
-    }
-
     private void reorderMedia(Media targetMedia, Integer requestedDisplayOrder) {
         ApprovableEntityType entityType = targetMedia.getEntityType();
         Integer entityId = targetMedia.getEntityId();
@@ -252,20 +224,6 @@ public class MediaServiceImpl implements MediaService {
             mediaItems.get(index).setDisplayOrder(index + 1);
         }
         mediaRepository.saveAll(mediaItems);
-    }
-
-    private void tryDeleteLocalFile(String fileUrl) {
-        if (fileUrl == null || fileUrl.isBlank()) {
-            return;
-        }
-        try {
-            Path path = Paths.get(fileUrl);
-            if (!path.isAbsolute()) {
-                path = Paths.get("").toAbsolutePath().resolve(fileUrl).normalize();
-            }
-            Files.deleteIfExists(path);
-        } catch (IOException ignored) {
-        }
     }
 
     private MediaType detectMediaType(String mimeType, String fileName) {
@@ -338,7 +296,7 @@ public class MediaServiceImpl implements MediaService {
         return MediaResponse.builder()
                 .mediaId(media.getMediaId())
                 .fileName(media.getFilename())
-                .fileUrl(mediaUrlResolver.toPublicUrl(media.getFileUrl()))
+                .fileUrl(media.getFileUrl())
                 .mediaType(media.getMediaType() == null ? null : media.getMediaType().name())
                 .fileSizeBytes(media.getFileSizeBytes())
                 .mimeType(media.getMimeType())

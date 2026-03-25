@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.MedicationRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.MedicationResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -20,6 +21,7 @@ import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.MedicationRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService;
 import vn.edu.fpt.doghandbook.backend.service.MedicationService;
 
 import java.time.LocalDateTime;
@@ -33,6 +35,7 @@ public class MedicationServiceImpl implements MedicationService {
 
     private final MedicationRepository medicationRepository;
     private final UserRepository userRepository;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     public PageResponse<MedicationResponse> getAll(int page, int size, String search, String status) {
@@ -80,10 +83,12 @@ public class MedicationServiceImpl implements MedicationService {
 
     @Override
     @Transactional
-    public MedicationResponse create(MedicationRequest request, Integer createdByUserId) {
+    public MedicationResponse create(MedicationRequest request, Integer createdByUserId, MultipartFile image) {
         User actor = getUserById(createdByUserId);
         String medicationName = normalizeRequired(request.getMedicationName(), "medicationName");
         ensureUniqueMedicationName(medicationName, null);
+
+        String imageUrl = resolveImageUrl(image);
 
         Medication medication = Medication.builder()
                 .medicationName(medicationName)
@@ -93,7 +98,7 @@ public class MedicationServiceImpl implements MedicationService {
                 .sideEffects(trimToNull(request.getSideEffects()))
                 .contraindications(trimToNull(request.getContraindications()))
                 .storageRequirements(trimToNull(request.getStorageRequirements()))
-                .imageUrl(trimToNull(request.getImageUrl()))
+                .imageUrl(imageUrl)
                 .status(ContentStatus.DRAFT)
                 .createdBy(actor)
                 .isDeleted(false)
@@ -105,7 +110,7 @@ public class MedicationServiceImpl implements MedicationService {
 
     @Override
     @Transactional
-    public MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId) {
+    public MedicationResponse update(Integer id, MedicationRequest request, Integer actorUserId, MultipartFile image) {
         Medication medication = getActiveMedicationById(id);
         getUserById(actorUserId);
 
@@ -123,7 +128,10 @@ public class MedicationServiceImpl implements MedicationService {
         medication.setSideEffects(trimToNull(request.getSideEffects()));
         medication.setContraindications(trimToNull(request.getContraindications()));
         medication.setStorageRequirements(trimToNull(request.getStorageRequirements()));
-        medication.setImageUrl(trimToNull(request.getImageUrl()));
+        String newImageUrl = resolveImageUrl(image);
+        if (newImageUrl != null) {
+            medication.setImageUrl(newImageUrl);
+        }
 
         if (medication.getStatus() == ContentStatus.REJECTED) {
             medication.setStatus(ContentStatus.DRAFT);
@@ -218,6 +226,13 @@ public class MedicationServiceImpl implements MedicationService {
             throw new BadRequestException(fieldName + " is required");
         }
         return normalized;
+    }
+
+    private String resolveImageUrl(MultipartFile image) {
+        if (image != null && !image.isEmpty()) {
+            return cloudinaryService.upload(image, "image").secureUrl();
+        }
+        return null;
     }
 
     private String trimToNull(String value) {

@@ -29,7 +29,6 @@ const EMPTY_FORM = {
   requiredMaterials: '',
   doNotActions: '',
   whenToSeekVet: '',
-  imageUrl: '',
 };
 
 const statusOptions = [
@@ -108,7 +107,6 @@ const FirstAidGuidesPage = () => {
     requiredMaterials: formData.requiredMaterials?.trim() || '',
     doNotActions: formData.doNotActions?.trim() || '',
     whenToSeekVet: formData.whenToSeekVet?.trim() || '',
-    imageUrl: formData.imageUrl?.trim() || '',
   });
 
   const handleSubmit = async (e) => {
@@ -408,13 +406,6 @@ const FirstAidGuidesPage = () => {
             />
           </FormField>
 
-          <FormField label="URL ảnh minh họa">
-            <FormInput
-              placeholder="https://..."
-              value={formData.imageUrl}
-              onChange={(e) => updateField('imageUrl', e.target.value)}
-            />
-          </FormField>
         </form>
       </Modal>
 

@@ -47,9 +47,6 @@ public class DogProfileRequest {
     @ValidEnum(enumClass = DogStatus.class, message = "Trạng thái chó không hợp lệ")
     private String status;
 
-    @Size(max = 500, message = "URL ảnh tối đa 500 ký tự")
-    private String imageUrl;
-
     @Size(max = 5000, message = "Ghi chú tối đa 5000 ký tự")
     private String notes;
 }

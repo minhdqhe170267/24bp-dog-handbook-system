@@ -17,7 +17,6 @@ const defaultForm = {
   requiredMaterials: '',
   doNotActions: '',
   whenToSeekVet: '',
-  imageUrl: '',
 };
 
 const FirstAidGuidesCreatePage = () => {
@@ -47,7 +46,6 @@ const FirstAidGuidesCreatePage = () => {
     requiredMaterials: formData.requiredMaterials.trim(),
     doNotActions: formData.doNotActions.trim(),
     whenToSeekVet: formData.whenToSeekVet.trim(),
-    imageUrl: formData.imageUrl.trim(),
   });
 
   const validate = () => {
@@ -78,7 +76,6 @@ const FirstAidGuidesCreatePage = () => {
           requiredMaterials: detail.requiredMaterials || '',
           doNotActions: detail.doNotActions || '',
           whenToSeekVet: detail.whenToSeekVet || '',
-          imageUrl: detail.imageUrl || '',
         });
       } catch (error) {
         toast.error(error, { title: 'Không tải được chi tiết hướng dẫn sơ cứu' });
@@ -205,9 +202,6 @@ const FirstAidGuidesCreatePage = () => {
       </FormField>
       <FormField label="Khi nào cần bác sĩ thú y">
         <FormTextarea rows={2} value={formData.whenToSeekVet} onChange={(e) => updateField('whenToSeekVet', e.target.value)} />
-      </FormField>
-      <FormField label="URL ảnh minh họa">
-        <FormInput value={formData.imageUrl} onChange={(e) => updateField('imageUrl', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE}
