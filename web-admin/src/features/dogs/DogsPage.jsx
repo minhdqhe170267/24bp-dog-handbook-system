@@ -54,7 +54,6 @@ const defaultForm = {
   color: '',
   microchipId: '',
   status: 'ACTIVE',
-  imageUrl: '',
   notes: '',
 };
 
@@ -200,7 +199,6 @@ const DogsPage = () => {
       heightCm: toNullableNumber(formData.heightCm),
       color: formData.color?.trim() || null,
       microchipId: formData.microchipId?.trim() || null,
-      imageUrl: formData.imageUrl?.trim() || null,
       notes: formData.notes?.trim() || null,
     };
 
@@ -420,12 +418,6 @@ const DogsPage = () => {
             </FormField>
             <FormField label="Microchip ID">
               <FormInput value={formData.microchipId} onChange={(event) => updateField('microchipId', event.target.value)} />
-            </FormField>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-            <FormField label="Ảnh (URL)">
-              <FormInput value={formData.imageUrl} onChange={(event) => updateField('imageUrl', event.target.value)} />
             </FormField>
           </div>
 
