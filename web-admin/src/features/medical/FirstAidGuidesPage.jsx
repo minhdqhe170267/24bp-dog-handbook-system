@@ -283,7 +283,7 @@ const FirstAidGuidesPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openDetail(row)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(row)}><History className="h-4 w-4 text-muted-foreground" /></Button>
           {canShowEdit(row) && <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getGuideId(row))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {canDelete && getStatus(row) === 'DRAFT' && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getGuideId(row))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(row)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(row)}><Send className="h-4 w-4 text-amber-600 dark:text-amber-300" /></Button>
           )}
@@ -430,4 +430,5 @@ const FirstAidGuidesPage = () => {
 };
 
 export default FirstAidGuidesPage;
+
 

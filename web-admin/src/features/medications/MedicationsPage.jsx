@@ -199,7 +199,7 @@ const MedicationsPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></Button>
           {canShowEdit(r) && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getMedicationId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {canDelete && getStatus(r) === 'DRAFT' && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getMedicationId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600 dark:text-amber-300" /></Button>
           )}
@@ -254,4 +254,5 @@ const MedicationsPage = () => {
 };
 
 export default MedicationsPage;
+
 
