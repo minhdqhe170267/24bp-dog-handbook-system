@@ -1166,6 +1166,7 @@ public class SyncServiceImpl implements SyncService {
     private List<Map<String, Object>> fetchDogAssignments(SyncWindow syncWindow, Integer userId) {
         String selectClause = "da.assignment_id AS assignmentId, da.trainer_id AS trainerId, "
                 + "da.dog_id AS dogId, da.assignment_type AS assignmentType, "
+                + "da.assignment_scope AS assignmentScope, da.covered_assignment_id AS coveredAssignmentId, "
                 + "da.start_date AS startDate, da.end_date AS endDate, "
                 + "da.is_active AS isActive, da.notes, "
                 + "da.created_at AS createdAt, da.updated_at AS updatedAt, "
@@ -1326,6 +1327,8 @@ public class SyncServiceImpl implements SyncService {
         item.put("trainerId", row.get("trainerId"));
         item.put("dogId", row.get("dogId"));
         item.put("assignmentType", toText(row.get("assignmentType")));
+        item.put("assignmentScope", toText(row.get("assignmentScope")));
+        item.put("coveredAssignmentId", row.get("coveredAssignmentId"));
         item.put("startDate", row.get("startDate"));
         item.put("endDate", row.get("endDate"));
         item.put("isActive", toBoolean(row.get("isActive")));

@@ -155,7 +155,7 @@ public class WeightAssessmentServiceImpl implements WeightAssessmentService {
                     + " - " + currentWeight + "kg (lệch " + deviation + "%)";
 
             // Trainer-only: notify trainers assigned to this dog
-            for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dogId)) {
+            for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dogId, LocalDate.now())) {
                 notificationService.notifyUser(
                         a.getTrainer(), currentUser,
                         NotificationType.WEIGHT_ABNORMAL,

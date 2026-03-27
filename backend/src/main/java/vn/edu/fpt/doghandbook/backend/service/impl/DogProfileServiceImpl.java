@@ -81,7 +81,9 @@ public class DogProfileServiceImpl implements DogProfileService {
                 .heightCm(request.getHeightCm())
                 .color(request.getColor())
                 .microchipId(request.getMicrochipId())
-                .status(DogStatus.ACTIVE)
+                .status(request.getStatus() != null ? DogStatus.valueOf(request.getStatus()) : DogStatus.ACTIVE)
+                .assignmentDate(request.getAssignmentDate())
+                .isSterilized(request.getIsSterilized())
                 .imageUrl(imageUrl)
                 .notes(request.getNotes())
                 .build();
@@ -114,6 +116,8 @@ public class DogProfileServiceImpl implements DogProfileService {
         if (request.getColor() != null) dog.setColor(request.getColor());
         if (request.getMicrochipId() != null) dog.setMicrochipId(request.getMicrochipId());
         if (request.getStatus() != null) dog.setStatus(DogStatus.valueOf(request.getStatus()));
+        if (request.getAssignmentDate() != null) dog.setAssignmentDate(request.getAssignmentDate());
+        if (request.getIsSterilized() != null) dog.setIsSterilized(request.getIsSterilized());
         String imageUrl = resolveImageUrl(image);
         if (imageUrl != null) dog.setImageUrl(imageUrl);
         if (request.getNotes() != null) dog.setNotes(request.getNotes());
@@ -159,6 +163,8 @@ public class DogProfileServiceImpl implements DogProfileService {
                 .color(entity.getColor())
                 .microchipId(entity.getMicrochipId())
                 .status(entity.getStatus() != null ? entity.getStatus().name() : null)
+                .assignmentDate(entity.getAssignmentDate())
+                .isSterilized(entity.getIsSterilized())
                 .imageUrl(entity.getImageUrl())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())

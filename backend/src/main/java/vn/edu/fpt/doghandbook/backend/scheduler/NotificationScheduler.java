@@ -235,7 +235,7 @@ public class NotificationScheduler {
 
             // Notify current trainers of this dog
             Set<Integer> notifiedIds = new HashSet<>();
-            for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dogId)) {
+            for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dogId, LocalDate.now())) {
                 notificationService.notifyUser(
                         a.getTrainer(), null,
                         NotificationType.ABNORMAL_REASSIGNMENT,

@@ -33,6 +33,8 @@ public class DogProfileResponse {
     private String color;
     private String microchipId;
     private String status;
+    private LocalDate assignmentDate;
+    private Boolean isSterilized;
     private String imageUrl;
     private String notes;
 

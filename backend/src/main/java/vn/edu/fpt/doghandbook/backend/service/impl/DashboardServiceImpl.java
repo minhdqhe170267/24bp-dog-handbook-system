@@ -84,7 +84,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .getTotalElements();
 
         List<TrainerDashboardStatsResponse.AssignedDogItem> assignedDogs = toAssignedDogs(
-                dogAssignmentRepository.findByTrainerUserIdAndIsActiveTrue(trainerId)
+                dogAssignmentRepository.findEffectiveByTrainerUserId(trainerId, LocalDate.now())
         );
 
         return TrainerDashboardStatsResponse.builder()
@@ -139,6 +139,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .breedName(breed != null ? breed.getBreedName() : null)
                 .imageUrl(dog.getImageUrl())
                 .assignmentType(assignment.getAssignmentType() != null ? assignment.getAssignmentType().name() : null)
+                .assignmentScope(assignment.getAssignmentScope() != null ? assignment.getAssignmentScope().name() : null)
                 .startDate(assignment.getStartDate())
                 .endDate(assignment.getEndDate())
                 .build();
