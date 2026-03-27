@@ -6,6 +6,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AuditActionType;
 import vn.edu.fpt.doghandbook.backend.service.AuditLogService;
 
@@ -93,7 +95,7 @@ public class AuditAspect {
             returning = "result"
     )
     public void afterImport(JoinPoint joinPoint, Object result) {
-        logAction(joinPoint, AuditActionType.IMPORT_DATA, result);
+        logActionAfterCommit(joinPoint, AuditActionType.IMPORT_DATA, result);
     }
 
     private void logAction(JoinPoint joinPoint, AuditActionType actionType, Object result) {
@@ -124,6 +126,20 @@ public class AuditAspect {
         } catch (Exception e) {
             log.error("AuditAspect failed to log delete: {}", e.getMessage());
         }
+    }
+
+    private void logActionAfterCommit(JoinPoint joinPoint, AuditActionType actionType, Object result) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            logAction(joinPoint, actionType, result);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                logAction(joinPoint, actionType, result);
+            }
+        });
     }
 
     private String extractEntityType(String className) {

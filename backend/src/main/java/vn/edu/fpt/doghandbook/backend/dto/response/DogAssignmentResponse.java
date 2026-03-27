@@ -24,6 +24,8 @@ public class DogAssignmentResponse {
     private String trainerName;
     private String trainerUsername;
     private String assignmentType;
+    private String assignmentScope;
+    private Integer coveredAssignmentId;
     private LocalDate startDate;
     private LocalDate endDate;
     private Boolean isActive;
