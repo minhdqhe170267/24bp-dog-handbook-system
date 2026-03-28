@@ -6,10 +6,10 @@ import { useToast } from '../../components/ui/Toast';
 import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { dogService } from '../../services/dogService';
 import { userService } from '../../services/userService';
+import { mapAssignmentErrorToToast } from './assignmentErrorMapper';
 
 const assignmentTypeOptions = [
   { value: 'PRIMARY', label: 'Chính' },
-  { value: 'SECONDARY', label: 'Phụ' },
   { value: 'TEMPORARY', label: 'Tạm thời' },
 ];
 
@@ -35,6 +35,8 @@ const DogAssignmentsCreatePage = () => {
   const [dogs, setDogs] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [formData, setFormData] = useState(defaultForm);
+  const assignmentType = String(formData.assignmentType || 'PRIMARY').toUpperCase();
+  const isPrimaryAssignment = assignmentType === 'PRIMARY';
 
   useEffect(() => {
     const fetchLookup = async () => {
@@ -86,10 +88,26 @@ const DogAssignmentsCreatePage = () => {
 
   const updateField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
 
+  const handleAssignmentTypeChange = (value) => {
+    const normalizedType = String(value || 'PRIMARY').toUpperCase();
+    setFormData((prev) => ({
+      ...prev,
+      assignmentType: normalizedType,
+    }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.dogId || !formData.trainerId || !formData.startDate) {
-      toast.error('Vui lòng nhập đủ thông tin bắt buộc');
+    const missingFields = [];
+    if (!formData.dogId) missingFields.push('Chó');
+    if (!formData.trainerId) missingFields.push('Huấn luyện viên');
+    if (!formData.startDate) missingFields.push('Ngày bắt đầu');
+
+    if (missingFields.length > 0) {
+      toast.error({
+        title: 'Thiếu thông tin bắt buộc',
+        description: `Vui lòng chọn/nhập: ${missingFields.join(', ')}.`,
+      });
       return;
     }
     const selectedTrainer = trainers.find(
@@ -106,6 +124,8 @@ const DogAssignmentsCreatePage = () => {
         dogId: Number(formData.dogId),
         trainerId: Number(formData.trainerId),
         assignmentType: formData.assignmentType || 'PRIMARY',
+        assignmentScope: isPrimaryAssignment ? 'FULL_TRAINING' : 'CARE_ONLY',
+        coveredAssignmentId: null,
         startDate: formData.startDate,
         endDate: formData.endDate || null,
         notes: formData.notes?.trim() || null,
@@ -120,7 +140,8 @@ const DogAssignmentsCreatePage = () => {
       }
       navigate('/assignments');
     } catch (error) {
-      toast.error(error, { title: (isEditMode ? 'Không thể cập nhật phân công' : 'Không thể tạo phân công') });
+      const mapped = mapAssignmentErrorToToast(error, isEditMode ? 'update' : 'create');
+      toast.error(mapped);
     } finally {
       setSaving(false);
     }
@@ -157,7 +178,7 @@ const DogAssignmentsCreatePage = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <FormField label="Loại phân công">
-          <FormSelect value={formData.assignmentType} onChange={(e) => updateField('assignmentType', e.target.value)} options={assignmentTypeOptions} />
+          <FormSelect value={formData.assignmentType} onChange={(e) => handleAssignmentTypeChange(e.target.value)} options={assignmentTypeOptions} />
         </FormField>
         <FormField label="Ngày bắt đầu" required>
           <input

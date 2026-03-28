@@ -24,7 +24,7 @@ const defaultForm = {
   dogName: '',
   breedId: '',
   gender: 'MALE',
-  dateOfBirth: '',
+  ageMonths: '',
   currentWeightKg: '',
   heightCm: '',
   color: '',
@@ -39,14 +39,41 @@ const toNullableNumber = (value) => {
   return Number.isNaN(number) ? null : number;
 };
 
-const toDateInput = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
-  }
+const toNullableInteger = (value) => {
+  if (value === '' || value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const formatLocalDate = (date) => {
   const two = (num) => String(num).padStart(2, '0');
   return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+};
+
+const ageMonthsToDateOfBirth = (ageMonths) => {
+  if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+  baseDate.setMonth(baseDate.getMonth() - ageMonths);
+  return formatLocalDate(baseDate);
+};
+
+const dateOfBirthToAgeMonths = (value) => {
+  if (!value) return '';
+  const birthDate = new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return '';
+
+  const now = new Date();
+  let months =
+    (now.getFullYear() - birthDate.getFullYear()) * 12 +
+    (now.getMonth() - birthDate.getMonth());
+
+  if (now.getDate() < birthDate.getDate()) {
+    months -= 1;
+  }
+
+  return String(Math.max(0, months));
 };
 
 const DogsCreatePage = () => {
@@ -94,7 +121,10 @@ const DogsCreatePage = () => {
           dogName: detail.dogName || '',
           breedId: detail.breedId ? String(detail.breedId) : '',
           gender: detail.gender || 'MALE',
-          dateOfBirth: toDateInput(detail.dateOfBirth),
+          ageMonths:
+            detail.ageMonths != null
+              ? String(detail.ageMonths)
+              : dateOfBirthToAgeMonths(detail.dateOfBirth),
           currentWeightKg: detail.currentWeightKg ?? '',
           heightCm: detail.heightCm ?? '',
           color: detail.color || '',
@@ -119,7 +149,7 @@ const DogsCreatePage = () => {
     dogName: formData.dogName?.trim() || null,
     breedId: Number(formData.breedId),
     gender: formData.gender || null,
-    dateOfBirth: formData.dateOfBirth || null,
+    dateOfBirth: ageMonthsToDateOfBirth(toNullableInteger(formData.ageMonths)),
     currentWeightKg: toNullableNumber(formData.currentWeightKg),
     heightCm: toNullableNumber(formData.heightCm),
     color: formData.color?.trim() || null,
@@ -177,6 +207,10 @@ const DogsCreatePage = () => {
       toast.error('Vui lòng chọn giống chó');
       return;
     }
+    if (toNullableInteger(formData.ageMonths) == null) {
+      toast.error('Vui lòng nhập tuổi theo tháng');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -224,8 +258,15 @@ const DogsCreatePage = () => {
         <FormField label="Giới tính">
           <FormSelect value={formData.gender} onChange={(e) => updateField('gender', e.target.value)} options={genderOptions} />
         </FormField>
-        <FormField label="Ngày sinh">
-          <FormInput type="date" value={formData.dateOfBirth} onChange={(e) => updateField('dateOfBirth', e.target.value)} />
+        <FormField label="Tuổi (tháng)">
+          <FormInput
+            type="number"
+            min="0"
+            step="1"
+            value={formData.ageMonths}
+            onChange={(e) => updateField('ageMonths', e.target.value)}
+            placeholder="Nhập số tháng tuổi"
+          />
         </FormField>
         <FormField label="Trạng thái">
           <FormSelect value={formData.status} onChange={(e) => updateField('status', e.target.value)} options={statusOptions} />
