@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateRoadmapForm } from '../../utils/formValidation';
 
 const defaultForm = {
   roadmapName: '',
@@ -53,8 +54,12 @@ const RoadmapsCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.roadmapName.trim()) {
-      toast.error('Vui lòng nhập tên lộ trình');
+    const errors = validateRoadmapForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin lộ trình chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -185,35 +190,35 @@ const RoadmapsCreatePage = () => {
       ]}
     >
       <FormField label="Tên lộ trình" required>
-        <FormInput value={formData.roadmapName} onChange={(e) => updateField('roadmapName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.roadmapName} onChange={(e) => updateField('roadmapName', e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Vai trò mục tiêu">
-          <FormInput value={formData.targetRole} onChange={(e) => updateField('targetRole', e.target.value)} />
+          <FormInput maxLength={100} value={formData.targetRole} onChange={(e) => updateField('targetRole', e.target.value)} />
         </FormField>
         <FormField label="Tổng thời gian (tuần)">
-          <FormInput type="number" value={formData.totalDurationWeeks} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} />
+          <FormInput type="number" min="1" max="104" step="1" value={formData.totalDurationWeeks} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} />
         </FormField>
       </div>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <FormField label="Tên giai đoạn">
-          <FormInput value={formData.phaseName} onChange={(e) => updateField('phaseName', e.target.value)} />
+        <FormField label="Tên giai đoạn" required>
+          <FormInput maxLength={100} value={formData.phaseName} onChange={(e) => updateField('phaseName', e.target.value)} />
         </FormField>
-        <FormField label="Thứ tự giai đoạn">
-          <FormInput type="number" value={formData.phaseOrder} onChange={(e) => updateField('phaseOrder', e.target.value)} />
+        <FormField label="Thứ tự giai đoạn" required>
+          <FormInput type="number" min="1" step="1" value={formData.phaseOrder} onChange={(e) => updateField('phaseOrder', e.target.value)} />
         </FormField>
         <FormField label="Thời gian giai đoạn (tuần)">
-          <FormInput type="number" value={formData.phaseDurationWeeks} onChange={(e) => updateField('phaseDurationWeeks', e.target.value)} />
+          <FormInput type="number" min="1" max="52" step="1" value={formData.phaseDurationWeeks} onChange={(e) => updateField('phaseDurationWeeks', e.target.value)} />
         </FormField>
       </div>
       <FormField label="Mục tiêu giai đoạn">
-        <FormTextarea rows={2} value={formData.phaseObjectives} onChange={(e) => updateField('phaseObjectives', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.phaseObjectives} onChange={(e) => updateField('phaseObjectives', e.target.value)} />
       </FormField>
       <FormField label="Tiêu chí đánh giá">
-        <FormTextarea rows={2} value={formData.assessmentCriteria} onChange={(e) => updateField('assessmentCriteria', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.assessmentCriteria} onChange={(e) => updateField('assessmentCriteria', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP}
