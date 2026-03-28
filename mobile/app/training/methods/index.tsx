@@ -96,6 +96,7 @@ export default function MethodListScreen() {
         const statusStyle = statusMeta[statusKey];
 
         return (
+            <View>
             <TouchableOpacity
                 activeOpacity={0.86}
                 style={[
@@ -133,6 +134,7 @@ export default function MethodListScreen() {
                     <Ionicons name="arrow-forward" size={14} color={colors.primary} />
                 </View>
             </TouchableOpacity>
+            </View>
         );
     };
 

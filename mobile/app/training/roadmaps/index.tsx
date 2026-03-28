@@ -337,7 +337,8 @@ export default function RoadmapListScreen() {
         const phaseLabel = item.phaseName || 'Chưa xác định giai đoạn';
 
         return (
-            <TouchableOpacity
+            <View>
+                <TouchableOpacity
                 activeOpacity={0.88}
                 style={[
                     styles.card,
@@ -381,7 +382,8 @@ export default function RoadmapListScreen() {
                     </View>
                     <Text style={[styles.viewAction, { color: colors.primary }]}>Xem chi tiết</Text>
                 </View>
-            </TouchableOpacity>
+                </TouchableOpacity>
+            </View>
         );
     };
 

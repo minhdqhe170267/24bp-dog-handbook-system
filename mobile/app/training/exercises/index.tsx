@@ -100,6 +100,7 @@ export default function ExerciseListScreen() {
         const durationLabel = item.durationMinutes ? `${item.durationMinutes} phút` : 'Chưa rõ';
 
         return (
+            <View>
             <TouchableOpacity
                 activeOpacity={0.88}
                 style={[
@@ -141,6 +142,7 @@ export default function ExerciseListScreen() {
                     </View>
                 </View>
             </TouchableOpacity>
+            </View>
         );
     };
 

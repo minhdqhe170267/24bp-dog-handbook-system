@@ -121,6 +121,7 @@ export default function TrainingHubScreen() {
                 </Text>
             </View>
 
+            <View>
             <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.featureCard}
@@ -143,6 +144,7 @@ export default function TrainingHubScreen() {
                     </View>
                 </View>
             </TouchableOpacity>
+            </View>
 
             <Text style={[styles.sectionLabel, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
                 BỘ SƯU TẬP HUẤN LUYỆN
@@ -150,24 +152,25 @@ export default function TrainingHubScreen() {
 
             <View style={styles.collectionList}>
                 {collections.map((item) => (
-                    <TouchableOpacity
-                        key={item.key}
-                        activeOpacity={0.85}
-                        style={styles.collectionCard}
-                        onPress={() => router.push(item.route as any)}
-                    >
-                        <Image source={item.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                        <View style={styles.collectionOverlay} />
-                        <View style={styles.collectionContent}>
-                            <View>
-                                <Text style={styles.collectionTitle}>{item.title}</Text>
-                                <Text style={styles.collectionSubtitle}>{item.subtitle}</Text>
+                    <View key={item.key}>
+                        <TouchableOpacity
+                            activeOpacity={0.85}
+                            style={styles.collectionCard}
+                            onPress={() => router.push(item.route as any)}
+                        >
+                            <Image source={item.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                            <View style={styles.collectionOverlay} />
+                            <View style={styles.collectionContent}>
+                                <View>
+                                    <Text style={styles.collectionTitle}>{item.title}</Text>
+                                    <Text style={styles.collectionSubtitle}>{item.subtitle}</Text>
+                                </View>
+                                <View style={styles.chevronCircle}>
+                                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                                </View>
                             </View>
-                            <View style={styles.chevronCircle}>
-                                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                            </View>
-                        </View>
-                    </TouchableOpacity>
+                        </TouchableOpacity>
+                    </View>
                 ))}
             </View>
         </ScreenWrapper>
