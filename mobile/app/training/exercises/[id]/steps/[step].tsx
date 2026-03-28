@@ -111,6 +111,15 @@ export default function ExerciseStepScreen() {
         router.replace(`/training/exercises/${exercise.exerciseId}` as any);
     };
 
+    const goToStep = (targetIndex: number) => {
+        if (!exercise || steps.length === 0) {
+            return;
+        }
+
+        const nextIndex = Math.max(0, Math.min(targetIndex, steps.length - 1));
+        router.replace(`/training/exercises/${exercise.exerciseId}/steps/${nextIndex + 1}` as any);
+    };
+
     if (loading) {
         return (
             <ScreenWrapper>
@@ -144,9 +153,7 @@ export default function ExerciseStepScreen() {
                     <TouchableOpacity onPress={onPressPrevious} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Bước {safeIndex + 1}
-                    </Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.title}</Text>
                     <View style={[styles.progressPill, { backgroundColor: isDark ? colors.surface : '#E6F1EA' }]}>
                         <Text style={[styles.progressPillText, { color: colors.primary }]}>{progressText}</Text>
                     </View>
@@ -164,6 +171,47 @@ export default function ExerciseStepScreen() {
                     </View>
                 </View>
 
+                <View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+                        {steps.map((item, index) => {
+                            const active = index === safeIndex;
+
+                            return (
+                                <View key={`${item.title}-${index}`}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.stepTab,
+                                            {
+                                                backgroundColor: active
+                                                    ? isDark
+                                                        ? colors.primaryLight
+                                                        : trainingUi.brand
+                                                    : isDark
+                                                      ? colors.surface
+                                                      : '#EDF4F0',
+                                                borderColor: active ? colors.primary : isDark ? colors.border : '#D5E2DA',
+                                            },
+                                        ]}
+                                        onPress={() => goToStep(index)}
+                                        activeOpacity={0.86}
+                                    >
+                                        <Text style={[styles.stepTabLabel, { color: active ? '#FFFFFF' : colors.primary }]}>{item.title}</Text>
+                                        <Text
+                                            style={[
+                                                styles.stepTabSummary,
+                                                { color: active ? '#E8F3EC' : isDark ? colors.textSecondary : trainingUi.textNormal },
+                                            ]}
+                                            numberOfLines={1}
+                                        >
+                                            {item.summary}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+
                 <View
                     style={[
                         styles.contentCard,
@@ -173,7 +221,16 @@ export default function ExerciseStepScreen() {
                         },
                     ]}
                 >
-                    <Text style={[styles.stepTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.title}</Text>
+                    <View style={styles.stepHeaderRow}>
+                        <View style={[styles.stepBadge, { backgroundColor: isDark ? colors.background : '#E6F1EA' }]}>
+                            <Text style={[styles.stepBadgeText, { color: colors.primary }]}>{currentStep.title}</Text>
+                        </View>
+                        <Text style={[styles.stepProgressLabel, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
+                            {`${safeIndex + 1}/${steps.length}`}
+                        </Text>
+                    </View>
+
+                    <Text style={[styles.stepTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.summary}</Text>
                     <Text style={[styles.stepDescription, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
                         {currentStep.detail}
                     </Text>
@@ -186,6 +243,7 @@ export default function ExerciseStepScreen() {
                             style={[
                                 styles.dot,
                                 {
+                                    width: index === safeIndex ? 20 : 7,
                                     backgroundColor:
                                         index === safeIndex
                                             ? colors.primary
@@ -325,12 +383,57 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '600',
     },
+    tabRow: {
+        gap: spacing.sm,
+        paddingRight: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    stepTab: {
+        width: 146,
+        minHeight: 72,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: spacing.sm + 2,
+        paddingVertical: spacing.sm,
+        justifyContent: 'space-between',
+    },
+    stepTabLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    stepTabSummary: {
+        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: '500',
+    },
     contentCard: {
         borderWidth: 1,
         borderRadius: 20,
         padding: spacing.lg,
     },
+    stepHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    stepBadge: {
+        minHeight: 28,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: 12,
+        justifyContent: 'center',
+    },
+    stepBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    stepProgressLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     stepTitle: {
+        marginTop: spacing.sm,
         fontSize: 24,
         lineHeight: 30,
         fontWeight: '700',
@@ -349,9 +452,8 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     dot: {
-        width: 7,
         height: 7,
-        borderRadius: 3.5,
+        borderRadius: 999,
     },
     bottomBar: {
         position: 'absolute',

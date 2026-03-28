@@ -30,6 +30,7 @@ export default function ExerciseDetailScreen() {
     const [exercise, setExercise] = useState<TrainingExercise | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeStepIndex, setActiveStepIndex] = useState(0);
     const progressByExercise = useTrainingProgressStore((state) => state.progressByExercise);
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
@@ -48,20 +49,25 @@ export default function ExerciseDetailScreen() {
                 setLoading(false);
             }
         };
+
         if (id) {
             fetchDetail();
         }
     }, [id]);
 
-    const difficultyStyle = useMemo(() => {
-        const difficultyKey = normalizeDifficulty(exercise?.difficultyLevel);
-        return difficultyMeta[difficultyKey];
-    }, [exercise?.difficultyLevel]);
+    const instructionSteps = useMemo(() => buildInstructionSteps(exercise?.instructions), [exercise?.instructions]);
 
-    const statusStyle = useMemo(() => {
-        const statusKey = normalizeStatus(exercise?.status);
-        return statusMeta[statusKey];
-    }, [exercise?.status]);
+    useEffect(() => {
+        if (instructionSteps.length === 0) {
+            setActiveStepIndex(0);
+            return;
+        }
+
+        setActiveStepIndex((current) => Math.min(current, instructionSteps.length - 1));
+    }, [instructionSteps.length]);
+
+    const difficultyStyle = useMemo(() => difficultyMeta[normalizeDifficulty(exercise?.difficultyLevel)], [exercise?.difficultyLevel]);
+    const statusStyle = useMemo(() => statusMeta[normalizeStatus(exercise?.status)], [exercise?.status]);
 
     if (loading) {
         return (
@@ -87,7 +93,6 @@ export default function ExerciseDetailScreen() {
         );
     }
 
-    const instructionSteps = buildInstructionSteps(exercise.instructions);
     const safety = splitToBullets(exercise.safetyPrecautions);
     const tools = parseToolItems(exercise.requiredEquipment);
     const durationLabel = exercise.durationMinutes ? `${exercise.durationMinutes} phút` : 'Chưa rõ';
@@ -100,21 +105,40 @@ export default function ExerciseDetailScreen() {
               : { label: 'Chưa bắt đầu', bg: '#EEF1F4', color: '#5A6571', icon: 'radio-button-off' as const };
     const ctaMeta =
         progressStatus === 'IN_PROGRESS'
-            ? { label: 'Đánh dấu hoàn thành', icon: 'checkmark-circle' as const }
+            ? { label: 'Tiếp tục theo từng bước', icon: 'arrow-forward-circle' as const }
             : progressStatus === 'COMPLETED'
               ? { label: 'Luyện lại bài tập', icon: 'refresh-circle' as const }
-              : { label: 'Bắt đầu luyện tập', icon: 'play-circle' as const };
+              : { label: 'Bắt đầu với bước này', icon: 'play-circle' as const };
+    const safeActiveStepIndex = instructionSteps.length > 0 ? Math.min(activeStepIndex, instructionSteps.length - 1) : 0;
+    const activeStep = instructionSteps[safeActiveStepIndex] || null;
+
+    const goToStep = (index: number) => {
+        if (instructionSteps.length === 0) {
+            return;
+        }
+
+        setActiveStepIndex(Math.max(0, Math.min(index, instructionSteps.length - 1)));
+    };
 
     const onPressStart = () => {
-        if (progressStatus === 'IN_PROGRESS') {
-            completeExercise(exercise.exerciseId);
-            return;
-        }
         if (progressStatus === 'COMPLETED') {
             resetExercise(exercise.exerciseId);
+            setActiveStepIndex(0);
             return;
         }
-        startExercise(exercise.exerciseId);
+
+        if (progressStatus === 'NOT_STARTED') {
+            startExercise(exercise.exerciseId);
+        }
+
+        if (instructionSteps.length > 0) {
+            router.push(`/training/exercises/${exercise.exerciseId}/steps/${safeActiveStepIndex + 1}` as any);
+            return;
+        }
+
+        if (progressStatus === 'IN_PROGRESS') {
+            completeExercise(exercise.exerciseId);
+        }
     };
 
     return (
@@ -124,9 +148,7 @@ export default function ExerciseDetailScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Chi tiết bài tập
-                    </Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chi tiết bài tập</Text>
                     <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="share-social-outline" size={20} color={isDark ? colors.textLight : trainingUi.textMuted} />
                     </TouchableOpacity>
@@ -135,6 +157,22 @@ export default function ExerciseDetailScreen() {
                 <View style={styles.mediaCard}>
                     <Image source={pickTrainingImage(exercise.exerciseId)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.mediaOverlay} />
+                    <View style={styles.mediaBadgeRow}>
+                        {exercise.methodName ? (
+                            <View style={styles.mediaBadge}>
+                                <Ionicons name="ribbon-outline" size={13} color="#E8F3EC" />
+                                <Text style={styles.mediaBadgeText} numberOfLines={1}>
+                                    {exercise.methodName}
+                                </Text>
+                            </View>
+                        ) : (
+                            <View />
+                        )}
+                        <View style={styles.mediaBadge}>
+                            <Ionicons name="layers-outline" size={13} color="#E8F3EC" />
+                            <Text style={styles.mediaBadgeText}>{`${Math.max(instructionSteps.length, 1)} bước`}</Text>
+                        </View>
+                    </View>
                     <View style={styles.playCircle}>
                         <Ionicons name="play" size={22} color="#FFFFFF" />
                     </View>
@@ -144,161 +182,276 @@ export default function ExerciseDetailScreen() {
                     </View>
                 </View>
 
-                <Text style={[styles.exerciseName, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                    {exercise.exerciseName}
-                </Text>
+                <View>
+                    <Text style={[styles.exerciseName, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                        {exercise.exerciseName}
+                    </Text>
 
-                <View style={styles.tagRow}>
-                    <View style={[styles.tagPill, { backgroundColor: difficultyStyle.bg, borderColor: difficultyStyle.border }]}>
-                        <Text style={[styles.tagPillText, { color: difficultyStyle.text }]}>{difficultyStyle.label}</Text>
+                    <View style={styles.tagRow}>
+                        <View style={[styles.tagPill, { backgroundColor: difficultyStyle.bg, borderColor: difficultyStyle.border }]}>
+                            <Text style={[styles.tagPillText, { color: difficultyStyle.text }]}>{difficultyStyle.label}</Text>
+                        </View>
+                        <View style={[styles.tagPill, { backgroundColor: statusStyle.bg, borderColor: 'transparent' }]}>
+                            <Text style={[styles.tagPillText, { color: statusStyle.text }]}>{statusStyle.label}</Text>
+                        </View>
+                        <View style={[styles.tagPill, { backgroundColor: '#E3F0FF', borderColor: 'transparent' }]}>
+                            <Ionicons name="time" size={12} color="#0E5DA8" />
+                            <Text style={[styles.tagPillText, { color: '#0E5DA8', marginLeft: 4 }]}>{durationLabel}</Text>
+                        </View>
+                        <View style={[styles.tagPill, { backgroundColor: progressMeta.bg, borderColor: 'transparent' }]}>
+                            <Ionicons name={progressMeta.icon} size={12} color={progressMeta.color} />
+                            <Text style={[styles.tagPillText, { color: progressMeta.color, marginLeft: 4 }]}>{progressMeta.label}</Text>
+                        </View>
                     </View>
-                    <View style={[styles.tagPill, { backgroundColor: statusStyle.bg }]}>
-                        <Text style={[styles.tagPillText, { color: statusStyle.text }]}>{statusStyle.label}</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: '#E3F0FF' }]}>
-                        <Ionicons name="time" size={12} color="#0E5DA8" />
-                        <Text style={[styles.tagPillText, { color: '#0E5DA8', marginLeft: 4 }]}>{durationLabel}</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: progressMeta.bg, borderColor: 'transparent' }]}>
-                        <Ionicons name={progressMeta.icon} size={12} color={progressMeta.color} />
-                        <Text style={[styles.tagPillText, { color: progressMeta.color, marginLeft: 4 }]}>
-                            {progressMeta.label}
+
+                    <Text style={[styles.description, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                        {exercise.description || 'Rèn phản xạ và độ chính xác cho chó bằng nhịp luyện tập có kiểm soát.'}
+                    </Text>
+                </View>
+
+                <View>
+                    <View
+                        style={[
+                            styles.sectionCard,
+                            {
+                                backgroundColor: isDark ? colors.surface : trainingUi.surface,
+                                borderColor: isDark ? colors.border : trainingUi.border,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.sectionTitle, styles.toolsSectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                            Dụng cụ cần thiết
                         </Text>
+                        {tools.length > 0 ? (
+                            <View style={styles.toolGrid}>
+                                {tools.map((tool, index) => (
+                                    <View key={`${tool}-${index}`}>
+                                        <View
+                                            style={[
+                                                styles.toolChip,
+                                                {
+                                                    backgroundColor: isDark ? colors.background : '#F1F4F2',
+                                                    borderColor: isDark ? colors.border : trainingUi.border,
+                                                },
+                                            ]}
+                                        >
+                                            <View style={[styles.toolIconWrap, { backgroundColor: isDark ? colors.surface : '#E7F1EB' }]}>
+                                                <Ionicons name={pickToolIcon(tool)} size={17} color={colors.primary} />
+                                            </View>
+                                            <Text
+                                                style={[styles.toolText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}
+                                                numberOfLines={2}
+                                            >
+                                                {tool}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                                Bài tập này không yêu cầu dụng cụ đặc biệt.
+                            </Text>
+                        )}
                     </View>
                 </View>
 
-                <Text style={[styles.description, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                    {exercise.description || 'Rèn phản xạ và độ chính xác cho chó bằng nhịp luyện tập có kiểm soát.'}
-                </Text>
+                <View>
+                    <View
+                        style={[
+                            styles.sectionCard,
+                            {
+                                backgroundColor: isDark ? colors.surface : trainingUi.surface,
+                                borderColor: isDark ? colors.border : trainingUi.border,
+                            },
+                        ]}
+                    >
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="list" size={18} color={colors.primary} />
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Hướng dẫn từng bước</Text>
+                        </View>
+                        <Text style={[styles.sectionHint, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
+                            Mỗi bước đã được tách riêng thành tab để bạn xem nhanh rồi mở chi tiết nếu cần.
+                        </Text>
 
-                <View
-                    style={[
-                        styles.sectionCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : trainingUi.surface,
-                            borderColor: isDark ? colors.border : trainingUi.border,
-                        },
-                    ]}
-                >
-                    <Text style={[styles.sectionTitle, styles.toolsSectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Dụng cụ cần thiết
-                    </Text>
-                    {tools.length > 0 ? (
-                        <View style={styles.toolGrid}>
-                            {tools.map((tool, index) => (
+                        {instructionSteps.length > 0 && activeStep ? (
+                            <>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stepTabRow}>
+                                    {instructionSteps.map((step, index) => {
+                                        const isActive = index === safeActiveStepIndex;
+
+                                        return (
+                                            <View key={`${step.title}-${index}`}>
+                                                <TouchableOpacity
+                                                    style={[
+                                                        styles.stepTab,
+                                                        {
+                                                            backgroundColor: isActive
+                                                                ? isDark
+                                                                    ? colors.primaryLight
+                                                                    : trainingUi.brand
+                                                                : isDark
+                                                                  ? colors.background
+                                                                  : '#EEF4F0',
+                                                            borderColor: isActive
+                                                                ? colors.primary
+                                                                : isDark
+                                                                  ? colors.border
+                                                                  : '#D8E5DD',
+                                                        },
+                                                    ]}
+                                                    onPress={() => goToStep(index)}
+                                                    activeOpacity={0.86}
+                                                >
+                                                    <Text style={[styles.stepTabLabel, { color: isActive ? '#FFFFFF' : colors.primary }]}>
+                                                        {step.title}
+                                                    </Text>
+                                                    <Text
+                                                        style={[
+                                                            styles.stepTabSummary,
+                                                            { color: isActive ? '#E8F3EC' : isDark ? colors.textSecondary : trainingUi.textNormal },
+                                                        ]}
+                                                        numberOfLines={1}
+                                                    >
+                                                        {step.summary}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        );
+                                    })}
+                                </ScrollView>
+
                                 <View
-                                    key={`${tool}-${index}`}
+                                    key={`step-preview-${safeActiveStepIndex}`}
                                     style={[
-                                        styles.toolChip,
+                                        styles.activeStepCard,
                                         {
-                                            backgroundColor: isDark ? colors.background : '#F1F4F2',
-                                            borderColor: isDark ? colors.border : trainingUi.border,
+                                            backgroundColor: isDark ? colors.background : '#F7FAF8',
+                                            borderColor: isDark ? colors.border : '#DEE8E2',
                                         },
                                     ]}
                                 >
-                                    <View style={[styles.toolIconWrap, { backgroundColor: isDark ? colors.surface : '#E7F1EB' }]}>
-                                        <Ionicons name={pickToolIcon(tool)} size={17} color={colors.primary} />
+                                    <View style={styles.activeStepTopRow}>
+                                        <View style={[styles.activeStepBadge, { backgroundColor: isDark ? colors.surface : '#E6F1EA' }]}>
+                                            <Text style={[styles.activeStepBadgeText, { color: colors.primary }]}>{activeStep.title}</Text>
+                                        </View>
+                                        <Text style={[styles.activeStepProgress, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
+                                            {`${safeActiveStepIndex + 1}/${instructionSteps.length}`}
+                                        </Text>
                                     </View>
-                                    <Text
-                                        style={[styles.toolText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}
-                                        numberOfLines={2}
-                                    >
-                                        {tool}
+
+                                    <Text style={[styles.activeStepTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                                        {activeStep.summary}
                                     </Text>
+                                    <Text style={[styles.activeStepDetail, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                                        {activeStep.detail}
+                                    </Text>
+
+                                    <View style={styles.activeStepFooter}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.stepNavButton,
+                                                {
+                                                    backgroundColor: isDark ? colors.surface : '#EDF4F0',
+                                                    borderColor: isDark ? colors.border : '#D8E5DD',
+                                                    opacity: safeActiveStepIndex === 0 ? 0.45 : 1,
+                                                },
+                                            ]}
+                                            onPress={() => goToStep(safeActiveStepIndex - 1)}
+                                            disabled={safeActiveStepIndex === 0}
+                                            activeOpacity={0.86}
+                                        >
+                                            <Ionicons name="arrow-back" size={15} color={isDark ? colors.text : trainingUi.textStrong} />
+                                            <Text style={[styles.stepNavText, { color: isDark ? colors.text : trainingUi.textStrong }]}>Trước</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[styles.openStepButton, { backgroundColor: colors.primary }]}
+                                            onPress={() =>
+                                                router.push(`/training/exercises/${exercise.exerciseId}/steps/${safeActiveStepIndex + 1}` as any)
+                                            }
+                                            activeOpacity={0.88}
+                                        >
+                                            <Text style={styles.openStepButtonText}>Chi tiết bước</Text>
+                                            <Ionicons name="expand-outline" size={16} color="#FFFFFF" />
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.stepNavButton,
+                                                {
+                                                    backgroundColor: isDark ? colors.surface : '#EDF4F0',
+                                                    borderColor: isDark ? colors.border : '#D8E5DD',
+                                                    opacity: safeActiveStepIndex === instructionSteps.length - 1 ? 0.45 : 1,
+                                                },
+                                            ]}
+                                            onPress={() => goToStep(safeActiveStepIndex + 1)}
+                                            disabled={safeActiveStepIndex === instructionSteps.length - 1}
+                                            activeOpacity={0.86}
+                                        >
+                                            <Text style={[styles.stepNavText, { color: isDark ? colors.text : trainingUi.textStrong }]}>Sau</Text>
+                                            <Ionicons name="arrow-forward" size={15} color={isDark ? colors.text : trainingUi.textStrong} />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                            ))}
-                        </View>
-                    ) : (
-                        <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Bài tập này không yêu cầu dụng cụ đặc biệt.
-                        </Text>
-                    )}
-                </View>
 
-                <View
-                    style={[
-                        styles.sectionCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : trainingUi.surface,
-                            borderColor: isDark ? colors.border : trainingUi.border,
-                        },
-                    ]}
-                >
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="list" size={18} color={colors.primary} />
-                        <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Hướng dẫn từng bước</Text>
-                    </View>
-                    <Text style={[styles.sectionHint, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
-                        Chạm vào từng bước để mở hướng dẫn chi tiết.
-                    </Text>
-                    {instructionSteps.length > 0 ? (
-                        <View style={styles.stepList}>
-                            {instructionSteps.map((step, index) => {
-                                return (
-                                    <TouchableOpacity
-                                        key={`${step.title}-${index}`}
-                                        style={[
-                                            styles.stepCard,
-                                            {
-                                                backgroundColor: isDark ? colors.background : '#F5F8F6',
-                                                borderColor: isDark ? colors.border : '#E0EAE4',
-                                            },
-                                        ]}
-                                        onPress={() => router.push(`/training/exercises/${exercise.exerciseId}/steps/${index + 1}` as any)}
-                                        activeOpacity={0.85}
-                                    >
-                                        <View style={[styles.stepCircle, { backgroundColor: colors.primary }]}>
-                                            <Text style={styles.stepNumber}>{index + 1}</Text>
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={[styles.stepHeading, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                                                {step.title}
-                                            </Text>
-                                            <Text style={[styles.stepDescription, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                                                {step.detail}
-                                            </Text>
-                                        </View>
-                                        <Ionicons
-                                            name="chevron-forward"
-                                            size={18}
-                                            color={isDark ? colors.textLight : trainingUi.textMuted}
+                                <View style={styles.stepDotRow}>
+                                    {instructionSteps.map((_, index) => (
+                                        <View
+                                            key={`preview-dot-${index}`}
+                                            style={[
+                                                styles.stepDot,
+                                                {
+                                                    width: index === safeActiveStepIndex ? 20 : 7,
+                                                    backgroundColor:
+                                                        index === safeActiveStepIndex
+                                                            ? colors.primary
+                                                            : isDark
+                                                              ? colors.border
+                                                              : '#C9D8D0',
+                                                },
+                                            ]}
                                         />
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    ) : (
-                        <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Chưa có hướng dẫn chi tiết.
-                        </Text>
-                    )}
+                                    ))}
+                                </View>
+                            </>
+                        ) : (
+                            <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                                Chưa có hướng dẫn chi tiết.
+                            </Text>
+                        )}
+                    </View>
                 </View>
 
-                <View
-                    style={[
-                        styles.sectionCard,
-                        {
-                            backgroundColor: isDark ? colors.surface : trainingUi.warnSoft,
-                            borderColor: isDark ? colors.border : '#F0D8A8',
-                        },
-                    ]}
-                >
-                    <View style={styles.sectionHeader}>
-                        <Ionicons name="warning" size={18} color={colors.warning} />
-                        <Text style={[styles.sectionTitle, { color: isDark ? colors.text : '#7A5008' }]}>Lưu ý an toàn</Text>
+                <View>
+                    <View
+                        style={[
+                            styles.sectionCard,
+                            {
+                                backgroundColor: isDark ? colors.surface : trainingUi.warnSoft,
+                                borderColor: isDark ? colors.border : '#F0D8A8',
+                            },
+                        ]}
+                    >
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="warning" size={18} color={colors.warning} />
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.text : '#7A5008' }]}>Lưu ý an toàn</Text>
+                        </View>
+                        {safety.length > 0 ? (
+                            safety.map((item, index) => (
+                                <View key={`${item}-${index}`}>
+                                    <View style={styles.listRow}>
+                                        <Ionicons name="ellipse" size={8} color={colors.warning} />
+                                        <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : '#7A5008' }]}>{item}</Text>
+                                    </View>
+                                </View>
+                            ))
+                        ) : (
+                            <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : '#7A5008' }]}>
+                                Kiểm tra an toàn cơ bản trước khi bắt đầu luyện tập.
+                            </Text>
+                        )}
                     </View>
-                    {safety.length > 0 ? (
-                        safety.map((item, index) => (
-                            <View key={`${item}-${index}`} style={styles.listRow}>
-                                <Ionicons name="ellipse" size={8} color={colors.warning} />
-                                <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : '#7A5008' }]}>{item}</Text>
-                            </View>
-                        ))
-                    ) : (
-                        <Text style={[styles.bodyText, { color: isDark ? colors.textSecondary : '#7A5008' }]}>
-                            Kiểm tra an toàn cơ bản trước khi bắt đầu luyện tập.
-                        </Text>
-                    )}
                 </View>
             </ScrollView>
 
@@ -318,7 +471,7 @@ export default function ExerciseDetailScreen() {
 
 const styles = StyleSheet.create({
     scrollContent: {
-        paddingBottom: 120,
+        paddingBottom: 128,
     },
     centered: {
         flex: 1,
@@ -328,6 +481,7 @@ const styles = StyleSheet.create({
     },
     errorText: {
         fontSize: fontSize.md,
+        textAlign: 'center',
     },
     retryButton: {
         marginTop: spacing.sm,
@@ -362,8 +516,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     mediaCard: {
-        height: 194,
-        borderRadius: 20,
+        height: 208,
+        borderRadius: 22,
         overflow: 'hidden',
         justifyContent: 'space-between',
         padding: spacing.sm,
@@ -371,11 +525,35 @@ const styles = StyleSheet.create({
     },
     mediaOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(11, 16, 13, 0.22)',
+        backgroundColor: 'rgba(11, 16, 13, 0.28)',
+    },
+    mediaBadgeRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: spacing.sm,
+        zIndex: 1,
+    },
+    mediaBadge: {
+        maxWidth: '58%',
+        minHeight: 28,
+        borderRadius: borderRadius.full,
+        backgroundColor: 'rgba(8, 14, 11, 0.56)',
+        borderWidth: 1,
+        borderColor: 'rgba(226, 238, 230, 0.24)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+    },
+    mediaBadgeText: {
+        flex: 1,
+        color: '#E8F3EC',
+        fontSize: 11,
+        fontWeight: '700',
     },
     playCircle: {
         alignSelf: 'center',
-        marginTop: 62,
         width: 56,
         height: 56,
         borderRadius: 28,
@@ -430,7 +608,7 @@ const styles = StyleSheet.create({
     },
     sectionCard: {
         borderWidth: 1,
-        borderRadius: 20,
+        borderRadius: 22,
         padding: spacing.md,
         marginBottom: spacing.md,
     },
@@ -446,7 +624,7 @@ const styles = StyleSheet.create({
     },
     sectionHint: {
         fontSize: 12,
-        lineHeight: 16,
+        lineHeight: 17,
         marginBottom: spacing.sm,
         fontWeight: '500',
     },
@@ -465,10 +643,8 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     toolChip: {
-        flexBasis: '31%',
-        flexGrow: 1,
-        maxWidth: '32%',
-        minHeight: 92,
+        width: 98,
+        minHeight: 96,
         borderRadius: borderRadius.lg,
         borderWidth: 1,
         paddingHorizontal: spacing.xs,
@@ -491,39 +667,113 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         textTransform: 'uppercase',
     },
-    stepList: {
+    stepTabRow: {
         gap: spacing.sm,
+        paddingRight: spacing.sm,
+        marginBottom: spacing.md,
     },
-    stepCard: {
-        borderWidth: 1,
+    stepTab: {
+        width: 154,
+        minHeight: 74,
         borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: spacing.sm + 2,
+        paddingVertical: spacing.sm,
+        justifyContent: 'space-between',
+    },
+    stepTabLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    stepTabSummary: {
+        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: '500',
+    },
+    activeStepCard: {
+        borderWidth: 1,
+        borderRadius: 20,
         padding: spacing.md,
+    },
+    activeStepTopRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         gap: spacing.sm,
     },
-    stepCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+    activeStepBadge: {
+        minHeight: 28,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: 12,
         justifyContent: 'center',
-        alignItems: 'center',
     },
-    stepNumber: {
-        color: '#FFFFFF',
+    activeStepBadgeText: {
         fontSize: 12,
         fontWeight: '700',
     },
-    stepHeading: {
-        fontSize: 15,
-        lineHeight: 20,
+    activeStepProgress: {
+        fontSize: 12,
         fontWeight: '700',
-        marginBottom: 4,
     },
-    stepDescription: {
-        fontSize: 14,
-        lineHeight: 20,
+    activeStepTitle: {
+        marginTop: spacing.sm,
+        fontSize: 22,
+        lineHeight: 28,
+        fontWeight: '700',
+    },
+    activeStepDetail: {
+        marginTop: spacing.xs + 2,
+        fontSize: fontSize.md,
+        lineHeight: 22,
         fontWeight: '500',
+    },
+    activeStepFooter: {
+        marginTop: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    stepNavButton: {
+        minWidth: 76,
+        minHeight: 42,
+        borderRadius: 14,
+        borderWidth: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+    },
+    stepNavText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    openStepButton: {
+        flex: 1,
+        minHeight: 44,
+        borderRadius: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingHorizontal: spacing.md,
+    },
+    openStepButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    stepDotRow: {
+        marginTop: spacing.sm,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    stepDot: {
+        height: 7,
+        borderRadius: 999,
     },
     listRow: {
         flexDirection: 'row',
@@ -538,8 +788,8 @@ const styles = StyleSheet.create({
         bottom: spacing.md,
     },
     startButton: {
-        minHeight: 52,
-        borderRadius: 16,
+        minHeight: 54,
+        borderRadius: 18,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
