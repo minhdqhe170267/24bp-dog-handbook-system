@@ -30,6 +30,7 @@ public class TrainerDashboardStatsResponse {
         private String breedName;
         private String imageUrl;
         private String assignmentType;
+        private String assignmentScope;
         private LocalDate startDate;
         private LocalDate endDate;
     }

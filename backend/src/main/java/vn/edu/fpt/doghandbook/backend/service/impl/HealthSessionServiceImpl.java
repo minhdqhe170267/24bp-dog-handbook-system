@@ -33,6 +33,7 @@ import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.service.HealthSessionService;
 import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -86,7 +87,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         String title = "Phiên sức khỏe mới: " + dog.getDogName();
         String message = trainer.getFullName() + " tạo phiên theo dõi sức khỏe cho " + dog.getDogName()
                 + " (" + dog.getDogCode() + ") - " + request.getIssueSummary();
-        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+        for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dog.getDogId(), LocalDate.now())) {
             if (!a.getTrainer().getUserId().equals(trainerId)) {
                 notificationService.notifyUser(
                         a.getTrainer(), trainer,
@@ -178,7 +179,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         String resolveMessage = "Phiên theo dõi sức khỏe của " + dog.getDogName() + " (" + dog.getDogCode()
                 + ") đã được xử lý xong";
         // Trainer-only: notify other trainers assigned to this dog
-        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+        for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dog.getDogId(), LocalDate.now())) {
             if (!a.getTrainer().getUserId().equals(trainerId)) {
                 notificationService.notifyUser(
                         a.getTrainer(), trainer,

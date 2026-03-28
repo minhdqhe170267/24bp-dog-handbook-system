@@ -49,4 +49,8 @@ public class DogProfileRequest {
 
     @Size(max = 5000, message = "Ghi chú tối đa 5000 ký tự")
     private String notes;
+
+    private LocalDate assignmentDate;
+
+    private Boolean isSterilized;
 }

@@ -23,4 +23,7 @@ public class ImportPreviewResponse {
     private List<Map<String, Object>> previewData;
     private List<String> columns;
     private List<String> errors;
+    private List<ImportRowErrorResponse> rowErrors;
+    private List<String> warnings;
+    private Boolean canConfirm;
 }
