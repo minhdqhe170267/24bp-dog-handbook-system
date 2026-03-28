@@ -12,8 +12,10 @@ import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalS
 import {
   formatDetailEnumValue,
   getAssignmentTypeLabel,
+  getAssignmentScopeLabel,
   getContentTypeLabel,
   getRoleLabel,
+  getSuggestionTypeLabel,
   getStatusLabel,
 } from '../../utils/enumLabels';
 
@@ -29,6 +31,27 @@ const formatDateTimeValue = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString('vi-VN');
+};
+
+const formatAgeMonthsValue = (value, data) => {
+  if (value != null && value !== '') return `${value} tháng`;
+
+  const rawBirthDate = data?.dateOfBirth;
+  if (!rawBirthDate) return '—';
+
+  const birthDate = new Date(rawBirthDate);
+  if (Number.isNaN(birthDate.getTime())) return '—';
+
+  const now = new Date();
+  let months =
+    (now.getFullYear() - birthDate.getFullYear()) * 12 +
+    (now.getMonth() - birthDate.getMonth());
+
+  if (now.getDate() < birthDate.getDate()) {
+    months -= 1;
+  }
+
+  return `${Math.max(0, months)} tháng`;
 };
 
 const APPROVAL_DECISION_LABELS = {
@@ -120,7 +143,7 @@ const ENTITY_CONFIG = {
       { key: 'dogName', label: 'Tên chó' },
       { key: 'breedName', label: 'Giống chó' },
       { key: 'gender', label: 'Giới tính', render: (value) => formatDetailEnumValue('gender', value) },
-      { key: 'dateOfBirth', label: 'Ngày sinh', render: (value) => formatDateValue(value) },
+      { key: 'ageMonths', label: 'Tuổi (tháng)', render: (value, row) => formatAgeMonthsValue(value, row) },
       { key: 'currentWeightKg', label: 'Cân nặng', render: (value) => (value == null ? '—' : `${value} kg`) },
       { key: 'heightCm', label: 'Chiều cao', render: (value) => (value == null ? '—' : `${value} cm`) },
       { key: 'color', label: 'Màu lông' },
@@ -293,6 +316,7 @@ const ENTITY_CONFIG = {
       { key: 'trainerName', label: 'Huấn luyện viên' },
       { key: 'trainerUsername', label: 'Tên đăng nhập HLV' },
       { key: 'assignmentType', label: 'Loại phân công', render: (value) => getAssignmentTypeLabel(value) },
+      { key: 'assignmentScope', label: 'Phạm vi', render: (value) => getAssignmentScopeLabel(value) },
       { key: 'startDate', label: 'Ngày bắt đầu', render: (value) => formatDateValue(value) },
       { key: 'endDate', label: 'Ngày kết thúc', render: (value) => formatDateValue(value) },
       { key: 'isActive', label: 'Trạng thái', render: (value) => formatDetailEnumValue('isActive', value) },
@@ -330,11 +354,12 @@ const ENTITY_CONFIG = {
     fields: [
       { key: 'title', label: 'Tiêu đề' },
       { key: 'description', label: 'Nội dung', textarea: true },
+      { key: 'suggestionType', label: 'Loại đề xuất', render: (value, row) => getSuggestionTypeLabel(value || row?.contentType) },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
-      { key: 'submittedByName', label: 'Người gửi' },
+      { key: 'trainerName', label: 'Người gửi', render: (value, row) => value || row?.submittedByName || '—' },
       { key: 'adminResponse', label: 'Phản hồi', textarea: true },
-      { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
-      { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
+      { key: 'reviewedAt', label: 'Đã phản hồi lúc', render: (value, row) => formatDateTimeValue(value || row?.updatedAt) },
+      { key: 'submittedAt', label: 'Ngày gửi', render: (value, row) => formatDateTimeValue(value || row?.createdAt) },
     ],
   },
 };

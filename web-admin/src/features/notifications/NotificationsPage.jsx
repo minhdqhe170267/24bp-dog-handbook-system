@@ -6,10 +6,12 @@ import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../hooks/useAuth';
+import api from '../../services/api';
 import { notificationService } from '../../services/notificationService';
 import { approvalService } from '../../services/approvalService';
 import {
   formatNotificationTime,
+  getNotificationFeedbackMeta,
   getNotificationEntityLabel,
   getNotificationTypeLabel,
   isNotificationToday,
@@ -61,21 +63,6 @@ const unreadFilterOptions = [
   { value: 'unread', label: 'Chưa đọc' },
   { value: 'read', label: 'Đã đọc' },
 ];
-
-const REVIEW_RESULT_TYPES = new Set([
-  'CONTENT_APPROVED',
-  'CONTENT_REJECTED',
-  'CONTENT_REVISION_REQUESTED',
-]);
-
-const getFeedbackKey = (notification) => {
-  const type = String(notification?.type || '').trim().toUpperCase();
-  if (!REVIEW_RESULT_TYPES.has(type)) return null;
-  const entityType = String(notification?.entityType || '').trim().toUpperCase();
-  const entityId = Number(notification?.entityId);
-  if (!entityType || !Number.isFinite(entityId) || entityId <= 0) return null;
-  return `${entityType}:${entityId}`;
-};
 
 const NotificationsPage = () => {
   const navigate = useNavigate();
@@ -182,40 +169,54 @@ const NotificationsPage = () => {
   useEffect(() => {
     let active = true;
 
-    const targetKeys = Array.from(
-      new Set(
-        rows
-          .map((notification) => getFeedbackKey(notification))
-          .filter(Boolean)
-      )
-    );
+    const feedbackMetaByKey = new Map();
+    rows.forEach((notification) => {
+      const meta = getNotificationFeedbackMeta(notification);
+      if (meta && !feedbackMetaByKey.has(meta.key)) {
+        feedbackMetaByKey.set(meta.key, meta);
+      }
+    });
 
-    const missingKeys = targetKeys.filter((key) => !(key in reviewFeedbackByKey));
-    if (missingKeys.length === 0) return () => { active = false; };
+    const missingMetas = Array.from(feedbackMetaByKey.values()).filter(
+      (meta) => !(meta.key in reviewFeedbackByKey)
+    );
+    if (missingMetas.length === 0) return () => { active = false; };
 
     const fetchFeedback = async () => {
       const nextMap = {};
       await Promise.all(
-        missingKeys.map(async (key) => {
+        missingMetas.map(async (meta) => {
           try {
-            const [entityType, entityIdRaw] = key.split(':');
-            const entityId = Number(entityIdRaw);
-            if (!entityType || !Number.isFinite(entityId) || entityId <= 0) {
-              nextMap[key] = null;
+            if (meta.source === 'approval') {
+              const res = await approvalService.getHistory(meta.entityType, meta.entityId);
+              const payload = res?.data || res || [];
+              const records = Array.isArray(payload) ? payload : payload.content || [];
+              const latestRecord = records[0];
+              nextMap[meta.key] = latestRecord && String(latestRecord?.comments || '').trim()
+                ? {
+                    comments: latestRecord.comments,
+                    reviewerName: latestRecord.reviewerName,
+                  }
+                : null;
               return;
             }
-            const res = await approvalService.getHistory(entityType, entityId);
-            const payload = res?.data || res || [];
-            const records = Array.isArray(payload) ? payload : payload.content || [];
-            const latestRecord = records[0];
-            nextMap[key] = latestRecord && String(latestRecord?.comments || '').trim()
-              ? {
-                  comments: latestRecord.comments,
-                  reviewerName: latestRecord.reviewerName,
-                }
-              : null;
+
+            if (meta.source === 'suggestion') {
+              const res = await api.get(`/suggestions/${meta.entityId}`);
+              const detail = res?.data || res || {};
+              const comments = String(detail?.adminResponse || '').trim();
+              nextMap[meta.key] = comments
+                ? {
+                    comments,
+                    reviewerName: detail?.reviewedByName || null,
+                  }
+                : null;
+              return;
+            }
+
+            nextMap[meta.key] = null;
           } catch {
-            nextMap[key] = null;
+            nextMap[meta.key] = null;
           }
         })
       );
@@ -242,8 +243,8 @@ const NotificationsPage = () => {
             {row?.message || 'Không có nội dung'}
           </p>
           {(() => {
-            const feedbackKey = getFeedbackKey(row);
-            const feedback = feedbackKey ? reviewFeedbackByKey[feedbackKey] : null;
+            const feedbackMeta = getNotificationFeedbackMeta(row);
+            const feedback = feedbackMeta ? reviewFeedbackByKey[feedbackMeta.key] : null;
             if (!feedback?.comments) return null;
             return (
               <p className="text-xs text-foreground mt-1 line-clamp-2">
