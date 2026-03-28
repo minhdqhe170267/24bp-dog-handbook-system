@@ -7,6 +7,7 @@ import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { dogService } from '../../services/dogService';
 import { userService } from '../../services/userService';
 import { mapAssignmentErrorToToast } from './assignmentErrorMapper';
+import { validateDogAssignmentForm } from '../../utils/formValidation';
 
 const assignmentTypeOptions = [
   { value: 'PRIMARY', label: 'Chính' },
@@ -98,15 +99,11 @@ const DogAssignmentsCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const missingFields = [];
-    if (!formData.dogId) missingFields.push('Chó');
-    if (!formData.trainerId) missingFields.push('Huấn luyện viên');
-    if (!formData.startDate) missingFields.push('Ngày bắt đầu');
-
-    if (missingFields.length > 0) {
+    const validationErrors = validateDogAssignmentForm(formData);
+    if (validationErrors.length > 0) {
       toast.error({
-        title: 'Thiếu thông tin bắt buộc',
-        description: `Vui lòng chọn/nhập: ${missingFields.join(', ')}.`,
+        title: 'Thông tin phân công chưa hợp lệ',
+        description: validationErrors,
       });
       return;
     }
@@ -198,7 +195,7 @@ const DogAssignmentsCreatePage = () => {
         </FormField>
       </div>
       <FormField label="Ghi chú">
-        <FormTextarea rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
+        <FormTextarea maxLength={500} rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
       </FormField>
     </CreateFormPage>
   );

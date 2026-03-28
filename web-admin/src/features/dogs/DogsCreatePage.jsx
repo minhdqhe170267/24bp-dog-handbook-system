@@ -6,6 +6,7 @@ import { useToast } from '../../components/ui/Toast';
 import EntityMediaSection from '../../components/shared/EntityMediaSection';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
+import { validateDogForm } from '../../utils/formValidation';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -199,16 +200,12 @@ const DogsCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.dogName?.trim()) {
-      toast.error('Vui lòng nhập tên chó');
-      return;
-    }
-    if (!formData.breedId) {
-      toast.error('Vui lòng chọn giống chó');
-      return;
-    }
-    if (toNullableInteger(formData.ageMonths) == null) {
-      toast.error('Vui lòng nhập tuổi theo tháng');
+    const errors = validateDogForm(formData, { requireAgeMonths: true });
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hồ sơ chó chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 
@@ -242,8 +239,8 @@ const DogsCreatePage = () => {
       saveLabel={isEditMode ? 'Cập nhật hồ sơ chó' : 'Tạo hồ sơ chó'}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <FormField label="Tên chó">
-          <FormInput value={formData.dogName} onChange={(e) => updateField('dogName', e.target.value)} />
+        <FormField label="Tên chó" required>
+          <FormInput maxLength={100} value={formData.dogName} onChange={(e) => updateField('dogName', e.target.value)} />
         </FormField>
         <FormField label="Giống chó" required>
           <FormSelect
@@ -258,10 +255,11 @@ const DogsCreatePage = () => {
         <FormField label="Giới tính">
           <FormSelect value={formData.gender} onChange={(e) => updateField('gender', e.target.value)} options={genderOptions} />
         </FormField>
-        <FormField label="Tuổi (tháng)">
+        <FormField label="Tuổi (tháng)" required>
           <FormInput
             type="number"
             min="0"
+            max="240"
             step="1"
             value={formData.ageMonths}
             onChange={(e) => updateField('ageMonths', e.target.value)}
@@ -274,22 +272,22 @@ const DogsCreatePage = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Cân nặng (kg)">
-          <FormInput type="number" min="0" step="0.01" value={formData.currentWeightKg} onChange={(e) => updateField('currentWeightKg', e.target.value)} />
+          <FormInput type="number" min="0" max="200" step="0.01" value={formData.currentWeightKg} onChange={(e) => updateField('currentWeightKg', e.target.value)} />
         </FormField>
         <FormField label="Chiều cao (cm)">
-          <FormInput type="number" min="0" step="0.01" value={formData.heightCm} onChange={(e) => updateField('heightCm', e.target.value)} />
+          <FormInput type="number" min="0" max="200" step="0.01" value={formData.heightCm} onChange={(e) => updateField('heightCm', e.target.value)} />
         </FormField>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Màu lông">
-          <FormInput value={formData.color} onChange={(e) => updateField('color', e.target.value)} />
+          <FormInput maxLength={100} value={formData.color} onChange={(e) => updateField('color', e.target.value)} />
         </FormField>
         <FormField label="Microchip ID">
-          <FormInput value={formData.microchipId} onChange={(e) => updateField('microchipId', e.target.value)} />
+          <FormInput maxLength={50} value={formData.microchipId} onChange={(e) => updateField('microchipId', e.target.value)} />
         </FormField>
       </div>
       <FormField label="Ghi chú">
-        <FormTextarea rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType="DOG_PROFILE"

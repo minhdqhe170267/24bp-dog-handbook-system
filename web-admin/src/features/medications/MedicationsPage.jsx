@@ -75,13 +75,13 @@ const MedicationsPage = () => {
       } else {
         fetchData(pagination.page, pagination.pageSize);
       }
-    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể lưu thông tin thuốc' }); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try { await medicationService.delete(deleteId); toast.success('Đã xóa thuốc thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error(err, { title: 'Lỗi khi xóa thuốc' }); }
+    catch (err) { toast.error(err, { title: 'Không thể xóa thuốc' }); }
   };
 
   const getMedicationId = (row) => row.medicationId || row.id;
@@ -97,7 +97,7 @@ const MedicationsPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit medication for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt thuốc' });
     }
   };
 
@@ -110,7 +110,7 @@ const MedicationsPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish medication error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản thuốc' });
     }
   };
 
@@ -123,7 +123,7 @@ const MedicationsPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish medication error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản thuốc' });
     }
   };
 
@@ -233,11 +233,11 @@ const MedicationsPage = () => {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa thuốc' : 'Thêm thuốc mới'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Tên thuốc" required><FormInput placeholder="VD: Amoxicillin" value={formData.medicationName || ''} onChange={(e) => updateField('medicationName', e.target.value)} /></FormField>
-          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Liều dùng"><FormTextarea rows={2} value={formData.dosageInstructions || ''} onChange={(e) => updateField('dosageInstructions', e.target.value)} /></FormField>
-          <FormField label="Phương pháp dùng"><FormInput value={formData.administrationMethod || ''} onChange={(e) => updateField('administrationMethod', e.target.value)} /></FormField>
-          <FormField label="Tác dụng phụ"><FormTextarea rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
+          <FormField label="Tên thuốc" required><FormInput maxLength={200} placeholder="VD: Amoxicillin" value={formData.medicationName || ''} onChange={(e) => updateField('medicationName', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Liều dùng"><FormTextarea maxLength={5000} rows={2} value={formData.dosageInstructions || ''} onChange={(e) => updateField('dosageInstructions', e.target.value)} /></FormField>
+          <FormField label="Phương pháp dùng"><FormInput maxLength={200} value={formData.administrationMethod || ''} onChange={(e) => updateField('administrationMethod', e.target.value)} /></FormField>
+          <FormField label="Tác dụng phụ"><FormTextarea maxLength={5000} rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa thuốc" description="Bạn có chắc chắn muốn xóa thuốc này?" onConfirm={handleDelete} confirmLabel="Xóa" />
