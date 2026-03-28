@@ -151,6 +151,8 @@ const LoginPage = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Nhập tên đăng nhập"
+                  minLength={3}
+                  maxLength={50}
                   autoFocus
                   className="w-full h-11 pl-10 bg-muted/50 border border-border/60 rounded-lg text-sm outline-none focus:bg-card focus:border-accent/40 transition-colors"
                 />
@@ -167,6 +169,8 @@ const LoginPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Nhập mật khẩu"
+                  minLength={6}
+                  maxLength={100}
                   className="w-full h-11 pl-10 pr-10 bg-muted/50 border border-border/60 rounded-lg text-sm outline-none focus:bg-card focus:border-accent/40 transition-colors"
                 />
                 <button

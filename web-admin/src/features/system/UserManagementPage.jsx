@@ -11,6 +11,7 @@ import { userService } from '../../services/userService';
 import { cn } from '../../utils/utils';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateUserForm } from '../../utils/formValidation';
 
 const roleOptions = [
   { value: 'ADMIN', label: 'Admin' },
@@ -159,12 +160,12 @@ const UserManagementPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.username.trim() || !formData.fullName.trim() || !formData.role) {
-      toast.error('Vui lòng nhập đủ thông tin bắt buộc');
-      return;
-    }
-    if (!editing && !formData.password.trim()) {
-      toast.error('Mật khẩu là bắt buộc khi tạo người dùng');
+    const errors = validateUserForm(formData, { isEditMode: Boolean(editing) });
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin người dùng chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 
@@ -274,7 +275,7 @@ const UserManagementPage = () => {
         }
       />
 
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -285,7 +286,7 @@ const UserManagementPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <FilterSelect
             value={roleFilter}
             onChange={(value) => {
@@ -293,7 +294,7 @@ const UserManagementPage = () => {
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
             options={roleFilterOptions}
-            className="w-[160px]"
+            className="w-[150px]"
           />
           <FilterSelect
             value={statusFilter}
@@ -302,7 +303,7 @@ const UserManagementPage = () => {
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
             options={userStatusFilterOptions}
-            className="w-[170px]"
+            className="w-[155px]"
           />
         </div>
       </div>
@@ -337,15 +338,15 @@ const UserManagementPage = () => {
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Tên đăng nhập" required>
-              <FormInput value={formData.username} onChange={(event) => updateField('username', event.target.value)} />
+              <FormInput maxLength={50} value={formData.username} onChange={(event) => updateField('username', event.target.value)} />
             </FormField>
             <FormField label={editing ? 'Mật khẩu mới (tùy chọn)' : 'Mật khẩu'} required={!editing}>
-              <FormInput type="password" value={formData.password} onChange={(event) => updateField('password', event.target.value)} />
+              <FormInput type="password" minLength={6} maxLength={100} value={formData.password} onChange={(event) => updateField('password', event.target.value)} />
             </FormField>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Họ tên" required>
-              <FormInput value={formData.fullName} onChange={(event) => updateField('fullName', event.target.value)} />
+              <FormInput maxLength={100} value={formData.fullName} onChange={(event) => updateField('fullName', event.target.value)} />
             </FormField>
             <FormField label="Vai trò" required>
               <FormSelect
@@ -358,18 +359,24 @@ const UserManagementPage = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Email">
-              <FormInput type="email" value={formData.email} onChange={(event) => updateField('email', event.target.value)} />
+              <FormInput type="email" maxLength={150} value={formData.email} onChange={(event) => updateField('email', event.target.value)} />
             </FormField>
-            <FormField label="Số điện thoại">
-              <FormInput value={formData.phone} onChange={(event) => updateField('phone', event.target.value)} />
+            <FormField label="Số điện thoại" required={!editing}>
+              <FormInput
+                maxLength={12}
+                inputMode="tel"
+                pattern="^(\\+84|0)[0-9]{9,10}$"
+                value={formData.phone}
+                onChange={(event) => updateField('phone', event.target.value)}
+              />
             </FormField>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Quân hàm">
-              <FormInput value={formData.militaryRank} onChange={(event) => updateField('militaryRank', event.target.value)} />
+              <FormInput maxLength={50} value={formData.militaryRank} onChange={(event) => updateField('militaryRank', event.target.value)} />
             </FormField>
             <FormField label="Đơn vị">
-              <FormInput value={formData.unit} onChange={(event) => updateField('unit', event.target.value)} />
+              <FormInput maxLength={100} value={formData.unit} onChange={(event) => updateField('unit', event.target.value)} />
             </FormField>
           </div>
         </form>
