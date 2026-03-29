@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Animated,
     FlatList,
     RefreshControl,
     StyleSheet,
@@ -17,7 +18,8 @@ import { useThemeStore } from '../../../src/stores/themeStore';
 import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { exerciseService } from '../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../src/types/training';
-import { difficultyMeta, normalizeDifficulty, pickTrainingImage, trainingUi } from '../../../src/features/training/ui';
+import { difficultyMeta, normalizeDifficulty, trainingUi } from '../../../src/features/training/ui';
+import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 type DifficultyFilter = 'ALL' | 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
 
@@ -40,6 +42,7 @@ export default function ExerciseListScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
     const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('ALL');
+    const { animatedStyle } = useTrainingEntrance();
 
     const fetchData = useCallback(
         async (targetPage: number, reset: boolean) => {
@@ -100,6 +103,7 @@ export default function ExerciseListScreen() {
         const durationLabel = item.durationMinutes ? `${item.durationMinutes} phút` : 'Chưa rõ';
 
         return (
+            <View>
             <TouchableOpacity
                 activeOpacity={0.88}
                 style={[
@@ -112,7 +116,7 @@ export default function ExerciseListScreen() {
                 onPress={() => router.push(`/training/exercises/${item.exerciseId}` as any)}
             >
                 <View style={styles.coverWrap}>
-                    <Image source={pickTrainingImage(item.exerciseId)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={pickTrainingCoverImage(item.exerciseId, item.mediaUrls)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.coverOverlay} />
                     <View style={styles.badgeRow}>
                         <View style={[styles.diffBadge, { backgroundColor: difficultyStyle.bg, borderColor: difficultyStyle.border }]}>
@@ -141,80 +145,97 @@ export default function ExerciseListScreen() {
                     </View>
                 </View>
             </TouchableOpacity>
+            </View>
         );
     };
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
-                    <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Bài tập</Text>
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
-                        <Ionicons name="search" size={19} color={isDark ? colors.text : trainingUi.textStrong} />
+            <Animated.View style={animatedStyle}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
+                        <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
-                        <Ionicons name="options-outline" size={20} color={isDark ? colors.text : trainingUi.textStrong} />
-                    </TouchableOpacity>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Bài tập</Text>
+                    <View style={styles.headerRight}>
+                        <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
+                            <Ionicons name="search" size={19} color={isDark ? colors.text : trainingUi.textStrong} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
+                            <Ionicons name="options-outline" size={20} color={isDark ? colors.text : trainingUi.textStrong} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
 
-            <View
-                style={[
-                    styles.searchBar,
-                    {
-                        backgroundColor: isDark ? colors.surface : '#E9EFEB',
-                        borderColor: isDark ? colors.border : '#DDE8E1',
-                    },
-                ]}
-            >
-                <Ionicons name="search" size={18} color={isDark ? colors.textLight : '#90A49A'} />
-                <TextInput
-                    placeholder="Tìm bài tập..."
-                    placeholderTextColor={isDark ? colors.textLight : '#90A49A'}
-                    value={search}
-                    onChangeText={setSearch}
-                    style={[styles.searchInput, { color: isDark ? colors.text : trainingUi.textStrong }]}
-                    onSubmitEditing={() => fetchData(0, true)}
-                    returnKeyType="search"
-                />
-            </View>
+                <View style={[styles.introCard, { backgroundColor: isDark ? colors.surface : '#EBF3EE', borderColor: isDark ? colors.border : '#D7E4DB' }]}>
+                    <View style={styles.introTextWrap}>
+                        <Text style={[styles.introEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>PHÒNG BÀI TẬP</Text>
+                        <Text style={[styles.introTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Tách bài tập theo từng mục tiêu và mức độ</Text>
+                        <Text style={[styles.introSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                            Mỗi bài tập giữ ảnh riêng, bước hướng dẫn riêng và có thể mở nhanh sang từng step chi tiết.
+                        </Text>
+                    </View>
+                    <View style={[styles.introBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.introBadgeText}>{filteredItems.length}</Text>
+                        <Text style={styles.introBadgeLabel}>đang hiển thị</Text>
+                    </View>
+                </View>
 
-            <View style={styles.filterRow}>
-                {DIFFICULTY_FILTERS.map((filter) => {
-                    const active = difficultyFilter === filter.key;
-                    return (
-                        <TouchableOpacity
-                            key={filter.key}
-                            onPress={() => setDifficultyFilter(filter.key)}
-                            activeOpacity={0.85}
-                            style={[
-                                styles.filterChip,
-                                {
-                                    backgroundColor: active
-                                        ? isDark
-                                            ? colors.primary
-                                            : trainingUi.brand
-                                        : isDark
-                                            ? colors.surface
-                                            : '#EDF3EF',
-                                },
-                            ]}
-                        >
-                            <Text
+                <View
+                    style={[
+                        styles.searchBar,
+                        {
+                            backgroundColor: isDark ? colors.surface : '#E9EFEB',
+                            borderColor: isDark ? colors.border : '#DDE8E1',
+                        },
+                    ]}
+                >
+                    <Ionicons name="search" size={18} color={isDark ? colors.textLight : '#90A49A'} />
+                    <TextInput
+                        placeholder="Tìm bài tập..."
+                        placeholderTextColor={isDark ? colors.textLight : '#90A49A'}
+                        value={search}
+                        onChangeText={setSearch}
+                        style={[styles.searchInput, { color: isDark ? colors.text : trainingUi.textStrong }]}
+                        onSubmitEditing={() => fetchData(0, true)}
+                        returnKeyType="search"
+                    />
+                </View>
+
+                <View style={styles.filterRow}>
+                    {DIFFICULTY_FILTERS.map((filter) => {
+                        const active = difficultyFilter === filter.key;
+                        return (
+                            <TouchableOpacity
+                                key={filter.key}
+                                onPress={() => setDifficultyFilter(filter.key)}
+                                activeOpacity={0.85}
                                 style={[
-                                    styles.filterChipText,
-                                    { color: active ? '#FFFFFF' : isDark ? colors.textSecondary : trainingUi.textNormal },
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: active
+                                            ? isDark
+                                                ? colors.primary
+                                                : trainingUi.brand
+                                            : isDark
+                                                ? colors.surface
+                                                : '#EDF3EF',
+                                    },
                                 ]}
                             >
-                                {filter.label}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
+                                <Text
+                                    style={[
+                                        styles.filterChipText,
+                                        { color: active ? '#FFFFFF' : isDark ? colors.textSecondary : trainingUi.textNormal },
+                                    ]}
+                                >
+                                    {filter.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </Animated.View>
 
             {loading ? (
                 <View style={styles.loadingWrap}>
@@ -270,6 +291,55 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: spacing.md,
         marginBottom: spacing.sm,
+    },
+    introCard: {
+        borderWidth: 1,
+        borderRadius: borderRadius.xl + 4,
+        padding: spacing.md,
+        marginBottom: spacing.md,
+        flexDirection: 'row',
+        gap: spacing.md,
+        alignItems: 'flex-start',
+    },
+    introTextWrap: {
+        flex: 1,
+    },
+    introEyebrow: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1.1,
+        marginBottom: 6,
+    },
+    introTitle: {
+        fontSize: 22,
+        lineHeight: 28,
+        fontWeight: '800',
+    },
+    introSubtitle: {
+        marginTop: spacing.xs,
+        fontSize: 13,
+        lineHeight: 19,
+        fontWeight: '500',
+    },
+    introBadge: {
+        minWidth: 74,
+        borderRadius: 22,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    introBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    introBadgeLabel: {
+        marginTop: 2,
+        color: '#E6F1EA',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center',
     },
     searchInput: {
         flex: 1,

@@ -403,8 +403,8 @@ export default function HealthRecordTimelineScreen() {
                                         shortEnum(item.appetiteLevel, 'appetite'),
                                         shortEnum(item.activityLevel, 'activity'),
                                         shortEnum(item.fecesStatus, 'feces'),
-                                    ].map((value) => (
-                                        <View key={value} style={styles.tagChip}>
+                                    ].map((value, valueIndex) => (
+                                        <View key={`${value}-${valueIndex}`} style={styles.tagChip}>
                                             <Text style={[styles.tagChipText, { fontFamily: dogManagementFonts.medium }]}>{value}</Text>
                                         </View>
                                     ))}

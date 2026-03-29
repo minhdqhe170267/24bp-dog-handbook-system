@@ -41,6 +41,13 @@ export const syncQueueDBService = {
     await db.runAsync(`DELETE FROM ${TABLE} WHERE id = ?`, [id]);
   },
 
+  deleteByEntity: async (entityType: EntityType, entityId: string): Promise<void> => {
+    await db.runAsync(
+      `DELETE FROM ${TABLE} WHERE entity_type = ? AND entity_id = ?`,
+      [entityType, entityId],
+    );
+  },
+
   deleteSynced: async (): Promise<void> => {
     await db.runAsync(`DELETE FROM ${TABLE} WHERE status = 'SYNCED'`);
   },

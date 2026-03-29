@@ -10,6 +10,7 @@ import { breedService } from '../../src/services/breedService';
 import { localAlertService } from '../../src/services/localAlertService';
 import { nutritionService } from '../../src/services/nutritionService';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { validateNumberField } from '../../src/utils/formValidation';
 
 const ACTIVITY_LEVELS: NutritionCalculateRequest['activityLevel'][] = ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'];
 const GENDERS: NutritionCalculateRequest['gender'][] = ['MALE', 'FEMALE'];
@@ -114,6 +115,20 @@ export default function RationCalculatorScreen() {
     }, []);
 
     const selectedBreed = breeds.find((breed) => breed.breedId === selectedBreedId);
+    const weightError = validateNumberField(weight, {
+        label: 'Cân nặng',
+        required: true,
+        min: 0.5,
+        max: 100,
+    });
+    const ageError = validateNumberField(age, {
+        label: 'Tuổi',
+        required: true,
+        min: 1,
+        max: 240,
+        integer: true,
+    });
+    const canCalculate = Boolean(selectedBreedId) && !weightError && !ageError && !calculating;
 
     const handleCalculate = async () => {
         if (!selectedBreedId) {
@@ -123,6 +138,14 @@ export default function RationCalculatorScreen() {
 
         if (!weight || !age) {
             Alert.alert('Thiếu thông tin', 'Vui lòng nhập cân nặng và tuổi.');
+            return;
+        }
+
+        if (!canCalculate) {
+            Alert.alert(
+                'Biểu mẫu chưa hợp lệ',
+                weightError || ageError || 'Vui lòng kiểm tra lại dữ liệu trước khi tính khẩu phần.',
+            );
             return;
         }
 
@@ -310,6 +333,7 @@ export default function RationCalculatorScreen() {
                                     onChangeText={setWeight}
                                 />
                             </View>
+                            {weightError ? <Text style={[styles.errorText, { color: colors.error }]}>{weightError}</Text> : null}
                         </View>
 
                         <View style={styles.halfInput}>
@@ -330,6 +354,7 @@ export default function RationCalculatorScreen() {
                                     onChangeText={setAge}
                                 />
                             </View>
+                            {ageError ? <Text style={[styles.errorText, { color: colors.error }]}>{ageError}</Text> : null}
                         </View>
                     </View>
 
@@ -344,10 +369,10 @@ export default function RationCalculatorScreen() {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.calcBtn, { backgroundColor: colors.accent, opacity: calculating ? 0.7 : 1 }]}
+                    style={[styles.calcBtn, { backgroundColor: colors.accent, opacity: canCalculate ? 1 : 0.6 }]}
                     activeOpacity={0.85}
                     onPress={handleCalculate}
-                    disabled={calculating}
+                    disabled={!canCalculate}
                 >
                     <Ionicons name="calculator" size={22} color="#FFFFFF" />
                     <Text style={styles.calcBtnText}>{calculating ? 'Đang tính...' : 'Tính toán'}</Text>
@@ -458,6 +483,7 @@ const styles = StyleSheet.create({
     halfInput: { flex: 1 },
     inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, gap: spacing.sm },
     input: { flex: 1, fontSize: fontSize.md, padding: 0 },
+    errorText: { marginTop: spacing.xs, fontSize: fontSize.xs, lineHeight: 16, fontWeight: '700' },
     choiceGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     choiceChip: { borderWidth: 1.5, borderRadius: borderRadius.md, paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md },
     choiceText: { fontSize: fontSize.md },

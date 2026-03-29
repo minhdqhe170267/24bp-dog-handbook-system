@@ -15,6 +15,16 @@ export const contentSuggestionDBService = {
   getById: (localId: string): Promise<ContentSuggestionRow | null> =>
     repository.getById<ContentSuggestionRow>(TABLE, localId, ID_COL),
 
+  getByServerId: async (serverId: number): Promise<ContentSuggestionRow | null> => {
+    const rows = await repository.getAllWhere<ContentSuggestionRow>(
+      TABLE,
+      'server_id = ?',
+      [serverId],
+      'updated_at DESC',
+    );
+    return rows[0] ?? null;
+  },
+
   getByTrainer: (trainerId: number): Promise<ContentSuggestionRow[]> =>
     repository.getAllWhere<ContentSuggestionRow>(TABLE, 'trainer_id = ?', [trainerId], 'submitted_at DESC'),
 
@@ -105,4 +115,8 @@ export const contentSuggestionDBService = {
 
   getCount: (): Promise<number> =>
     repository.count(TABLE),
+
+  deleteById: async (localId: string): Promise<void> => {
+    await repository.hardDelete(TABLE, localId, ID_COL);
+  },
 };
