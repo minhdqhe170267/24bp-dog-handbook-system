@@ -64,6 +64,13 @@ const APPROVAL_DECISION_LABELS = {
 const getApprovalDecisionLabel = (decision) =>
   APPROVAL_DECISION_LABELS[String(decision || '').trim().toUpperCase()] || toText(decision);
 
+const getApprovalDecisionColorClass = (decision) => {
+  const normalized = String(decision || '').trim().toUpperCase();
+  if (normalized === 'APPROVED') return 'text-emerald-600 dark:text-emerald-300';
+  if (normalized === 'REJECTED') return 'text-red-600 dark:text-red-300';
+  return 'text-muted-foreground';
+};
+
 const toText = (value) => {
   if (value === null || value === undefined || value === '') return '—';
   return String(value);
@@ -492,6 +499,7 @@ const EntityDetailPage = () => {
   };
 
   const workflowStatus = normalizeStatusValue(data?.status);
+  const entityLabelLower = String(config?.label || 'dữ liệu').toLowerCase();
   const canRoleEdit = isAdmin || isEditor;
   const canReviewFromDetail =
     isWorkflowEntity && (isReviewer || (isAdmin && isApprovalContext));
@@ -515,7 +523,7 @@ const EntityDetailPage = () => {
   }, [canManageWorkflowFromDetail, canRoleEdit, config, data?.status, resolvedEntityId, workflowStatus]);
 
   const executeAction = useCallback(
-    async ({ action, title, successMessage, comment = '' }) => {
+    async ({ action, title, successMessage, comment = '', redirectTo = '' }) => {
       if (resolvedEntityId === null || resolvedEntityId === undefined || resolvedEntityId === '') return;
       if (!isWorkflowEntity) return;
 
@@ -530,17 +538,23 @@ const EntityDetailPage = () => {
         } else if (action === 'UNPUBLISH') {
           await approvalService.unpublish(entityType, resolvedEntityId);
         } else {
-          return;
+          return false;
         }
         toast.success(successMessage);
+        if (redirectTo) {
+          navigate(redirectTo, { replace: true });
+          return true;
+        }
         await fetchDetail();
+        return true;
       } catch (error) {
         toast.error(error, { title });
+        return false;
       } finally {
         setActionLoading(false);
       }
     },
-    [entityType, fetchDetail, isWorkflowEntity, resolvedEntityId, toast]
+    [entityType, fetchDetail, isWorkflowEntity, navigate, resolvedEntityId, toast]
   );
 
   const handleApprove = () =>
@@ -548,19 +562,20 @@ const EntityDetailPage = () => {
       action: 'APPROVE',
       title: 'Không thể duyệt nội dung',
       successMessage: 'Duyệt thành công',
+      redirectTo: '/approval',
     });
 
   const handlePublish = () =>
     executeAction({
       action: 'PUBLISH',
-      title: 'Không thể xuất bản',
+      title: `Không thể xuất bản ${entityLabelLower}`,
       successMessage: 'Đã xuất bản thành công',
     });
 
   const handleUnpublish = () =>
     executeAction({
       action: 'UNPUBLISH',
-      title: 'Không thể gỡ xuất bản',
+      title: `Không thể gỡ xuất bản ${entityLabelLower}`,
       successMessage: 'Đã gỡ xuất bản thành công',
     });
 
@@ -581,12 +596,14 @@ const EntityDetailPage = () => {
       toast.warning('Vui lòng nhập lý do từ chối');
       return;
     }
-    await executeAction({
+    const success = await executeAction({
       action: 'REJECT',
       title: 'Không thể từ chối nội dung',
       successMessage: 'Đã từ chối nội dung',
       comment,
+      redirectTo: '/approval',
     });
+    if (!success) return;
     setRejectModalOpen(false);
     setRejectComment('');
   };
@@ -620,7 +637,7 @@ const EntityDetailPage = () => {
       toast.success(nextStatus === 'ACCEPTED' ? 'Đã chấp nhận đề xuất' : 'Đã từ chối đề xuất');
       setSuggestionResponseOpen(false);
       setSuggestionResponse('');
-      await fetchDetail();
+      navigate('/suggestions', { replace: true });
     } catch (error) {
       toast.error(error, { title: 'Không thể phản hồi đề xuất' });
     } finally {
@@ -763,7 +780,7 @@ const EntityDetailPage = () => {
           <div className="py-8 text-sm text-muted-foreground">Không có dữ liệu chi tiết</div>
         ) : (
           <div className="space-y-3">
-            {isWorkflowEntity && (
+            {isWorkflowEntity && (reviewerFeedbackLoading || latestReviewerFeedback) && (
               <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold text-foreground">Phản hồi từ người duyệt</h3>
@@ -775,16 +792,17 @@ const EntityDetailPage = () => {
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted-foreground">
                       {latestReviewerFeedback?.reviewerName || 'Reviewer'} •{' '}
-                      {getApprovalDecisionLabel(latestReviewerFeedback?.decision)} •{' '}
+                      <span className={getApprovalDecisionColorClass(latestReviewerFeedback?.decision)}>
+                        {getApprovalDecisionLabel(latestReviewerFeedback?.decision)}
+                      </span>{' '}
+                      •{' '}
                       {formatDateTimeValue(latestReviewerFeedback?.reviewedAt)}
                     </p>
                     <p className="text-sm text-foreground whitespace-pre-wrap">
                       {latestReviewerFeedback?.comments}
                     </p>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Chưa có nhận xét từ reviewer</p>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -832,6 +850,9 @@ const EntityDetailPage = () => {
       >
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Nhập lý do từ chối để gửi lại cho người biên tập.</p>
+          <label className="block text-sm font-medium text-foreground">
+            Lý do từ chối <span className="text-destructive">*</span>
+          </label>
           <FormTextarea
             rows={5}
             value={rejectComment}
@@ -872,6 +893,9 @@ const EntityDetailPage = () => {
           <p className="text-sm text-muted-foreground">
             Nhập phản hồi của quản trị viên để chấp nhận hoặc từ chối đề xuất.
           </p>
+          <label className="block text-sm font-medium text-foreground">
+            Phản hồi <span className="text-destructive">*</span>
+          </label>
           <FormTextarea
             rows={5}
             value={suggestionResponse}
