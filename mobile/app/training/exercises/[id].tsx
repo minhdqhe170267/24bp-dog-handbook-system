@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,17 +10,16 @@ import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { exerciseService } from '../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../src/types/training';
 import {
-    buildInstructionSteps,
     difficultyMeta,
     normalizeDifficulty,
     normalizeStatus,
     parseToolItems,
     pickToolIcon,
-    pickTrainingImage,
     splitToBullets,
     statusMeta,
     trainingUi,
 } from '../../../src/features/training/ui';
+import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 export default function ExerciseDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,6 +30,7 @@ export default function ExerciseDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeStepIndex, setActiveStepIndex] = useState(0);
+    const { animatedStyle } = useTrainingEntrance();
     const progressByExercise = useTrainingProgressStore((state) => state.progressByExercise);
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
@@ -55,7 +55,7 @@ export default function ExerciseDetailScreen() {
         }
     }, [id]);
 
-    const instructionSteps = useMemo(() => buildInstructionSteps(exercise?.instructions), [exercise?.instructions]);
+    const instructionSteps = useMemo(() => buildTrainingInstructionSteps(exercise?.instructions), [exercise?.instructions]);
 
     useEffect(() => {
         if (instructionSteps.length === 0) {
@@ -68,6 +68,10 @@ export default function ExerciseDetailScreen() {
 
     const difficultyStyle = useMemo(() => difficultyMeta[normalizeDifficulty(exercise?.difficultyLevel)], [exercise?.difficultyLevel]);
     const statusStyle = useMemo(() => statusMeta[normalizeStatus(exercise?.status)], [exercise?.status]);
+    const coverImage = useMemo(
+        () => pickTrainingCoverImage(exercise?.exerciseId, exercise?.mediaUrls),
+        [exercise?.exerciseId, exercise?.mediaUrls],
+    );
 
     if (loading) {
         return (
@@ -143,7 +147,7 @@ export default function ExerciseDetailScreen() {
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView style={animatedStyle} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
@@ -155,7 +159,7 @@ export default function ExerciseDetailScreen() {
                 </View>
 
                 <View style={styles.mediaCard}>
-                    <Image source={pickTrainingImage(exercise.exerciseId)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={coverImage} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.mediaOverlay} />
                     <View style={styles.mediaBadgeRow}>
                         {exercise.methodName ? (
@@ -207,6 +211,27 @@ export default function ExerciseDetailScreen() {
                     <Text style={[styles.description, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
                         {exercise.description || 'Rèn phản xạ và độ chính xác cho chó bằng nhịp luyện tập có kiểm soát.'}
                     </Text>
+
+                    <View style={styles.heroMetricsRow}>
+                        <View style={[styles.heroMetricCard, { backgroundColor: isDark ? colors.surface : '#EDF5F0', borderColor: isDark ? colors.border : '#DCE7E0' }]}>
+                            <Text style={[styles.heroMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                                {instructionSteps.length || 1}
+                            </Text>
+                            <Text style={[styles.heroMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Bước rõ ràng</Text>
+                        </View>
+                        <View style={[styles.heroMetricCard, { backgroundColor: isDark ? colors.surface : '#EDF5F0', borderColor: isDark ? colors.border : '#DCE7E0' }]}>
+                            <Text style={[styles.heroMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                                {tools.length}
+                            </Text>
+                            <Text style={[styles.heroMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Dụng cụ</Text>
+                        </View>
+                        <View style={[styles.heroMetricCard, { backgroundColor: isDark ? colors.surface : '#EDF5F0', borderColor: isDark ? colors.border : '#DCE7E0' }]}>
+                            <Text style={[styles.heroMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                                {safety.length}
+                            </Text>
+                            <Text style={[styles.heroMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Lưu ý</Text>
+                        </View>
+                    </View>
                 </View>
 
                 <View>
@@ -453,7 +478,7 @@ export default function ExerciseDetailScreen() {
                         )}
                     </View>
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
@@ -605,6 +630,27 @@ const styles = StyleSheet.create({
         lineHeight: 21,
         fontWeight: '500',
         marginBottom: spacing.md,
+    },
+    heroMetricsRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    heroMetricCard: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: borderRadius.xl,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+    },
+    heroMetricValue: {
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    heroMetricLabel: {
+        marginTop: 3,
+        fontSize: 12,
+        fontWeight: '600',
     },
     sectionCard: {
         borderWidth: 1,

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,8 @@ import { useTrainingProgressStore } from '../../../../../src/stores/trainingProg
 import { spacing, borderRadius, fontSize } from '../../../../../src/constants/theme';
 import { exerciseService } from '../../../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../../../src/types/training';
-import { buildInstructionSteps, parseMediaUrls, pickTrainingImage, trainingUi } from '../../../../../src/features/training/ui';
+import { trainingUi } from '../../../../../src/features/training/ui';
+import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../../../src/features/training/presentation';
 
 export default function ExerciseStepScreen() {
     const { id, step } = useLocalSearchParams<{ id: string; step: string }>();
@@ -22,6 +23,7 @@ export default function ExerciseStepScreen() {
     const [exercise, setExercise] = useState<TrainingExercise | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { animatedStyle } = useTrainingEntrance();
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -60,7 +62,7 @@ export default function ExerciseStepScreen() {
         return Math.floor(parsed) - 1;
     }, [step]);
 
-    const steps = useMemo(() => buildInstructionSteps(exercise?.instructions), [exercise?.instructions]);
+    const steps = useMemo(() => buildTrainingInstructionSteps(exercise?.instructions), [exercise?.instructions]);
     const safeIndex = useMemo(() => {
         if (steps.length === 0) {
             return 0;
@@ -69,11 +71,10 @@ export default function ExerciseStepScreen() {
     }, [stepIndex, steps.length]);
     const currentStep = steps[safeIndex];
 
-    const mediaUrls = useMemo(() => parseMediaUrls(exercise?.mediaUrls), [exercise?.mediaUrls]);
-    const currentMedia = useMemo(() => {
-        const firstImageCandidate = mediaUrls.find((url) => /^https?:\/\//i.test(url) && !/\.mp4(?:$|\?)/i.test(url));
-        return firstImageCandidate || pickTrainingImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`);
-    }, [exercise?.exerciseId, id, mediaUrls, safeIndex]);
+    const currentMedia = useMemo(
+        () => pickTrainingCoverImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`, exercise?.mediaUrls),
+        [exercise?.exerciseId, exercise?.mediaUrls, id, safeIndex],
+    );
 
     const progressText = `${Math.min(safeIndex + 1, Math.max(steps.length, 1))}/${Math.max(steps.length, 1)}`;
     const isLastStep = steps.length > 0 && safeIndex >= steps.length - 1;
@@ -148,7 +149,7 @@ export default function ExerciseStepScreen() {
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView style={animatedStyle} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onPressPrevious} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
@@ -168,6 +169,9 @@ export default function ExerciseStepScreen() {
                     <View style={styles.mediaLabel}>
                         <Ionicons name="videocam" size={13} color="#E8F3EC" />
                         <Text style={styles.mediaLabelText}>Video mô phỏng bước huấn luyện</Text>
+                    </View>
+                    <View style={styles.stepHeroBadge}>
+                        <Text style={styles.stepHeroBadgeText}>{currentStep.title}</Text>
                     </View>
                 </View>
 
@@ -236,6 +240,30 @@ export default function ExerciseStepScreen() {
                     </Text>
                 </View>
 
+                <View style={styles.quickJumpRow}>
+                    {steps.map((item, index) => {
+                        const active = index === safeIndex;
+                        return (
+                            <TouchableOpacity
+                                key={`jump-${item.title}-${index}`}
+                                activeOpacity={0.86}
+                                onPress={() => goToStep(index)}
+                                style={[
+                                    styles.quickJumpChip,
+                                    {
+                                        backgroundColor: active ? colors.primary : isDark ? colors.surface : '#EEF4F0',
+                                        borderColor: active ? colors.primary : isDark ? colors.border : '#D7E4DC',
+                                    },
+                                ]}
+                            >
+                                <Text style={[styles.quickJumpLabel, { color: active ? '#FFFFFF' : isDark ? colors.text : trainingUi.textStrong }]}>
+                                    {item.title}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
                 <View style={styles.paginationRow}>
                     {steps.map((_, index) => (
                         <View
@@ -255,7 +283,7 @@ export default function ExerciseStepScreen() {
                         />
                     ))}
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
@@ -378,6 +406,23 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         minHeight: 30,
     },
+    stepHeroBadge: {
+        position: 'absolute',
+        right: spacing.md,
+        top: spacing.md,
+        borderRadius: borderRadius.full,
+        backgroundColor: 'rgba(8, 14, 11, 0.62)',
+        borderWidth: 1,
+        borderColor: 'rgba(226, 238, 230, 0.24)',
+        paddingHorizontal: 12,
+        minHeight: 32,
+        justifyContent: 'center',
+    },
+    stepHeroBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
     mediaLabelText: {
         color: '#E8F3EC',
         fontSize: 11,
@@ -443,6 +488,23 @@ const styles = StyleSheet.create({
         fontSize: fontSize.md + 1,
         lineHeight: 24,
         fontWeight: '500',
+    },
+    quickJumpRow: {
+        marginTop: spacing.md,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+    },
+    quickJumpChip: {
+        minHeight: 36,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: spacing.md,
+        borderWidth: 1,
+        justifyContent: 'center',
+    },
+    quickJumpLabel: {
+        fontSize: 12,
+        fontWeight: '700',
     },
     paginationRow: {
         marginTop: spacing.md,
