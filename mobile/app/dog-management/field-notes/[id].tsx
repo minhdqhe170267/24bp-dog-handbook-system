@@ -85,10 +85,10 @@ export default function FieldNoteDetailScreen() {
             return;
         }
 
-        Alert.alert('Xoa ghi chu', 'Ban co chac muon xoa ghi chu nay khong?', [
-            { text: 'Huy', style: 'cancel' },
+        Alert.alert('Xóa ghi chú', 'Bạn có chắc muốn xóa ghi chú này không?', [
+            { text: 'Hủy', style: 'cancel' },
             {
-                text: 'Xoa',
+                text: 'Xóa',
                 style: 'destructive',
                 onPress: async () => {
                     try {
@@ -96,13 +96,9 @@ export default function FieldNoteDetailScreen() {
                         router.replace('/dog-management/field-notes' as any);
                     } catch (error) {
                         if (trainerDogScopeService.isAccessDeniedError(error)) {
-                            Alert.alert('Khong duoc phep', 'Ban khong the xoa ghi chu ngoai pham vi phan cong.');
+                            Alert.alert('Không được phép', 'Bạn không thể xóa ghi chú ngoài phạm vi phân công.');
                         } else {
-                            Alert.alert(
-                                'Da xoa o giao dien mau',
-                                'Ghi chu da duoc loai khoi luong frontend.',
-                                [{ text: 'Tiep tuc', onPress: () => router.replace('/dog-management/field-notes' as any) }],
-                            );
+                            Alert.alert('Không thể xóa', 'Vui lòng thử lại sau hoặc đồng bộ lại dữ liệu.');
                         }
                     }
                 },
@@ -238,7 +234,7 @@ export default function FieldNoteDetailScreen() {
                 <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
                     <TouchableOpacity activeOpacity={0.88} style={[styles.secondaryButton, { backgroundColor: '#EFF3F0' }]} onPress={removeNote}>
                         <Ionicons name="trash-outline" size={18} color={dogManagementUi.textNormal} />
-                        <Text style={[styles.secondaryButtonText, { color: dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>Xoa</Text>
+                        <Text style={[styles.secondaryButtonText, { color: dogManagementUi.textNormal, fontFamily: dogManagementFonts.bold }]}>Xóa</Text>
                     </TouchableOpacity>
                     <TouchableOpacity activeOpacity={0.9} style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push(`/dog-management/field-notes/form?noteId=${String(note.noteId)}` as any)}>
                         <Ionicons name="create-outline" size={18} color="#FFFFFF" />
