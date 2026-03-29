@@ -72,12 +72,17 @@ const parseCapabilities = (value: string | null | undefined): string[] => {
     .filter(Boolean);
 };
 
+const normalizeBreedText = (value: string | null | undefined, fallback = '') => {
+  const normalized = (value ?? '').trim();
+  return normalized.length > 0 ? normalized : fallback;
+};
+
 const getBreedCategories = (breed: Breed): CategoryKey[] => {
   return BREED_CATEGORY[breed.breedId] ?? ['nghiep_vu'];
 };
 
-const getTrainabilityTone = (value: string, isDark: boolean) => {
-  const normalized = value.toLowerCase();
+const getTrainabilityTone = (value: string | null | undefined, isDark: boolean) => {
+  const normalized = normalizeBreedText(value).toLowerCase();
 
   if (normalized.includes('cao')) {
     return {
@@ -150,11 +155,14 @@ export default function BreedsScreen() {
     return breeds.filter((breed) => {
       const keyword = search.trim().toLowerCase();
       const capabilities = parseCapabilities(breed.operationalCapabilities).join(' ').toLowerCase();
+      const breedName = normalizeBreedText(breed.breedName);
+      const origin = normalizeBreedText(breed.origin);
+      const description = normalizeBreedText(breed.description);
       const matchSearch =
         keyword.length === 0 ||
-        breed.breedName.toLowerCase().includes(keyword) ||
-        breed.origin.toLowerCase().includes(keyword) ||
-        breed.description.toLowerCase().includes(keyword) ||
+        breedName.toLowerCase().includes(keyword) ||
+        origin.toLowerCase().includes(keyword) ||
+        description.toLowerCase().includes(keyword) ||
         capabilities.includes(keyword);
 
       const categories = getBreedCategories(breed);
@@ -402,6 +410,15 @@ export default function BreedsScreen() {
           const breedCategories = getBreedCategories(item);
           const accentKey = breedCategories[0] ?? 'nghiep_vu';
           const accentTone = CATEGORY_TONE[accentKey];
+          const breedName = normalizeBreedText(item.breedName, `Giống chó #${item.breedId}`);
+          const origin = normalizeBreedText(item.origin, 'Chưa rõ xuất xứ');
+          const description = normalizeBreedText(item.description, 'Chưa có mô tả chi tiết.');
+          const trainabilityLabel = normalizeBreedText(item.trainabilityLevel, 'Chưa rõ huấn luyện');
+          const sizeLabel = normalizeBreedText(item.sizeClassification, 'Chưa rõ thể hình');
+          const heightLabel =
+            typeof item.avgHeightCm === 'number' && Number.isFinite(item.avgHeightCm)
+              ? `${item.avgHeightCm} cm`
+              : '-- cm';
           const trainabilityTone = getTrainabilityTone(item.trainabilityLevel, isDark);
           const capabilityPreview = parseCapabilities(item.operationalCapabilities).slice(0, 2);
           const isFavorite = favorites.includes(item.breedId);
@@ -434,10 +451,10 @@ export default function BreedsScreen() {
 
                     <View style={styles.cardHeadingText}>
                       <Text style={[styles.breedName, { color: colors.text }]} numberOfLines={1}>
-                        {item.breedName}
+                        {breedName}
                       </Text>
                       <Text style={[styles.breedOrigin, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {item.origin}
+                        {origin}
                       </Text>
                     </View>
                   </View>
@@ -484,13 +501,13 @@ export default function BreedsScreen() {
                   ))}
                   <View style={[styles.cardChip, { backgroundColor: trainabilityTone.soft }]}>
                     <Text style={[styles.cardChipText, { color: trainabilityTone.text }]}>
-                      {item.trainabilityLevel}
+                      {trainabilityLabel}
                     </Text>
                   </View>
                 </View>
 
                 <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={3}>
-                  {item.description}
+                  {description}
                 </Text>
 
                 <View style={styles.metricRow}>
@@ -501,7 +518,7 @@ export default function BreedsScreen() {
                     ]}
                   >
                     <Text style={[styles.metricLabel, { color: colors.textLight }]}>Chiều cao</Text>
-                    <Text style={[styles.metricValue, { color: colors.text }]}>{item.avgHeightCm} cm</Text>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>{heightLabel}</Text>
                   </View>
                   <View
                     style={[
@@ -510,7 +527,7 @@ export default function BreedsScreen() {
                     ]}
                   >
                     <Text style={[styles.metricLabel, { color: colors.textLight }]}>Thể hình</Text>
-                    <Text style={[styles.metricValue, { color: colors.text }]}>{item.sizeClassification}</Text>
+                    <Text style={[styles.metricValue, { color: colors.text }]}>{sizeLabel}</Text>
                   </View>
                   <View
                     style={[
