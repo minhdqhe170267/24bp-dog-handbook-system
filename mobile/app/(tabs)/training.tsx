@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing, borderRadius, fontSize } from '../../src/constants/theme';
 import { useThemeStore } from '../../src/stores/themeStore';
 import { pickTrainingImage, trainingImages, trainingUi } from '../../src/features/training/ui';
+import { useTrainingEntrance } from '../../src/features/training/presentation';
 import { roadmapService } from '../../src/services/roadmapService';
 import { TrainingRoadmap } from '../../src/types/training';
 
@@ -39,6 +40,7 @@ export default function TrainingHubScreen() {
     const { colors, isDark } = useThemeStore();
     const [featuredRoadmap, setFeaturedRoadmap] = useState<TrainingRoadmap | null>(null);
     const [loadingFeatured, setLoadingFeatured] = useState(true);
+    const { animatedStyle } = useTrainingEntrance();
 
     useEffect(() => {
         let mounted = true;
@@ -111,51 +113,75 @@ export default function TrainingHubScreen() {
 
     return (
         <ScreenWrapper scrollable style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <View style={styles.pageHeader}>
-                <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                    Huấn luyện
-                </Text>
-                <Text style={[styles.heroAccent, { color: colors.primary }]}>chó nghiệp vụ</Text>
-                <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                    Khám phá phương pháp, bài tập và lộ trình huấn luyện theo từng mục tiêu làm việc.
-                </Text>
-            </View>
-
-            <View>
-            <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.featureCard}
-                onPress={onPressFeatured}
-            >
-                <Image source={featuredImage} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                <View style={styles.featureOverlay} />
-                <View style={styles.featureContent}>
-                    <View style={styles.programBadge}>
-                        <Text style={styles.programBadgeText}>LỘ TRÌNH NỔI BẬT</Text>
-                    </View>
-                    <Text style={styles.featureTitle} numberOfLines={2}>
-                        {featuredTitle}
+            <Animated.View style={animatedStyle}>
+                <View style={styles.pageHeader}>
+                    <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
+                        TRUNG TÂM HUẤN LUYỆN
                     </Text>
-                    <View style={styles.featureMetaRow}>
-                        {loadingFeatured ? <ActivityIndicator size="small" color="#E8F3EC" style={{ marginRight: 8 }} /> : null}
-                        <Text style={styles.featureMeta} numberOfLines={2}>
-                            {featuredMeta}
+                    <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                        Huấn luyện
+                    </Text>
+                    <Text style={[styles.heroAccent, { color: colors.primary }]}>chó nghiệp vụ</Text>
+                    <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                        Theo dõi bài tập, phương pháp và lộ trình theo cùng một nhịp huấn luyện trực quan, gọn và dễ mở rộng.
+                    </Text>
+                </View>
+
+                <View style={styles.statStrip}>
+                    <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : '#ECF4EF', borderColor: isDark ? colors.border : '#D6E4DA' }]}>
+                        <Text style={[styles.statValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{collections.length}</Text>
+                        <Text style={[styles.statLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Bộ sưu tập</Text>
+                    </View>
+                    <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : '#ECF4EF', borderColor: isDark ? colors.border : '#D6E4DA' }]}>
+                        <Text style={[styles.statValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                            {featuredRoadmap?.totalDurationWeeks || 0}
                         </Text>
+                        <Text style={[styles.statLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Tuần nổi bật</Text>
+                    </View>
+                    <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : '#ECF4EF', borderColor: isDark ? colors.border : '#D6E4DA' }]}>
+                        <Text style={[styles.statValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                            {featuredRoadmap ? 'Sẵn sàng' : 'Đang tải'}
+                        </Text>
+                        <Text style={[styles.statLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Trạng thái</Text>
                     </View>
                 </View>
-            </TouchableOpacity>
-            </View>
 
-            <Text style={[styles.sectionLabel, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
-                BỘ SƯU TẬP HUẤN LUYỆN
-            </Text>
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.featureCard}
+                    onPress={onPressFeatured}
+                >
+                    <Image source={featuredImage} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <View style={styles.featureOverlay} />
+                    <View style={styles.featureContent}>
+                        <View style={styles.programBadge}>
+                            <Text style={styles.programBadgeText}>LỘ TRÌNH NỔI BẬT</Text>
+                        </View>
+                        <Text style={styles.featureTitle} numberOfLines={2}>
+                            {featuredTitle}
+                        </Text>
+                        <View style={styles.featureMetaRow}>
+                            {loadingFeatured ? <ActivityIndicator size="small" color="#E8F3EC" style={{ marginRight: 8 }} /> : null}
+                            <Text style={styles.featureMeta} numberOfLines={2}>
+                                {featuredMeta}
+                            </Text>
+                        </View>
+                    </View>
+                </TouchableOpacity>
 
-            <View style={styles.collectionList}>
-                {collections.map((item) => (
-                    <View key={item.key}>
+                <Text style={[styles.sectionLabel, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
+                    BỘ SƯU TẬP HUẤN LUYỆN
+                </Text>
+
+                <View style={styles.collectionList}>
+                    {collections.map((item, index) => (
                         <TouchableOpacity
+                            key={item.key}
                             activeOpacity={0.85}
-                            style={styles.collectionCard}
+                            style={[
+                                styles.collectionCard,
+                                { transform: [{ translateY: index === 0 ? 0 : index * 2 }] },
+                            ]}
                             onPress={() => router.push(item.route as any)}
                         >
                             <Image source={item.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
@@ -170,9 +196,9 @@ export default function TrainingHubScreen() {
                                 </View>
                             </View>
                         </TouchableOpacity>
-                    </View>
-                ))}
-            </View>
+                    ))}
+                </View>
+            </Animated.View>
         </ScreenWrapper>
     );
 }
@@ -181,6 +207,12 @@ const styles = StyleSheet.create({
     pageHeader: {
         marginTop: spacing.md,
         marginBottom: spacing.md,
+    },
+    heroEyebrow: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 1.2,
+        marginBottom: spacing.xs,
     },
     heroTitle: {
         fontSize: 34,
@@ -200,6 +232,27 @@ const styles = StyleSheet.create({
         fontSize: fontSize.md,
         lineHeight: 22,
         maxWidth: 320,
+    },
+    statStrip: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    statCard: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: borderRadius.xl,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm + 2,
+    },
+    statValue: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    statLabel: {
+        marginTop: 2,
+        fontSize: 12,
+        fontWeight: '600',
     },
     featureCard: {
         height: 220,
