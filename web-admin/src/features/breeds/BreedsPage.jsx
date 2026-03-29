@@ -160,7 +160,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Submit breed for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt giống chó' });
     }
   };
 
@@ -173,7 +173,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Publish breed error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản giống chó' });
     }
   };
 
@@ -186,7 +186,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Unpublish breed error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản giống chó' });
     }
   };
 
@@ -218,7 +218,7 @@ const BreedsPage = () => {
       fetchData();
     } catch (err) {
       console.error('Update error:', err);
-      toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' });
+      toast.error(err, { title: 'Không thể cập nhật giống chó' });
     } finally {
       setSaving(false);
     }
@@ -233,7 +233,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Create error:', err);
-      toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' });
+      toast.error(err, { title: 'Không thể tạo giống chó mới' });
     } finally {
       setSaving(false);
     }

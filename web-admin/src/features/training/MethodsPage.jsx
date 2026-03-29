@@ -117,7 +117,7 @@ const MethodsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Submit method for review error:', err);
-            toast.error(err, { title: 'Không thể gửi duyệt' });
+            toast.error(err, { title: 'Không thể gửi duyệt phương pháp' });
         }
     };
 
@@ -130,7 +130,7 @@ const MethodsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Publish method error:', err);
-            toast.error(err, { title: 'Không thể xuất bản' });
+            toast.error(err, { title: 'Không thể xuất bản phương pháp' });
         }
     };
 
@@ -143,7 +143,7 @@ const MethodsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Unpublish method error:', err);
-            toast.error(err, { title: 'Không thể gỡ xuất bản' });
+            toast.error(err, { title: 'Không thể gỡ xuất bản phương pháp' });
         }
     };
 
@@ -170,7 +170,7 @@ const MethodsPage = () => {
     const handleEdit = async (formData) => {
         setSaving(true);
         try { await api.put(`/training-methods/${editItem.methodId}`, toMethodPayload(formData)); setEditItem(null); fetchData(); }
-        catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' }); }
+        catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật phương pháp' }); }
         finally { setSaving(false); }
     };
 
@@ -182,7 +182,7 @@ const MethodsPage = () => {
             setPage(0);
             await fetchData(0, pageSize);
         }
-        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
+        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo phương pháp mới' }); }
         finally { setSaving(false); }
     };
 
