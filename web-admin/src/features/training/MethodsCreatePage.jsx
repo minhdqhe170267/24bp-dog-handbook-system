@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateMethodForm } from '../../utils/formValidation';
 
 const defaultForm = {
   methodName: '',
@@ -45,8 +46,12 @@ const MethodsCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.methodName.trim()) {
-      toast.error('Vui lòng nhập tên phương pháp');
+    const errors = validateMethodForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin phương pháp chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -173,19 +178,19 @@ const MethodsCreatePage = () => {
       ]}
     >
       <FormField label="Tên phương pháp" required>
-        <FormInput value={formData.methodName} onChange={(e) => updateField('methodName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.methodName} onChange={(e) => updateField('methodName', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Hướng dẫn">
-        <FormTextarea rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
       </FormField>
       <FormField label="Ưu điểm">
-        <FormTextarea rows={2} value={formData.advantages} onChange={(e) => updateField('advantages', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.advantages} onChange={(e) => updateField('advantages', e.target.value)} />
       </FormField>
       <FormField label="Nhược điểm">
-        <FormTextarea rows={2} value={formData.disadvantages} onChange={(e) => updateField('disadvantages', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.disadvantages} onChange={(e) => updateField('disadvantages', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.TRAINING_METHOD}

@@ -322,7 +322,7 @@ const AuditLogsPage = () => {
         />
       </div>
 
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
         <div className="relative w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
@@ -333,7 +333,7 @@ const AuditLogsPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <FilterSelect
             value={actionTypeFilter}
             onChange={(value) => {
@@ -341,7 +341,7 @@ const AuditLogsPage = () => {
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
             options={actionTypeOptions}
-            className="w-[170px]"
+            className="w-[158px]"
           />
           <FilterSelect
             value={entityTypeFilter}
@@ -350,7 +350,7 @@ const AuditLogsPage = () => {
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
             options={entityTypeOptions}
-            className="w-[170px]"
+            className="w-[158px]"
           />
           <input
             type="date"
@@ -359,7 +359,7 @@ const AuditLogsPage = () => {
               setFromDate(event.target.value);
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
-            className="h-9 w-[150px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
+            className="h-9 w-[146px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
           />
           <input
             type="date"
@@ -368,7 +368,7 @@ const AuditLogsPage = () => {
               setToDate(event.target.value);
               setPagination((prev) => ({ ...prev, page: 0 }));
             }}
-            className="h-9 w-[150px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
+            className="h-9 w-[146px] px-3 border border-border/60 rounded-lg text-sm outline-none focus:border-accent/50 bg-background"
           />
         </div>
       </div>

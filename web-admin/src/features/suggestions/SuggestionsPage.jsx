@@ -9,6 +9,7 @@ import { useToast } from '../../components/ui/Toast';
 import { Button, FormTextarea, Modal } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { getSuggestionTypeLabel } from '../../utils/enumLabels';
 
 const suggestionStatusConfig = {
     PENDING: { label: 'Chờ xử lý', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30', dot: 'bg-amber-500 dark:bg-amber-400' },
@@ -69,7 +70,7 @@ const SuggestionsPage = () => {
                 !normalizedSearch || (item.title || '').toLowerCase().includes(normalizedSearch)
             ));
             const sortedRows = sortByNewest(filteredRows, {
-                timeKeys: ['updatedAt', 'updated_at', 'createdAt', 'created_at'],
+                timeKeys: ['reviewedAt', 'submittedAt', 'updatedAt', 'updated_at', 'createdAt', 'created_at'],
                 idKeys: ['suggestionId', 'id'],
             });
             const { pageRows, totalItems: safeTotal, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
@@ -140,10 +141,10 @@ const SuggestionsPage = () => {
 
     const columns = [
         { key: 'title', header: 'Tiêu đề', render: (r) => <span className="font-medium">{r.title || '-'}</span> },
-        { key: 'contentType', header: 'Loại nội dung', render: (r) => r.contentType || '-' },
+        { key: 'suggestionType', header: 'Loại đề xuất', render: (r) => getSuggestionTypeLabel(r.suggestionType || r.contentType) },
         { key: 'status', header: 'Trạng thái', render: (r) => renderSuggestionStatusBadge(r.status) },
-        { key: 'submitterName', header: 'Người gửi', render: (r) => r.submitterName || r.trainerName || '-' },
-        { key: 'createdAt', header: 'Ngày gửi', render: (r) => renderDateTimeCell(r.createdAt) },
+        { key: 'trainerName', header: 'Người gửi', render: (r) => r.trainerName || r.submitterName || '-' },
+        { key: 'submittedAt', header: 'Ngày gửi', render: (r) => renderDateTimeCell(r.submittedAt || r.createdAt) },
         {
             key: 'actions', header: 'Thao tác', render: (r) => (
                 <div className="flex items-center gap-1">
@@ -196,7 +197,7 @@ const SuggestionsPage = () => {
                 <div className="space-y-3">
                     <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                         <p className="text-sm font-medium text-foreground">{responseTarget?.title || '-'}</p>
-                        <p className="text-xs text-muted-foreground">Người gửi: {responseTarget?.submitterName || responseTarget?.trainerName || '-'}</p>
+                        <p className="text-xs text-muted-foreground">Người gửi: {responseTarget?.trainerName || responseTarget?.submitterName || '-'}</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1.5">

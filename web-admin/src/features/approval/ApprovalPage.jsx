@@ -257,7 +257,7 @@ const ApprovalPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Review error:', err);
-            toast.error(err, { title: 'Có lỗi xảy ra khi duyệt nội dung' });
+            toast.error(err, { title: 'Không thể xử lý duyệt hoặc từ chối nội dung' });
         } finally {
             setReviewSubmitting(false);
         }

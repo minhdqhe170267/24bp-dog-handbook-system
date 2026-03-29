@@ -9,6 +9,7 @@ import { normalizeApiError } from '../../services/apiError';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateBreedForm } from '../../utils/formValidation';
 
 const defaultForm = {
   breedName: '',
@@ -68,8 +69,12 @@ const BreedsCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.breedName.trim()) {
-      toast.error('Vui lòng nhập tên giống chó');
+    const errors = validateBreedForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin giống chó chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -203,10 +208,10 @@ const BreedsCreatePage = () => {
       ]}
     >
       <FormField label="Tên giống" required>
-        <FormInput value={formData.breedName} onChange={(e) => updateField('breedName', e.target.value)} />
+        <FormInput maxLength={100} value={formData.breedName} onChange={(e) => updateField('breedName', e.target.value)} />
       </FormField>
       <FormField label="Nguồn gốc">
-        <FormInput value={formData.origin} onChange={(e) => updateField('origin', e.target.value)} />
+        <FormInput maxLength={100} value={formData.origin} onChange={(e) => updateField('origin', e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Kích thước">
@@ -237,13 +242,13 @@ const BreedsCreatePage = () => {
         </FormField>
       </div>
       <FormField label="Tuổi thọ">
-        <FormInput value={formData.lifespanYears} onChange={(e) => updateField('lifespanYears', e.target.value)} />
+        <FormInput maxLength={20} value={formData.lifespanYears} onChange={(e) => updateField('lifespanYears', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Khả năng tác chiến">
-        <FormTextarea rows={3} value={formData.operationalCapabilities} onChange={(e) => updateField('operationalCapabilities', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.operationalCapabilities} onChange={(e) => updateField('operationalCapabilities', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.DOG_BREED}

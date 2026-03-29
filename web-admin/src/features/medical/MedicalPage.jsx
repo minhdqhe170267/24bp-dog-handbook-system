@@ -58,7 +58,7 @@ const SymptomListTab = () => {
     const fetchData = async () => {
       setLoading(true);
       try { const res = await symptomService.getAll(); setSymptoms(Array.isArray(res.data) ? res.data : res.data?.content || []); }
-      catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); }
+      catch (err) { toast.error(err, { title: 'Không thể tải dữ liệu y tế' }); }
       finally { setLoading(false); }
     };
     fetchData();
@@ -107,7 +107,7 @@ const SymptomCheckerTab = () => {
         const [sRes, bRes] = await Promise.all([symptomService.getAll(), breedService.getAll(0, 100)]);
         setSymptoms(Array.isArray(sRes.data) ? sRes.data : sRes.data?.content || []);
         setBreeds(bRes.data?.content || []);
-      } catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); }
+      } catch (err) { toast.error(err, { title: 'Không thể tải dữ liệu y tế' }); }
       finally { setLoading(false); }
     };
     loadData();
@@ -130,7 +130,7 @@ const SymptomCheckerTab = () => {
       const payload = { symptomIds: selectedSymptoms, ...(breedId && { breedId: Number(breedId) }), ...(ageMonths && { ageMonths: Number(ageMonths) }) };
       const res = await symptomService.check(payload);
       setResult(res.data);
-    } catch (err) { toast.error(err, { title: 'Lỗi kiểm tra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể phân tích triệu chứng' }); }
     finally { setCheckLoading(false); }
   };
 

@@ -330,7 +330,7 @@ const ContentCreatePage = () => {
 
                             {/* Rich Text Editor Area */}
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Nội dung chính</label>
+                                <label className="text-sm font-medium text-foreground">Nội dung chính <span className="text-destructive">*</span></label>
                                 <div className="border border-border rounded-lg overflow-hidden">
                                     {/* Toolbar */}
                                     <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-muted/30 flex-wrap">
