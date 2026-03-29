@@ -8,6 +8,7 @@ import { firstAidGuideService } from '../../services/firstAidGuideService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateFirstAidGuideForm } from '../../utils/formValidation';
 
 const defaultForm = {
   guideTitle: '',
@@ -49,8 +50,12 @@ const FirstAidGuidesCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.guideTitle.trim() || !formData.emergencyType.trim() || !formData.immediateSteps.trim()) {
-      toast.error('Vui lòng nhập đủ tiêu đề, loại tình huống và các bước xử lý ngay');
+    const errors = validateFirstAidGuideForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hướng dẫn sơ cứu chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -183,25 +188,25 @@ const FirstAidGuidesCreatePage = () => {
       ]}
     >
       <FormField label="Tiêu đề" required>
-        <FormInput value={formData.guideTitle} onChange={(e) => updateField('guideTitle', e.target.value)} />
+        <FormInput maxLength={200} value={formData.guideTitle} onChange={(e) => updateField('guideTitle', e.target.value)} />
       </FormField>
       <FormField label="Loại tình huống" required>
-        <FormInput value={formData.emergencyType} onChange={(e) => updateField('emergencyType', e.target.value)} />
+        <FormInput maxLength={100} value={formData.emergencyType} onChange={(e) => updateField('emergencyType', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Các bước xử lý ngay" required>
-        <FormTextarea rows={4} value={formData.immediateSteps} onChange={(e) => updateField('immediateSteps', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={4} value={formData.immediateSteps} onChange={(e) => updateField('immediateSteps', e.target.value)} />
       </FormField>
       <FormField label="Vật tư cần thiết">
-        <FormTextarea rows={2} value={formData.requiredMaterials} onChange={(e) => updateField('requiredMaterials', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.requiredMaterials} onChange={(e) => updateField('requiredMaterials', e.target.value)} />
       </FormField>
       <FormField label="Không nên làm">
-        <FormTextarea rows={2} value={formData.doNotActions} onChange={(e) => updateField('doNotActions', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.doNotActions} onChange={(e) => updateField('doNotActions', e.target.value)} />
       </FormField>
       <FormField label="Khi nào cần bác sĩ thú y">
-        <FormTextarea rows={2} value={formData.whenToSeekVet} onChange={(e) => updateField('whenToSeekVet', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={2} value={formData.whenToSeekVet} onChange={(e) => updateField('whenToSeekVet', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE}

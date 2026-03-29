@@ -48,7 +48,7 @@ const defaultForm = {
   dogName: '',
   breedId: '',
   gender: 'MALE',
-  dateOfBirth: '',
+  ageMonths: '',
   currentWeightKg: '',
   heightCm: '',
   color: '',
@@ -79,20 +79,30 @@ const normalizeGenderFilterValue = (value) => {
 
 const getGenderLabel = (value) => (normalizeGender(value) === 'FEMALE' ? 'Cái' : 'Đực');
 
-const toDateInput = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
-  }
-  const two = (num) => String(num).padStart(2, '0');
-  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
-};
-
 const toNullableNumber = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const toNullableInteger = (value) => {
+  if (value === '' || value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const formatLocalDate = (date) => {
+  const two = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+};
+
+const ageMonthsToDateOfBirth = (ageMonths) => {
+  if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+  baseDate.setMonth(baseDate.getMonth() - ageMonths);
+  return formatLocalDate(baseDate);
 };
 
 const getDateTimeParts = (value) => {
@@ -194,7 +204,7 @@ const DogsPage = () => {
     const payload = {
       dogName: formData.dogName?.trim() || null,
       breedId: Number(formData.breedId),
-      dateOfBirth: formData.dateOfBirth || null,
+      dateOfBirth: ageMonthsToDateOfBirth(toNullableInteger(formData.ageMonths)),
       currentWeightKg: toNullableNumber(formData.currentWeightKg),
       heightCm: toNullableNumber(formData.heightCm),
       color: formData.color?.trim() || null,
@@ -210,13 +220,20 @@ const DogsPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!formData.dogName?.trim()) {
+      toast.error('Vui lòng nhập tên chó');
+      return;
+    }
     if (!formData.breedId) {
       toast.error('Vui lòng chọn giống chó');
       return;
     }
+    if (toNullableInteger(formData.ageMonths) == null) {
+      toast.error('Vui lòng nhập tuổi theo tháng');
+      return;
+    }
 
     try {
-      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogService.update(editing.dogId, payload);
@@ -378,8 +395,8 @@ const DogsPage = () => {
       >
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <FormField label="Tên chó">
-              <FormInput value={formData.dogName} onChange={(event) => updateField('dogName', event.target.value)} />
+            <FormField label="Tên chó" required>
+              <FormInput maxLength={100} value={formData.dogName} onChange={(event) => updateField('dogName', event.target.value)} />
             </FormField>
             <FormField label="Giống chó" required>
               <FormSelect
@@ -395,8 +412,16 @@ const DogsPage = () => {
             <FormField label="Giới tính">
               <FormSelect value={formData.gender} onChange={(event) => updateField('gender', event.target.value)} options={genderOptions} />
             </FormField>
-            <FormField label="Ngày sinh">
-              <FormInput type="date" value={formData.dateOfBirth} onChange={(event) => updateField('dateOfBirth', event.target.value)} />
+            <FormField label="Tuổi (tháng)" required>
+              <FormInput
+                type="number"
+                min="0"
+                max="240"
+                step="1"
+                value={formData.ageMonths}
+                onChange={(event) => updateField('ageMonths', event.target.value)}
+                placeholder="Nhập số tháng tuổi"
+              />
             </FormField>
             <FormField label="Trạng thái">
               <FormSelect value={formData.status} onChange={(event) => updateField('status', event.target.value)} options={statusOptions} />
@@ -405,24 +430,24 @@ const DogsPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Cân nặng (kg)">
-              <FormInput type="number" min="0" step="0.01" value={formData.currentWeightKg} onChange={(event) => updateField('currentWeightKg', event.target.value)} />
+              <FormInput type="number" min="0" max="200" step="0.01" value={formData.currentWeightKg} onChange={(event) => updateField('currentWeightKg', event.target.value)} />
             </FormField>
             <FormField label="Chiều cao (cm)">
-              <FormInput type="number" min="0" step="0.01" value={formData.heightCm} onChange={(event) => updateField('heightCm', event.target.value)} />
+              <FormInput type="number" min="0" max="200" step="0.01" value={formData.heightCm} onChange={(event) => updateField('heightCm', event.target.value)} />
             </FormField>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Màu lông">
-              <FormInput value={formData.color} onChange={(event) => updateField('color', event.target.value)} />
+              <FormInput maxLength={100} value={formData.color} onChange={(event) => updateField('color', event.target.value)} />
             </FormField>
             <FormField label="Microchip ID">
-              <FormInput value={formData.microchipId} onChange={(event) => updateField('microchipId', event.target.value)} />
+              <FormInput maxLength={50} value={formData.microchipId} onChange={(event) => updateField('microchipId', event.target.value)} />
             </FormField>
           </div>
 
           <FormField label="Ghi chú">
-            <FormTextarea rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
+            <FormTextarea maxLength={5000} rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
           </FormField>
         </form>
       </Modal>

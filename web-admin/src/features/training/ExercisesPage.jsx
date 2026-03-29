@@ -134,7 +134,7 @@ const ExercisesPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Submit exercise for review error:', err);
-            toast.error(err, { title: 'Không thể gửi duyệt' });
+            toast.error(err, { title: 'Không thể gửi duyệt bài tập' });
         }
     };
 
@@ -147,7 +147,7 @@ const ExercisesPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Publish exercise error:', err);
-            toast.error(err, { title: 'Không thể xuất bản' });
+            toast.error(err, { title: 'Không thể xuất bản bài tập' });
         }
     };
 
@@ -160,7 +160,7 @@ const ExercisesPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Unpublish exercise error:', err);
-            toast.error(err, { title: 'Không thể gỡ xuất bản' });
+            toast.error(err, { title: 'Không thể gỡ xuất bản bài tập' });
         }
     };
 
@@ -187,7 +187,7 @@ const ExercisesPage = () => {
     const handleEdit = async (formData) => {
         setSaving(true);
         try { await api.put(`/exercises/${editItem.exerciseId}`, toExercisePayload(formData)); setEditItem(null); fetchData(); }
-        catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' }); }
+        catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật bài tập' }); }
         finally { setSaving(false); }
     };
 
@@ -199,7 +199,7 @@ const ExercisesPage = () => {
             setPage(0);
             await fetchData(0, pageSize);
         }
-        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
+        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo bài tập mới' }); }
         finally { setSaving(false); }
     };
 
@@ -237,7 +237,7 @@ const ExercisesPage = () => {
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/TRAINING_EXERCISE/${getExerciseId(r)}`)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
                     {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/exercises/${getExerciseId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getExerciseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
+                    {canDelete && getStatus(r) === 'DRAFT' && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getExerciseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
                     {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
                             <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
@@ -305,4 +305,5 @@ const ExercisesPage = () => {
 };
 
 export default ExercisesPage;
+
 

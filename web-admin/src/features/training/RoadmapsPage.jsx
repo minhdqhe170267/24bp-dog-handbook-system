@@ -129,7 +129,7 @@ const RoadmapsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Submit roadmap for review error:', err);
-            toast.error(err, { title: 'Không thể gửi duyệt' });
+            toast.error(err, { title: 'Không thể gửi duyệt lộ trình' });
         }
     };
 
@@ -142,7 +142,7 @@ const RoadmapsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Publish roadmap error:', err);
-            toast.error(err, { title: 'Không thể xuất bản' });
+            toast.error(err, { title: 'Không thể xuất bản lộ trình' });
         }
     };
 
@@ -155,7 +155,7 @@ const RoadmapsPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Unpublish roadmap error:', err);
-            toast.error(err, { title: 'Không thể gỡ xuất bản' });
+            toast.error(err, { title: 'Không thể gỡ xuất bản lộ trình' });
         }
     };
 
@@ -187,7 +187,7 @@ const RoadmapsPage = () => {
             setPage(0);
             await fetchData(0, pageSize);
         }
-        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
+        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo lộ trình mới' }); }
         finally { setSaving(false); }
     };
 
@@ -232,7 +232,7 @@ const RoadmapsPage = () => {
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem chi tiết" onClick={() => navigate(`/details/TRAINING_ROADMAP/${getRoadmapId(r)}`)}><Eye className="h-4 w-4" /></button>
                     <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
                     {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/roadmaps/${getRoadmapId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-                    {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getRoadmapId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
+                    {canDelete && getStatus(r) === 'DRAFT' && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getRoadmapId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
                     {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
                         <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
                             <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
@@ -300,4 +300,5 @@ const RoadmapsPage = () => {
 };
 
 export default RoadmapsPage;
+
 

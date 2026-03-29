@@ -8,6 +8,7 @@ import { diseaseService } from '../../services/diseaseService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateDiseaseForm } from '../../utils/formValidation';
 
 const defaultForm = {
   diseaseName: '',
@@ -49,8 +50,12 @@ const DiseasesCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.diseaseName.trim()) {
-      toast.error('Vui lòng nhập tên bệnh');
+    const errors = validateDiseaseForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin bệnh chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -179,7 +184,7 @@ const DiseasesCreatePage = () => {
       ]}
     >
       <FormField label="Tên bệnh" required>
-        <FormInput value={formData.diseaseName} onChange={(e) => updateField('diseaseName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.diseaseName} onChange={(e) => updateField('diseaseName', e.target.value)} />
       </FormField>
       <FormField label="Mức độ">
         <FormSelect
@@ -195,16 +200,16 @@ const DiseasesCreatePage = () => {
         />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Triệu chứng">
-        <FormTextarea rows={3} value={formData.commonSymptoms} onChange={(e) => updateField('commonSymptoms', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.commonSymptoms} onChange={(e) => updateField('commonSymptoms', e.target.value)} />
       </FormField>
       <FormField label="Điều trị">
-        <FormTextarea rows={3} value={formData.treatment} onChange={(e) => updateField('treatment', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.treatment} onChange={(e) => updateField('treatment', e.target.value)} />
       </FormField>
       <FormField label="Phòng ngừa">
-        <FormTextarea rows={3} value={formData.preventionMethods} onChange={(e) => updateField('preventionMethods', e.target.value)} />
+        <FormTextarea maxLength={5000} rows={3} value={formData.preventionMethods} onChange={(e) => updateField('preventionMethods', e.target.value)} />
       </FormField>
       <FormField label="Lây nhiễm">
         <FormSwitch checked={formData.isContagious} onChange={(value) => updateField('isContagious', value)} />

@@ -69,6 +69,12 @@ const REVIEW_APPROVAL_ENTITY_TYPES = new Set([
   'FIRST_AID_GUIDE',
 ]);
 
+const APPROVAL_REVIEW_NOTIFICATION_TYPES = new Set([
+  'CONTENT_APPROVED',
+  'CONTENT_REJECTED',
+  'CONTENT_REVISION_REQUESTED',
+]);
+
 const toLabel = (value) =>
   String(value || '')
     .toLowerCase()
@@ -135,6 +141,35 @@ export const resolveNotificationRoute = (notification, options = {}) => {
   }
 
   return TYPE_FALLBACK_ROUTE_MAP[type] || '/dashboard';
+};
+
+export const getNotificationFeedbackMeta = (notification) => {
+  const type = String(notification?.type || '').trim().toUpperCase();
+  const entityType = String(notification?.entityType || '').trim().toUpperCase();
+  const entityId = Number(notification?.entityId);
+
+  if (!Number.isFinite(entityId) || entityId <= 0) return null;
+
+  if (APPROVAL_REVIEW_NOTIFICATION_TYPES.has(type)) {
+    if (!entityType) return null;
+    return {
+      key: `APPROVAL:${entityType}:${entityId}`,
+      source: 'approval',
+      entityType,
+      entityId,
+    };
+  }
+
+  if (type === 'SUGGESTION_REVIEWED') {
+    return {
+      key: `SUGGESTION:${entityId}`,
+      source: 'suggestion',
+      entityType,
+      entityId,
+    };
+  }
+
+  return null;
 };
 
 const MINUTE_MS = 60 * 1000;

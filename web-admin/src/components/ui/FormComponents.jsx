@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../utils/utils';
@@ -49,16 +49,34 @@ const Modal = ({ open, onClose, title, children, footer, width = 600 }) => {
     );
 };
 
-const FormField = ({ label, required, error, children }) => (
-    <div className="mb-4">
-        <label className="block text-sm font-medium mb-1.5 text-foreground">
-            {label}
-            {required && <span className="text-destructive ml-0.5">*</span>}
-        </label>
-        {children}
-        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-    </div>
-);
+const FormField = ({ label, required, error, children }) => {
+    const isStringLabel = typeof label === 'string';
+    const hasTrailingAsterisk = isStringLabel && /\*\s*$/.test(label.trim());
+    const normalizedLabel = hasTrailingAsterisk ? label.replace(/\s*\*\s*$/, '') : label;
+    const showRequired = Boolean(required || hasTrailingAsterisk);
+    const firstChildWithProps = Children.toArray(children).find((child) => isValidElement(child));
+    const rawMaxLength = firstChildWithProps && isValidElement(firstChildWithProps) ? firstChildWithProps.props?.maxLength : null;
+    const maxLengthHint =
+        Number.isFinite(Number(rawMaxLength)) && Number(rawMaxLength) > 0
+            ? Number(rawMaxLength)
+            : null;
+
+    return (
+        <div className="mb-4">
+            <label className="block text-sm font-medium mb-1.5 text-foreground">
+                <span>{normalizedLabel}</span>
+                {showRequired && <span className="text-destructive ml-0.5">*</span>}
+                {maxLengthHint ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        (tối đa {maxLengthHint} ký tự)
+                    </span>
+                ) : null}
+            </label>
+            {children}
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+        </div>
+    );
+};
 
 const FormInput = ({ className = '', ...props }) => (
     <input

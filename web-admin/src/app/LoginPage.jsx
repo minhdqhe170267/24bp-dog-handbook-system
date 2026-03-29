@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { normalizeApiError } from '../services/apiError';
-import { Dog, Loader2, AlertCircle, Shield, Eye, EyeOff, User, Lock, ChevronRight } from 'lucide-react';
+import { Dog, Loader2, AlertCircle, Eye, EyeOff, User, Lock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function FloatingParticle({ delay, size, x, y }) {
@@ -97,25 +97,6 @@ const LoginPage = () => {
             </p>
           </motion.div>
 
-          <motion.div className="flex gap-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6, duration: 0.6 }}>
-            {[
-              { icon: Shield, label: 'Bảo mật cao', desc: 'JWT & RBAC' },
-              { icon: Dog, label: '4 vai trò', desc: 'Phân quyền rõ ràng' },
-            ].map((item, i) => {
-              const Icon = item.icon;
-              return (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <Icon className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-primary-foreground">{item.label}</p>
-                    <p className="text-xs text-primary-foreground/40">{item.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </motion.div>
         </div>
       </motion.div>
 
@@ -170,6 +151,8 @@ const LoginPage = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Nhập tên đăng nhập"
+                  minLength={3}
+                  maxLength={50}
                   autoFocus
                   className="w-full h-11 pl-10 bg-muted/50 border border-border/60 rounded-lg text-sm outline-none focus:bg-card focus:border-accent/40 transition-colors"
                 />
@@ -186,6 +169,8 @@ const LoginPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Nhập mật khẩu"
+                  minLength={6}
+                  maxLength={100}
                   className="w-full h-11 pl-10 pr-10 bg-muted/50 border border-border/60 rounded-lg text-sm outline-none focus:bg-card focus:border-accent/40 transition-colors"
                 />
                 <button
