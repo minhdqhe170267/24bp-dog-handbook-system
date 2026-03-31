@@ -11,7 +11,17 @@ public interface RoadmapExerciseRepository extends JpaRepository<RoadmapExercise
 
     @Query("SELECT re FROM RoadmapExercise re "
             + "JOIN FETCH re.trainingExercise te "
-            + "WHERE re.trainingRoadmap.roadmapId = :roadmapId "
+            + "JOIN FETCH re.trainingPhase tp "
+            + "WHERE tp.phaseId = :phaseId "
             + "ORDER BY re.exerciseOrder")
-    List<RoadmapExercise> findByRoadmapRoadmapIdOrderByExerciseOrder(@Param("roadmapId") Integer roadmapId);
+    List<RoadmapExercise> findByTrainingPhasePhaseIdOrderByExerciseOrder(@Param("phaseId") Integer phaseId);
+
+    @Query("SELECT re FROM RoadmapExercise re "
+            + "JOIN FETCH re.trainingExercise te "
+            + "JOIN FETCH re.trainingPhase tp "
+            + "JOIN FETCH tp.trainingRoadmap tr "
+            + "WHERE tr.roadmapId = :roadmapId "
+            + "AND tp.isDeleted = false "
+            + "ORDER BY tp.phaseOrder, re.exerciseOrder")
+    List<RoadmapExercise> findByRoadmapRoadmapIdOrderByPhaseOrderAndExerciseOrder(@Param("roadmapId") Integer roadmapId);
 }

@@ -56,6 +56,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.DELETE, "/media/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
+                        .requestMatchers(HttpMethod.GET, "/enrollments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.POST, "/enrollments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.PUT, "/enrollments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.DELETE, "/enrollments/**").hasAnyRole("ADMIN", "TRAINER")
+
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.POST, "/breeds/compare").authenticated()

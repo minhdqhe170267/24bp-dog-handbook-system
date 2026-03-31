@@ -16,4 +16,6 @@ public interface TrainingMethodRepository extends JpaRepository<TrainingMethod, 
     Page<TrainingMethod> findByMethodNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
 
     Optional<TrainingMethod> findByMethodIdAndIsDeletedFalse(Integer methodId);
+
+    Optional<TrainingMethod> findByMethodNameIgnoreCaseAndIsDeletedFalse(String methodName);
 }

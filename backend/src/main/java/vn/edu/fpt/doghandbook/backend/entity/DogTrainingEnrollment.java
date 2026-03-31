@@ -18,62 +18,55 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.SQLRestriction;
-import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.EnrollmentStatus;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "training_program")
+@Table(name = "dog_training_enrollment")
 @SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TrainingRoadmap {
+public class DogTrainingEnrollment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "roadmap_id")
-    private Integer roadmapId;
-
-    @Column(name = "roadmap_name", nullable = false)
-    private String roadmapName;
+    @Column(name = "enrollment_id")
+    private Integer enrollmentId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "breed_id", nullable = true)
-    private DogBreed dogBreed;
+    @JoinColumn(name = "dog_id", nullable = false)
+    private DogProfile dogProfile;
 
-    @Column(name = "target_role", nullable = true)
-    private String targetRole;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "roadmap_id", nullable = false)
+    private TrainingRoadmap trainingRoadmap;
 
-    @Column(name = "description", nullable = true)
-    private String description;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_trainer_id", nullable = false)
+    private User assignedTrainer;
 
-    @Column(name = "total_duration_weeks", nullable = true)
-    private Integer totalDurationWeeks;
+    @Builder.Default
+    @Column(name = "current_phase", nullable = false)
+    private Integer currentPhase = 1;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private ContentStatus status = ContentStatus.DRAFT;
+    private EnrollmentStatus status = EnrollmentStatus.ENROLLED;
 
-    @Column(name = "published_at", nullable = true)
-    private LocalDateTime publishedAt;
+    @Column(name = "enrolled_at", nullable = false, updatable = false)
+    private LocalDateTime enrolledAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", nullable = true)
-    @NotFound(action = NotFoundAction.IGNORE)
-    private User createdBy;
+    @Column(name = "completed_at", nullable = true)
+    private LocalDateTime completedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "notes", nullable = true)
+    private String notes;
 
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
@@ -82,14 +75,24 @@ public class TrainingRoadmap {
     @Column(name = "deleted_at", nullable = true)
     private LocalDateTime deletedAt;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
+        this.enrolledAt = this.enrolledAt == null ? now : this.enrolledAt;
         this.createdAt = now;
         this.updatedAt = now;
 
+        if (this.currentPhase == null || this.currentPhase <= 0) {
+            this.currentPhase = 1;
+        }
         if (this.status == null) {
-            this.status = ContentStatus.DRAFT;
+            this.status = EnrollmentStatus.ENROLLED;
         }
         if (this.isDeleted == null) {
             this.isDeleted = false;
