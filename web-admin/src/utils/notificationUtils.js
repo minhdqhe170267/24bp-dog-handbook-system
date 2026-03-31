@@ -25,6 +25,8 @@ const TYPE_FALLBACK_ROUTE_MAP = {
   CONTENT_UNPUBLISHED: '/content',
   SUGGESTION_SUBMITTED: '/suggestions',
   SUGGESTION_REVIEWED: '/suggestions',
+  SYNC_CONFLICT: '/sync-conflicts',
+  REPEATED_SYNC_FAILURE: '/sync-conflicts',
 };
 
 const TYPE_LABEL_MAP = {
@@ -36,6 +38,8 @@ const TYPE_LABEL_MAP = {
   CONTENT_UNPUBLISHED: 'Gỡ xuất bản',
   SUGGESTION_SUBMITTED: 'Đề xuất mới',
   SUGGESTION_REVIEWED: 'Đã phản hồi',
+  SYNC_CONFLICT: 'Xung đột đồng bộ',
+  REPEATED_SYNC_FAILURE: 'Lỗi đồng bộ lặp lại',
 };
 
 const ENTITY_LABEL_MAP = {
@@ -121,6 +125,9 @@ export const resolveNotificationRoute = (notification, options = {}) => {
   const entityType = String(notification?.entityType || '').toUpperCase();
   const entityId = Number(notification?.entityId) || null;
   const type = String(notification?.type || '').toUpperCase();
+  if (type === 'SYNC_CONFLICT' || type === 'REPEATED_SYNC_FAILURE') {
+    return '/sync-conflicts';
+  }
   const returnContext = resolveReturnContext({
     entityType,
     type,
