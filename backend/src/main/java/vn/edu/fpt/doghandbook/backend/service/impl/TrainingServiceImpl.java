@@ -1,6 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service.impl;
 
-    import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.fpt.doghandbook.backend.dto.request.TrainingExerciseRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.TrainingMethodRequest;
+import vn.edu.fpt.doghandbook.backend.dto.request.TrainingPhaseRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.TrainingRoadmapRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.TrainingExerciseResponse;
@@ -19,6 +20,7 @@ import vn.edu.fpt.doghandbook.backend.entity.DogBreed;
 import vn.edu.fpt.doghandbook.backend.entity.RoadmapExercise;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingExercise;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingMethod;
+import vn.edu.fpt.doghandbook.backend.entity.TrainingPhase;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingRoadmap;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
@@ -26,16 +28,27 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.DifficultyLevel;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DogTrainingEnrollmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.RoadmapExerciseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.TrainingExerciseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.TrainingMethodRepository;
+import vn.edu.fpt.doghandbook.backend.repository.TrainingPhaseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.TrainingRoadmapRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.TrainingService;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,9 +60,11 @@ public class TrainingServiceImpl implements TrainingService {
     private final TrainingMethodRepository trainingMethodRepository;
     private final TrainingExerciseRepository trainingExerciseRepository;
     private final TrainingRoadmapRepository trainingRoadmapRepository;
+    private final TrainingPhaseRepository trainingPhaseRepository;
     private final RoadmapExerciseRepository roadmapExerciseRepository;
     private final DogBreedRepository dogBreedRepository;
     private final UserRepository userRepository;
+    private final DogTrainingEnrollmentRepository dogTrainingEnrollmentRepository;
 
     @Override
     public PageResponse<TrainingMethodResponse> getAllMethods(int page, int size, String search) {
@@ -174,15 +189,20 @@ public class TrainingServiceImpl implements TrainingService {
     public PageResponse<TrainingRoadmapResponse> getAllRoadmaps(int page, int size) {
         Pageable pageable = buildPageable(page, size);
         Page<TrainingRoadmap> entityPage = trainingRoadmapRepository.findByIsDeletedFalse(pageable);
-        return toRoadmapPageResponse(entityPage);
+        Page<TrainingRoadmapResponse> dtoPage = entityPage.map(this::toRoadmapSummaryResponse);
+        return PageResponse.<TrainingRoadmapResponse>builder()
+                .content(dtoPage.getContent())
+                .page(dtoPage.getNumber())
+                .size(dtoPage.getSize())
+                .totalElements(dtoPage.getTotalElements())
+                .totalPages(dtoPage.getTotalPages())
+                .build();
     }
 
     @Override
     public TrainingRoadmapResponse getRoadmapById(Integer id) {
         TrainingRoadmap entity = getActiveRoadmapById(id);
-        List<RoadmapExercise> exercises = roadmapExerciseRepository
-                .findByRoadmapRoadmapIdOrderByExerciseOrder(entity.getRoadmapId());
-        return toRoadmapResponse(entity, exercises);
+        return toRoadmapDetailResponse(entity);
     }
 
     @Override
@@ -194,7 +214,10 @@ public class TrainingServiceImpl implements TrainingService {
         entity.setStatus(ContentStatus.DRAFT);
         entity.setIsDeleted(false);
         entity.setDeletedAt(null);
-        return toRoadmapResponse(trainingRoadmapRepository.save(entity), List.of());
+        TrainingRoadmap saved = trainingRoadmapRepository.save(entity);
+
+        persistPhases(saved, normalizePhaseRequests(request));
+        return toRoadmapDetailResponse(saved);
     }
 
     @Override
@@ -204,11 +227,17 @@ public class TrainingServiceImpl implements TrainingService {
         if (entity.getStatus() == ContentStatus.PUBLISHED) {
             throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi sửa");
         }
+        if (dogTrainingEnrollmentRepository.existsByTrainingRoadmapRoadmapIdAndIsDeletedFalse(id)) {
+            throw new BadRequestException("Không thể sửa cấu trúc lộ trình đã có chó ghi danh");
+        }
+
         applyRoadmapRequest(entity, request);
         if (entity.getStatus() == ContentStatus.REJECTED) {
             entity.setStatus(ContentStatus.DRAFT);
         }
-        return toRoadmapResponse(trainingRoadmapRepository.save(entity), List.of());
+        TrainingRoadmap saved = trainingRoadmapRepository.save(entity);
+        replacePhases(saved, normalizePhaseRequests(request));
+        return toRoadmapDetailResponse(saved);
     }
 
     @Override
@@ -218,9 +247,22 @@ public class TrainingServiceImpl implements TrainingService {
         if (entity.getStatus() == ContentStatus.PUBLISHED) {
             throw new BadRequestException("Nội dung đã xuất bản phải gỡ xuất bản trước khi xóa");
         }
+        if (dogTrainingEnrollmentRepository.existsByTrainingRoadmapRoadmapIdAndIsDeletedFalse(id)) {
+            throw new BadRequestException("Không thể xóa lộ trình đã có chó ghi danh");
+        }
+
         entity.setIsDeleted(true);
         entity.setDeletedAt(LocalDateTime.now());
         trainingRoadmapRepository.save(entity);
+
+        List<TrainingPhase> phases = trainingPhaseRepository
+                .findByTrainingRoadmapRoadmapIdAndIsDeletedFalseOrderByPhaseOrderAsc(id);
+        LocalDateTime now = LocalDateTime.now();
+        for (TrainingPhase phase : phases) {
+            phase.setIsDeleted(true);
+            phase.setDeletedAt(now);
+        }
+        trainingPhaseRepository.saveAll(phases);
     }
 
     private Pageable buildPageable(int page, int size) {
@@ -337,14 +379,115 @@ public class TrainingServiceImpl implements TrainingService {
         entity.setTargetRole(trimToNull(request.getTargetRole()));
         entity.setDescription(trimToNull(request.getDescription()));
         entity.setTotalDurationWeeks(request.getTotalDurationWeeks());
-        entity.setPhaseName(normalizeRequired(request.getPhaseName(), "phaseName"));
-        if (request.getPhaseOrder() == null) {
-            throw new IllegalArgumentException("phaseOrder is required");
+    }
+
+    private List<TrainingPhaseRequest> normalizePhaseRequests(TrainingRoadmapRequest request) {
+        List<TrainingPhaseRequest> requests = new ArrayList<>();
+        if (request.getPhases() != null && !request.getPhases().isEmpty()) {
+            requests.addAll(request.getPhases());
+        } else if (request.getPhaseName() != null || request.getPhaseOrder() != null) {
+            TrainingPhaseRequest phaseRequest = new TrainingPhaseRequest();
+            phaseRequest.setPhaseName(request.getPhaseName());
+            phaseRequest.setPhaseOrder(request.getPhaseOrder());
+            phaseRequest.setPhaseDurationWeeks(request.getPhaseDurationWeeks());
+            phaseRequest.setPhaseObjectives(request.getPhaseObjectives());
+            phaseRequest.setAssessmentCriteria(request.getAssessmentCriteria());
+            phaseRequest.setExerciseIds(request.getExerciseIds());
+            requests.add(phaseRequest);
         }
-        entity.setPhaseOrder(request.getPhaseOrder());
-        entity.setPhaseDurationWeeks(request.getPhaseDurationWeeks());
-        entity.setPhaseObjectives(trimToNull(request.getPhaseObjectives()));
-        entity.setAssessmentCriteria(trimToNull(request.getAssessmentCriteria()));
+
+        if (requests.isEmpty()) {
+            throw new IllegalArgumentException("At least one phase is required");
+        }
+
+        requests.sort(Comparator.comparing(TrainingPhaseRequest::getPhaseOrder, Comparator.nullsLast(Integer::compareTo)));
+
+        Set<Integer> seenOrders = new LinkedHashSet<>();
+        Set<Integer> seenExercises = new LinkedHashSet<>();
+        for (TrainingPhaseRequest phaseRequest : requests) {
+            String phaseName = trimToNull(phaseRequest.getPhaseName());
+            if (phaseName == null) {
+                throw new IllegalArgumentException("phaseName is required");
+            }
+            phaseRequest.setPhaseName(phaseName);
+            if (phaseRequest.getPhaseOrder() == null || phaseRequest.getPhaseOrder() <= 0) {
+                throw new IllegalArgumentException("phaseOrder is required");
+            }
+            if (!seenOrders.add(phaseRequest.getPhaseOrder())) {
+                throw new BadRequestException("Thứ tự giai đoạn không được trùng");
+            }
+            phaseRequest.setPhaseObjectives(trimToNull(phaseRequest.getPhaseObjectives()));
+            phaseRequest.setAssessmentCriteria(trimToNull(phaseRequest.getAssessmentCriteria()));
+
+            List<Integer> exerciseIds = phaseRequest.getExerciseIds();
+            if (exerciseIds == null || exerciseIds.isEmpty()) {
+                continue;
+            }
+            for (Integer exerciseId : exerciseIds) {
+                if (exerciseId == null || exerciseId <= 0) {
+                    throw new BadRequestException("exerciseIds phải chứa giá trị > 0");
+                }
+                if (!seenExercises.add(exerciseId)) {
+                    throw new BadRequestException("Mỗi bài tập chỉ được xuất hiện một lần trong lộ trình");
+                }
+            }
+        }
+        return requests;
+    }
+
+    @Transactional
+    protected void persistPhases(TrainingRoadmap roadmap, List<TrainingPhaseRequest> phaseRequests) {
+        for (TrainingPhaseRequest phaseRequest : phaseRequests) {
+            TrainingPhase phase = TrainingPhase.builder()
+                    .trainingRoadmap(roadmap)
+                    .roadmapName(roadmap.getRoadmapName())
+                    .targetRole(roadmap.getTargetRole())
+                    .description(roadmap.getDescription())
+                    .totalDurationWeeks(roadmap.getTotalDurationWeeks())
+                    .phaseName(phaseRequest.getPhaseName())
+                    .phaseOrder(phaseRequest.getPhaseOrder())
+                    .phaseDurationWeeks(phaseRequest.getPhaseDurationWeeks())
+                    .phaseObjectives(phaseRequest.getPhaseObjectives())
+                    .assessmentCriteria(phaseRequest.getAssessmentCriteria())
+                    .status(roadmap.getStatus())
+                    .publishedAt(roadmap.getPublishedAt())
+                    .isDeleted(false)
+                    .build();
+            TrainingPhase savedPhase = trainingPhaseRepository.save(phase);
+            persistRoadmapExercises(savedPhase, phaseRequest.getExerciseIds());
+        }
+    }
+
+    @Transactional
+    protected void replacePhases(TrainingRoadmap roadmap, List<TrainingPhaseRequest> phaseRequests) {
+        List<TrainingPhase> existingPhases = trainingPhaseRepository
+                .findByTrainingRoadmapRoadmapIdAndIsDeletedFalseOrderByPhaseOrderAsc(roadmap.getRoadmapId());
+        for (TrainingPhase existingPhase : existingPhases) {
+            List<RoadmapExercise> exercises = roadmapExerciseRepository
+                    .findByTrainingPhasePhaseIdOrderByExerciseOrder(existingPhase.getPhaseId());
+            roadmapExerciseRepository.deleteAll(exercises);
+        }
+        trainingPhaseRepository.deleteAll(existingPhases);
+        persistPhases(roadmap, phaseRequests);
+    }
+
+    private void persistRoadmapExercises(TrainingPhase phase, List<Integer> exerciseIds) {
+        if (exerciseIds == null || exerciseIds.isEmpty()) {
+            return;
+        }
+
+        List<RoadmapExercise> entities = new ArrayList<>();
+        int order = 1;
+        for (Integer exerciseId : exerciseIds) {
+            TrainingExercise exercise = getActiveExerciseById(exerciseId);
+            entities.add(RoadmapExercise.builder()
+                    .trainingPhase(phase)
+                    .trainingExercise(exercise)
+                    .exerciseOrder(order++)
+                    .isMandatory(true)
+                    .build());
+        }
+        roadmapExerciseRepository.saveAll(entities);
     }
 
     private PageResponse<TrainingMethodResponse> toMethodPageResponse(Page<TrainingMethod> entityPage) {
@@ -361,17 +504,6 @@ public class TrainingServiceImpl implements TrainingService {
     private PageResponse<TrainingExerciseResponse> toExercisePageResponse(Page<TrainingExercise> entityPage) {
         Page<TrainingExerciseResponse> dtoPage = entityPage.map(this::toExerciseResponse);
         return PageResponse.<TrainingExerciseResponse>builder()
-                .content(dtoPage.getContent())
-                .page(dtoPage.getNumber())
-                .size(dtoPage.getSize())
-                .totalElements(dtoPage.getTotalElements())
-                .totalPages(dtoPage.getTotalPages())
-                .build();
-    }
-
-    private PageResponse<TrainingRoadmapResponse> toRoadmapPageResponse(Page<TrainingRoadmap> entityPage) {
-        Page<TrainingRoadmapResponse> dtoPage = entityPage.map(entity -> toRoadmapResponse(entity, List.of()));
-        return PageResponse.<TrainingRoadmapResponse>builder()
                 .content(dtoPage.getContent())
                 .page(dtoPage.getNumber())
                 .size(dtoPage.getSize())
@@ -420,9 +552,41 @@ public class TrainingServiceImpl implements TrainingService {
                 .build();
     }
 
-    private TrainingRoadmapResponse toRoadmapResponse(TrainingRoadmap entity, List<RoadmapExercise> exercises) {
+    private TrainingRoadmapResponse toRoadmapSummaryResponse(TrainingRoadmap entity) {
+        List<TrainingPhase> phases = trainingPhaseRepository
+                .findByTrainingRoadmapRoadmapIdAndIsDeletedFalseOrderByPhaseOrderAsc(entity.getRoadmapId());
+        return toRoadmapResponse(entity, phases, Map.of(), false);
+    }
+
+    private TrainingRoadmapResponse toRoadmapDetailResponse(TrainingRoadmap entity) {
+        List<TrainingPhase> phases = trainingPhaseRepository
+                .findByTrainingRoadmapRoadmapIdAndIsDeletedFalseOrderByPhaseOrderAsc(entity.getRoadmapId());
+        List<RoadmapExercise> roadmapExercises = roadmapExerciseRepository
+                .findByRoadmapRoadmapIdOrderByPhaseOrderAndExerciseOrder(entity.getRoadmapId());
+        Map<Integer, List<RoadmapExercise>> exercisesByPhase = roadmapExercises.stream()
+                .collect(Collectors.groupingBy(re -> re.getTrainingPhase().getPhaseId(), LinkedHashMap::new, Collectors.toList()));
+        return toRoadmapResponse(entity, phases, exercisesByPhase, true);
+    }
+
+    private TrainingRoadmapResponse toRoadmapResponse(
+            TrainingRoadmap entity,
+            List<TrainingPhase> phases,
+            Map<Integer, List<RoadmapExercise>> exercisesByPhase,
+            boolean includePhases
+    ) {
         DogBreed breed = entity.getDogBreed();
         User createdBy = entity.getCreatedBy();
+        TrainingPhase firstPhase = phases.isEmpty() ? null : phases.get(0);
+        List<TrainingRoadmapResponse.TrainingPhaseItem> phaseItems = includePhases
+                ? toPhaseItems(phases, exercisesByPhase)
+                : List.of();
+        List<TrainingRoadmapResponse.RoadmapExerciseItem> flattenedExercises = includePhases
+                ? phaseItems.stream()
+                .map(TrainingRoadmapResponse.TrainingPhaseItem::getExercises)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .toList()
+                : List.of();
 
         return TrainingRoadmapResponse.builder()
                 .roadmapId(entity.getRoadmapId())
@@ -432,17 +596,42 @@ public class TrainingServiceImpl implements TrainingService {
                 .targetRole(entity.getTargetRole())
                 .description(entity.getDescription())
                 .totalDurationWeeks(entity.getTotalDurationWeeks())
-                .phaseName(entity.getPhaseName())
-                .phaseOrder(entity.getPhaseOrder())
-                .phaseDurationWeeks(entity.getPhaseDurationWeeks())
-                .phaseObjectives(entity.getPhaseObjectives())
-                .assessmentCriteria(entity.getAssessmentCriteria())
+                .phaseName(firstPhase == null ? null : firstPhase.getPhaseName())
+                .phaseOrder(firstPhase == null ? null : firstPhase.getPhaseOrder())
+                .phaseDurationWeeks(firstPhase == null ? null : firstPhase.getPhaseDurationWeeks())
+                .phaseObjectives(firstPhase == null ? null : firstPhase.getPhaseObjectives())
+                .assessmentCriteria(firstPhase == null ? null : firstPhase.getAssessmentCriteria())
+                .totalPhases(phases.size())
                 .status(entity.getStatus() == null ? null : entity.getStatus().name())
                 .createdByName(resolveUserFullName(createdBy))
-                .exercises(toRoadmapExerciseItems(exercises))
+                .exercises(flattenedExercises)
+                .phases(phaseItems)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
+    }
+
+    private List<TrainingRoadmapResponse.TrainingPhaseItem> toPhaseItems(
+            List<TrainingPhase> phases,
+            Map<Integer, List<RoadmapExercise>> exercisesByPhase
+    ) {
+        return phases.stream()
+                .map(phase -> {
+                    List<TrainingRoadmapResponse.RoadmapExerciseItem> exercises = toRoadmapExerciseItems(
+                            exercisesByPhase.getOrDefault(phase.getPhaseId(), List.of())
+                    );
+                    return TrainingRoadmapResponse.TrainingPhaseItem.builder()
+                            .phaseId(phase.getPhaseId())
+                            .phaseName(phase.getPhaseName())
+                            .phaseOrder(phase.getPhaseOrder())
+                            .phaseDurationWeeks(phase.getPhaseDurationWeeks())
+                            .phaseObjectives(phase.getPhaseObjectives())
+                            .assessmentCriteria(phase.getAssessmentCriteria())
+                            .totalExercises(exercises.size())
+                            .exercises(exercises)
+                            .build();
+                })
+                .toList();
     }
 
     private List<TrainingRoadmapResponse.RoadmapExerciseItem> toRoadmapExerciseItems(List<RoadmapExercise> exercises) {

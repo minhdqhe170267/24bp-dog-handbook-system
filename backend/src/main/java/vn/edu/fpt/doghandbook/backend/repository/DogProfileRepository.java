@@ -15,5 +15,7 @@ public interface DogProfileRepository extends JpaRepository<DogProfile, Integer>
 
     Optional<DogProfile> findByDogIdAndIsDeletedFalse(Integer dogId);
 
+    Optional<DogProfile> findByDogCode(String dogCode);
+
     boolean existsByDogCode(String dogCode);
 }

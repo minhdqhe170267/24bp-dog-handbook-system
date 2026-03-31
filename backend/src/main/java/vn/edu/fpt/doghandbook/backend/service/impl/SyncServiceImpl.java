@@ -179,11 +179,18 @@ public class SyncServiceImpl implements SyncService {
                 this::toDevelopmentStageItem
         ));
         data.put("roadmaps", fetchSyncItems(
-                "training_roadmap",
-                "roadmap_id AS roadmapId, roadmap_name AS roadmapName, breed_id AS breedId, target_role AS targetRole, description, total_duration_weeks AS totalDurationWeeks, phase_name AS phaseName, phase_order AS phaseOrder, phase_duration_weeks AS phaseDurationWeeks, phase_objectives AS phaseObjectives, assessment_criteria AS assessmentCriteria",
+                "training_program",
+                "roadmap_id AS roadmapId, roadmap_name AS roadmapName, breed_id AS breedId, target_role AS targetRole, description, total_duration_weeks AS totalDurationWeeks",
                 "roadmap_id",
                 syncWindow,
                 this::toRoadmapItem
+        ));
+        data.put("roadmapPhases", fetchSyncItems(
+                "training_roadmap",
+                "roadmap_id AS phaseId, program_id AS roadmapId, phase_name AS phaseName, phase_order AS phaseOrder, phase_duration_weeks AS phaseDurationWeeks, phase_objectives AS phaseObjectives, assessment_criteria AS assessmentCriteria",
+                "roadmap_id",
+                syncWindow,
+                this::toRoadmapPhaseItem
         ));
         data.put("dogProfiles", fetchSyncItemsDogProfile(
                 syncWindow,
@@ -198,9 +205,9 @@ public class SyncServiceImpl implements SyncService {
                 this::toDiseaseSymptomMappingItem
         ));
         data.put("roadmapExercises", fetchJunctionItems(
-                "roadmap_exercise",
-                "roadmap_exercise_id AS roadmapExerciseId, roadmap_id AS roadmapId, exercise_id AS exerciseId, exercise_order AS exerciseOrder, is_mandatory AS isMandatory",
-                "roadmap_exercise_id",
+                "roadmap_exercise re JOIN training_roadmap tr ON re.roadmap_id = tr.roadmap_id",
+                "re.roadmap_exercise_id AS roadmapExerciseId, tr.program_id AS roadmapId, re.roadmap_id AS phaseId, re.exercise_id AS exerciseId, re.exercise_order AS exerciseOrder, re.is_mandatory AS isMandatory",
+                "re.roadmap_exercise_id",
                 this::toRoadmapExerciseItem
         ));
 
@@ -1273,6 +1280,13 @@ public class SyncServiceImpl implements SyncService {
         item.put("targetRole", row.get("targetRole"));
         item.put("description", row.get("description"));
         item.put("totalDurationWeeks", row.get("totalDurationWeeks"));
+        return item;
+    }
+
+    private Map<String, Object> toRoadmapPhaseItem(Map<String, Object> row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("phaseId", row.get("phaseId"));
+        item.put("roadmapId", row.get("roadmapId"));
         item.put("phaseName", row.get("phaseName"));
         item.put("phaseOrder", row.get("phaseOrder"));
         item.put("phaseDurationWeeks", row.get("phaseDurationWeeks"));
@@ -1315,6 +1329,7 @@ public class SyncServiceImpl implements SyncService {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("roadmapExerciseId", row.get("roadmapExerciseId"));
         item.put("roadmapId", row.get("roadmapId"));
+        item.put("phaseId", row.get("phaseId"));
         item.put("exerciseId", row.get("exerciseId"));
         item.put("exerciseOrder", row.get("exerciseOrder"));
         item.put("isMandatory", toBoolean(row.get("isMandatory")));

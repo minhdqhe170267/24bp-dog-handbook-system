@@ -24,9 +24,11 @@ public class TrainingRoadmapResponse {
     private Integer phaseDurationWeeks;
     private String phaseObjectives;
     private String assessmentCriteria;
+    private Integer totalPhases;
     private String status;
     private String createdByName;
     private List<RoadmapExerciseItem> exercises;
+    private List<TrainingPhaseItem> phases;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -38,5 +40,19 @@ public class TrainingRoadmapResponse {
         private String exerciseName;
         private Integer exerciseOrder;
         private Boolean isMandatory;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    public static class TrainingPhaseItem {
+        private Integer phaseId;
+        private String phaseName;
+        private Integer phaseOrder;
+        private Integer phaseDurationWeeks;
+        private String phaseObjectives;
+        private String assessmentCriteria;
+        private Integer totalExercises;
+        private List<RoadmapExerciseItem> exercises;
     }
 }

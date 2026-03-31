@@ -35,7 +35,7 @@ public class RoadmapExercise {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "roadmap_id", nullable = false)
-    private TrainingRoadmap trainingRoadmap;
+    private TrainingPhase trainingPhase;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exercise_id", nullable = false)
