@@ -2,25 +2,31 @@ package vn.edu.fpt.doghandbook.backend.service.impl;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 import vn.edu.fpt.doghandbook.backend.dto.request.ContentSuggestionRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.ContentSuggestionResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.ContentSuggestion;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingExercise;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.TrainingExerciseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.ContentSuggestionService;
@@ -29,8 +35,10 @@ import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -47,6 +55,8 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
     private final UserRepository userRepository;
     private final TrainingExerciseRepository trainingExerciseRepository;
     private final NotificationService notificationService;
+    private final SyncConflictLogRepository syncConflictLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResponse<ContentSuggestionResponse> getAll(int page, int size, String status) {
@@ -116,11 +126,43 @@ public class ContentSuggestionServiceImpl implements ContentSuggestionService {
             Integer suggestionId,
             String adminResponse,
             String newStatus,
-            Integer reviewerId
+            Integer reviewerId,
+            LocalDateTime localUpdatedAt
     ) {
         ContentSuggestion entity = getSuggestionById(suggestionId);
         SuggestionStatus status = parseReviewStatus(newStatus);
         User reviewer = getUserById(reviewerId);
+
+        // Conflict detection
+        if (localUpdatedAt != null
+                && entity.getUpdatedAt() != null
+                && entity.getUpdatedAt().isAfter(localUpdatedAt)) {
+            log.warn("[SYNC:CONFLICT] content_suggestion id={} serverTime={} > localTime={}",
+                    suggestionId, entity.getUpdatedAt(), localUpdatedAt);
+
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("content_suggestion")
+                        .entityId(suggestionId)
+                        .localId(entity.getLocalId())
+                        .localData(objectMapper.writeValueAsString(Map.of(
+                                "adminResponse", adminResponse != null ? adminResponse : "",
+                                "status", newStatus != null ? newStatus : "")))
+                        .serverData(objectMapper.writeValueAsString(toResponse(entity)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(reviewerId)
+                        .trainerName(reviewer.getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: content_suggestion id={}", suggestionId);
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: content_suggestion id={}, error={}",
+                        suggestionId, ex.getMessage());
+            }
+
+            throw new SyncConflictException("Record modified on server", toResponse(entity));
+        }
 
         entity.setAdminResponse(trimToNull(adminResponse));
         entity.setStatus(status);

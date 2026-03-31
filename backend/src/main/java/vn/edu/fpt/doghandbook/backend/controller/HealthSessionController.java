@@ -76,6 +76,7 @@ public class HealthSessionController {
             Authentication authentication) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Integer trainerId = userDetails.getUser().getUserId();
-        return ApiResponse.success(healthSessionService.resolve(id, body.getResolutionNotes(), trainerId));
+        return ApiResponse.success(healthSessionService.resolve(id, body.getResolutionNotes(), trainerId,
+                body.getLocalUpdatedAt()));
     }
 }

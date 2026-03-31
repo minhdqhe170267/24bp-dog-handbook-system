@@ -18,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionStatus;
 
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "health_session")
+@SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -84,6 +86,13 @@ public class HealthSession {
     @Column(name = "resolved_at", nullable = true)
     private LocalDateTime resolvedAt;
 
+    @Builder.Default
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    @Column(name = "deleted_at", nullable = true)
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -98,6 +107,9 @@ public class HealthSession {
         }
         if (this.severity == null) {
             this.severity = SessionSeverity.MEDIUM;
+        }
+        if (this.isDeleted == null) {
+            this.isDeleted = false;
         }
         this.updatedAt = now;
     }

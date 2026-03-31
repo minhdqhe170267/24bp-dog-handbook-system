@@ -11,7 +11,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import vn.edu.fpt.doghandbook.backend.dto.request.ConflictResolveRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.SyncPushRequest;
+import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncConflictDetailResponse;
+import vn.edu.fpt.doghandbook.backend.dto.response.SyncConflictListResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushBatchResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncPushItemResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.SyncQueueResponse;
@@ -26,10 +32,12 @@ import vn.edu.fpt.doghandbook.backend.entity.HealthRecord;
 import vn.edu.fpt.doghandbook.backend.entity.HealthSession;
 import vn.edu.fpt.doghandbook.backend.entity.OperationReport;
 import vn.edu.fpt.doghandbook.backend.entity.SessionFollowUp;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.SyncQueue;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.WeightAssessment;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AppetiteLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.DogActivityLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FecesStatus;
@@ -41,9 +49,12 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.SuggestionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncActionType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SyncStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ResolutionType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.entity.enums.WeightStatus;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.ContentSuggestionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiagnosisRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiseaseRepository;
@@ -64,11 +75,13 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 @Slf4j
@@ -82,6 +95,7 @@ public class SyncServiceImpl implements SyncService {
 
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final SyncQueueRepository syncQueueRepository;
+    private final SyncConflictLogRepository syncConflictLogRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final PlatformTransactionManager transactionManager;
@@ -346,6 +360,11 @@ public class SyncServiceImpl implements SyncService {
             item.setErrorMessage(e.getMessage());
             syncQueueRepository.save(item);
 
+            // Save conflict details to sync_conflict_log
+            saveConflictLog(entityType, item.getEntityId(), localId,
+                    item.getPayloadData(), e.getServerData(),
+                    user.getUserId(), user.getFullName());
+
             // Notify trainer about sync conflict
             notificationService.notifyUser(
                     user, null,
@@ -575,9 +594,16 @@ public class SyncServiceImpl implements SyncService {
                 yield healthSessionRepository.save(session).getSessionId();
             }
             case DELETE -> {
-                // HealthSession has no soft-delete, skip
                 Integer serverId = requireServerId(payload);
-                log.warn("[SYNC:PUSH] DELETE not supported for health_session, serverId={}", serverId);
+                HealthSession delSession = healthSessionRepository.findBySessionId(serverId).orElse(null);
+                if (delSession == null) {
+                    log.warn("[SYNC:PUSH] HealthSession not found for DELETE, serverId={}", serverId);
+                    yield serverId;
+                }
+                delSession.setIsDeleted(true);
+                delSession.setDeletedAt(LocalDateTime.now());
+                healthSessionRepository.save(delSession);
+                log.info("[SYNC:PUSH] Soft-deleted health_session serverId={}", serverId);
                 yield serverId;
             }
         };
@@ -612,7 +638,15 @@ public class SyncServiceImpl implements SyncService {
             }
             case DELETE -> {
                 Integer serverId = requireServerId(payload);
-                log.warn("[SYNC:PUSH] DELETE not supported for session_follow_up, serverId={}", serverId);
+                SessionFollowUp delFollowUp = sessionFollowUpRepository.findById(serverId).orElse(null);
+                if (delFollowUp == null) {
+                    log.warn("[SYNC:PUSH] SessionFollowUp not found for DELETE, serverId={}", serverId);
+                    yield serverId;
+                }
+                delFollowUp.setIsDeleted(true);
+                delFollowUp.setDeletedAt(LocalDateTime.now());
+                sessionFollowUpRepository.save(delFollowUp);
+                log.info("[SYNC:PUSH] Soft-deleted session_follow_up serverId={}", serverId);
                 yield serverId;
             }
         };
@@ -644,7 +678,15 @@ public class SyncServiceImpl implements SyncService {
             }
             case DELETE -> {
                 Integer serverId = requireServerId(payload);
-                log.warn("[SYNC:PUSH] DELETE not supported for content_suggestion, serverId={}", serverId);
+                ContentSuggestion delSuggestion = contentSuggestionRepository.findById(serverId).orElse(null);
+                if (delSuggestion == null) {
+                    log.warn("[SYNC:PUSH] ContentSuggestion not found for DELETE, serverId={}", serverId);
+                    yield serverId;
+                }
+                delSuggestion.setIsDeleted(true);
+                delSuggestion.setDeletedAt(LocalDateTime.now());
+                contentSuggestionRepository.save(delSuggestion);
+                log.info("[SYNC:PUSH] Soft-deleted content_suggestion serverId={}", serverId);
                 yield serverId;
             }
         };
@@ -669,9 +711,31 @@ public class SyncServiceImpl implements SyncService {
                         .build();
                 yield weightAssessmentRepository.save(assessment).getAssessmentId();
             }
-            case UPDATE, DELETE -> {
+            case UPDATE -> {
                 Integer serverId = requireServerId(payload);
-                log.warn("[SYNC:PUSH] {} not supported for weight_assessment, serverId={}", action, serverId);
+                WeightAssessment assessment = weightAssessmentRepository.findById(serverId)
+                        .orElseThrow(() -> new RuntimeException("WeightAssessment not found: " + serverId));
+                checkConflict("weight_assessment", serverId, assessment.getUpdatedAt(), payload, assessment);
+                if (payload.containsKey("recordedWeightKg")) assessment.setRecordedWeightKg(getBigDecimal(payload, "recordedWeightKg"));
+                if (payload.containsKey("standardMinKg")) assessment.setStandardMinKg(getBigDecimal(payload, "standardMinKg"));
+                if (payload.containsKey("standardMaxKg")) assessment.setStandardMaxKg(getBigDecimal(payload, "standardMaxKg"));
+                if (payload.containsKey("status")) assessment.setStatus(getEnum(payload, "status", WeightStatus.class, assessment.getStatus()));
+                if (payload.containsKey("deviationPercent")) assessment.setDeviationPercent(getBigDecimal(payload, "deviationPercent"));
+                if (payload.containsKey("recommendation")) assessment.setRecommendation(getString(payload, "recommendation"));
+                if (payload.containsKey("followUpWeeks")) assessment.setFollowUpWeeks(getInteger(payload, "followUpWeeks"));
+                yield weightAssessmentRepository.save(assessment).getAssessmentId();
+            }
+            case DELETE -> {
+                Integer serverId = requireServerId(payload);
+                WeightAssessment delAssessment = weightAssessmentRepository.findById(serverId).orElse(null);
+                if (delAssessment == null) {
+                    log.warn("[SYNC:PUSH] WeightAssessment not found for DELETE, serverId={}", serverId);
+                    yield serverId;
+                }
+                delAssessment.setIsDeleted(true);
+                delAssessment.setDeletedAt(LocalDateTime.now());
+                weightAssessmentRepository.save(delAssessment);
+                log.info("[SYNC:PUSH] Soft-deleted weight_assessment serverId={}", serverId);
                 yield serverId;
             }
         };
@@ -750,7 +814,15 @@ public class SyncServiceImpl implements SyncService {
             }
             case DELETE -> {
                 Integer serverId = requireServerId(payload);
-                log.warn("[SYNC:PUSH] DELETE not supported for diagnosis_record, serverId={}", serverId);
+                DiagnosisRecord delRecord = diagnosisRecordRepository.findById(serverId).orElse(null);
+                if (delRecord == null) {
+                    log.warn("[SYNC:PUSH] DiagnosisRecord not found for DELETE, serverId={}", serverId);
+                    yield serverId;
+                }
+                delRecord.setIsDeleted(true);
+                delRecord.setDeletedAt(LocalDateTime.now());
+                diagnosisRecordRepository.save(delRecord);
+                log.info("[SYNC:PUSH] Soft-deleted diagnosis_record serverId={}", serverId);
                 yield serverId;
             }
         };
@@ -767,6 +839,46 @@ public class SyncServiceImpl implements SyncService {
             log.warn("[SYNC:CONFLICT] {} id={} serverTime={} > localTime={}",
                     entityType, serverId, serverUpdatedAt, localUpdatedAt);
             throw new SyncConflictException("Record modified on server", serverData);
+        }
+    }
+
+    // ── Conflict Log Helper ──
+
+    private void saveConflictLog(String entityType, Integer entityId, String localId,
+                                  String localDataJson, Object serverDataObj,
+                                  Integer trainerId, String trainerName) {
+        try {
+            String serverDataJson;
+            if (serverDataObj instanceof String s) {
+                serverDataJson = s;
+            } else if (serverDataObj != null) {
+                serverDataJson = objectMapper.writeValueAsString(serverDataObj);
+            } else {
+                serverDataJson = "{}";
+            }
+
+            // localDataJson from SyncQueue.payloadData is already a JSON string
+            String safeLocalData = (localDataJson != null && !localDataJson.isBlank())
+                    ? localDataJson : "{}";
+
+            SyncConflictLog conflictLog = SyncConflictLog.builder()
+                    .entityType(entityType)
+                    .entityId(entityId != null ? entityId : 0)
+                    .localId(localId)
+                    .localData(safeLocalData)
+                    .serverData(serverDataJson)
+                    .status(ConflictStatus.PENDING)
+                    .trainerId(trainerId)
+                    .trainerName(trainerName)
+                    .conflictDetectedAt(LocalDateTime.now())
+                    .build();
+
+            syncConflictLogRepository.save(conflictLog);
+            log.info("[SYNC:CONFLICT] Saved conflict log: entityType={}, entityId={}, localId={}",
+                    entityType, entityId, localId);
+        } catch (Exception ex) {
+            log.error("[SYNC:CONFLICT] Failed to save conflict log: entityType={}, localId={}, error={}",
+                    entityType, localId, ex.getMessage());
         }
     }
 
@@ -877,6 +989,273 @@ public class SyncServiceImpl implements SyncService {
                 .totalConflict((int) conflict)
                 .lastSyncAt(lastSyncAt)
                 .pendingItems(pendingItems.stream().map(this::toSyncQueueResponse).toList())
+                .build();
+    }
+
+    // ── Conflict Resolution ──
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<SyncConflictListResponse> getConflicts(ConflictStatus status, Pageable pageable) {
+        Page<SyncConflictLog> page = syncConflictLogRepository
+                .findByStatusOrderByConflictDetectedAtDesc(status, pageable);
+
+        List<SyncConflictListResponse> content = page.getContent().stream()
+                .map(this::toConflictListResponse)
+                .toList();
+
+        return PageResponse.<SyncConflictListResponse>builder()
+                .content(content)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SyncConflictDetailResponse getConflictDetail(Integer conflictId) {
+        SyncConflictLog conflict = syncConflictLogRepository.findById(conflictId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conflict not found: " + conflictId));
+        return toConflictDetailResponse(conflict);
+    }
+
+    @Override
+    @Transactional
+    public SyncConflictDetailResponse resolveConflict(Integer conflictId, ConflictResolveRequest request, Integer adminUserId) {
+        SyncConflictLog conflict = syncConflictLogRepository.findById(conflictId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conflict not found: " + conflictId));
+
+        if (conflict.getStatus() != ConflictStatus.PENDING) {
+            throw new BadRequestException("Conflict đã được xử lý: " + conflict.getStatus());
+        }
+
+        switch (request.getResolutionType()) {
+            case KEEP_SERVER -> conflict.setStatus(ConflictStatus.DISMISSED);
+
+            case KEEP_LOCAL -> {
+                Map<String, Object> localData = parseJsonToMap(conflict.getLocalData());
+                applyDataToEntity(conflict.getEntityType(), conflict.getEntityId(), localData);
+                conflict.setStatus(ConflictStatus.RESOLVED);
+            }
+
+            case MERGED -> {
+                if (request.getMergedData() == null || request.getMergedData().isEmpty()) {
+                    throw new BadRequestException("mergedData bắt buộc khi resolutionType = MERGED");
+                }
+                applyDataToEntity(conflict.getEntityType(), conflict.getEntityId(), request.getMergedData());
+                try {
+                    conflict.setMergedData(objectMapper.writeValueAsString(request.getMergedData()));
+                } catch (Exception e) {
+                    log.error("[SYNC:RESOLVE] Failed to serialize mergedData: {}", e.getMessage());
+                }
+                conflict.setStatus(ConflictStatus.RESOLVED);
+            }
+        }
+
+        conflict.setResolutionType(request.getResolutionType());
+        conflict.setResolvedBy(adminUserId);
+        conflict.setResolvedAt(LocalDateTime.now());
+        conflict.setResolutionNote(request.getResolutionNote());
+
+        syncConflictLogRepository.save(conflict);
+
+        log.info("[SYNC:RESOLVE] conflictId={}, type={}, by={}",
+                conflictId, request.getResolutionType(), adminUserId);
+
+        return toConflictDetailResponse(conflict);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getPendingConflictCount() {
+        return syncConflictLogRepository.countByStatus(ConflictStatus.PENDING);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SyncConflictListResponse> getTrainerConflicts(Integer trainerId) {
+        return syncConflictLogRepository.findByTrainerIdAndStatus(trainerId, ConflictStatus.PENDING)
+                .stream()
+                .map(this::toConflictListResponse)
+                .toList();
+    }
+
+    // ── Conflict Resolution Helpers ──
+
+    private void applyDataToEntity(String entityType, Integer entityId, Map<String, Object> data) {
+        switch (entityType) {
+            case "field_note" -> {
+                FieldNote note = fieldNoteRepository.findByNoteIdAndIsDeletedFalse(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("FieldNote not found: " + entityId));
+                if (data.containsKey("title")) note.setTitle(getString(data, "title"));
+                if (data.containsKey("content")) note.setContent(getString(data, "content"));
+                if (data.containsKey("photoUrls")) note.setPhotoUrls(getString(data, "photoUrls"));
+                if (data.containsKey("location")) note.setLocation(getString(data, "location"));
+                if (data.containsKey("dogId")) note.setDogProfile(resolveDog(data));
+                fieldNoteRepository.save(note);
+            }
+            case "health_record" -> {
+                HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("HealthRecord not found: " + entityId));
+                if (data.containsKey("weightKg")) record.setWeightKg(getBigDecimal(data, "weightKg"));
+                if (data.containsKey("temperatureC")) record.setTemperatureC(getBigDecimal(data, "temperatureC"));
+                if (data.containsKey("fecesStatus")) record.setFecesStatus(getEnum(data, "fecesStatus", FecesStatus.class, record.getFecesStatus()));
+                if (data.containsKey("appetiteLevel")) record.setAppetiteLevel(getEnum(data, "appetiteLevel", AppetiteLevel.class, record.getAppetiteLevel()));
+                if (data.containsKey("activityLevel")) record.setActivityLevel(getEnum(data, "activityLevel", DogActivityLevel.class, record.getActivityLevel()));
+                if (data.containsKey("observedSymptoms")) record.setObservedSymptoms(getString(data, "observedSymptoms"));
+                if (data.containsKey("diagnosis")) record.setDiagnosis(getString(data, "diagnosis"));
+                if (data.containsKey("treatmentGiven")) record.setTreatmentGiven(getString(data, "treatmentGiven"));
+                if (data.containsKey("nextCheckupDate")) record.setNextCheckupDate(getLocalDate(data, "nextCheckupDate"));
+                if (data.containsKey("notes")) record.setNotes(getString(data, "notes"));
+                healthRecordRepository.save(record);
+            }
+            case "health_session" -> {
+                HealthSession session = healthSessionRepository.findBySessionId(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("HealthSession not found: " + entityId));
+                if (data.containsKey("issueSummary")) session.setIssueSummary(getString(data, "issueSummary"));
+                if (data.containsKey("severity")) session.setSeverity(getEnum(data, "severity", SessionSeverity.class, session.getSeverity()));
+                if (data.containsKey("resolutionNotes")) session.setResolutionNotes(getString(data, "resolutionNotes"));
+                healthSessionRepository.save(session);
+            }
+            case "session_follow_up" -> {
+                SessionFollowUp followUp = sessionFollowUpRepository.findById(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("SessionFollowUp not found: " + entityId));
+                if (data.containsKey("notes")) followUp.setNotes(getString(data, "notes"));
+                if (data.containsKey("nextAction")) followUp.setNextAction(getString(data, "nextAction"));
+                sessionFollowUpRepository.save(followUp);
+            }
+            case "content_suggestion" -> {
+                ContentSuggestion suggestion = contentSuggestionRepository.findById(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("ContentSuggestion not found: " + entityId));
+                if (data.containsKey("title")) suggestion.setTitle(getString(data, "title"));
+                if (data.containsKey("description")) suggestion.setDescription(getString(data, "description"));
+                contentSuggestionRepository.save(suggestion);
+            }
+            case "operation_report" -> {
+                OperationReport report = operationReportRepository.findByReportIdAndIsDeletedFalse(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("OperationReport not found: " + entityId));
+                if (data.containsKey("reportTitle")) report.setReportTitle(getString(data, "reportTitle"));
+                if (data.containsKey("reportContent")) report.setReportContent(getString(data, "reportContent"));
+                if (data.containsKey("metadata")) report.setMetadata(getString(data, "metadata"));
+                if (data.containsKey("reportType")) report.setReportType(getEnum(data, "reportType", ReportType.class, report.getReportType()));
+                operationReportRepository.save(report);
+            }
+            case "weight_assessment" -> {
+                WeightAssessment assessment = weightAssessmentRepository.findById(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("WeightAssessment not found: " + entityId));
+                if (data.containsKey("recordedWeightKg")) assessment.setRecordedWeightKg(getBigDecimal(data, "recordedWeightKg"));
+                if (data.containsKey("standardMinKg")) assessment.setStandardMinKg(getBigDecimal(data, "standardMinKg"));
+                if (data.containsKey("standardMaxKg")) assessment.setStandardMaxKg(getBigDecimal(data, "standardMaxKg"));
+                if (data.containsKey("status")) assessment.setStatus(getEnum(data, "status", WeightStatus.class, assessment.getStatus()));
+                if (data.containsKey("deviationPercent")) assessment.setDeviationPercent(getBigDecimal(data, "deviationPercent"));
+                if (data.containsKey("recommendation")) assessment.setRecommendation(getString(data, "recommendation"));
+                if (data.containsKey("followUpWeeks")) assessment.setFollowUpWeeks(getInteger(data, "followUpWeeks"));
+                weightAssessmentRepository.save(assessment);
+            }
+            case "diagnosis_record" -> {
+                DiagnosisRecord record = diagnosisRecordRepository.findById(entityId)
+                        .orElseThrow(() -> new ResourceNotFoundException("DiagnosisRecord not found: " + entityId));
+                if (data.containsKey("actionTaken")) record.setActionTaken(getString(data, "actionTaken"));
+                diagnosisRecordRepository.save(record);
+            }
+            default -> throw new BadRequestException("Unknown entity type for resolve: " + entityType);
+        }
+    }
+
+    private Map<String, Object> parseJsonToMap(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            throw new BadRequestException("Invalid JSON data: " + e.getMessage());
+        }
+    }
+
+    private int countConflictedFields(String localDataJson, String serverDataJson) {
+        try {
+            Map<String, Object> local = parseJsonToMap(localDataJson);
+            Map<String, Object> server = parseJsonToMap(serverDataJson);
+            Set<String> allKeys = new HashSet<>();
+            allKeys.addAll(local.keySet());
+            allKeys.addAll(server.keySet());
+            int count = 0;
+            for (String key : allKeys) {
+                if (!Objects.equals(local.get(key), server.get(key))) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private List<String> findConflictedFields(String localDataJson, String serverDataJson) {
+        try {
+            Map<String, Object> local = parseJsonToMap(localDataJson);
+            Map<String, Object> server = parseJsonToMap(serverDataJson);
+            Set<String> allKeys = new HashSet<>();
+            allKeys.addAll(local.keySet());
+            allKeys.addAll(server.keySet());
+            List<String> conflicted = new ArrayList<>();
+            for (String key : allKeys) {
+                if (!Objects.equals(local.get(key), server.get(key))) {
+                    conflicted.add(key);
+                }
+            }
+            return conflicted;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private SyncConflictListResponse toConflictListResponse(SyncConflictLog conflict) {
+        return SyncConflictListResponse.builder()
+                .id(conflict.getConflictId())
+                .entityType(conflict.getEntityType())
+                .entityId(conflict.getEntityId())
+                .localId(conflict.getLocalId())
+                .status(conflict.getStatus().name())
+                .trainerName(conflict.getTrainerName())
+                .conflictDetectedAt(conflict.getConflictDetectedAt())
+                .conflictedFieldCount(countConflictedFields(conflict.getLocalData(), conflict.getServerData()))
+                .build();
+    }
+
+    private SyncConflictDetailResponse toConflictDetailResponse(SyncConflictLog conflict) {
+        Map<String, Object> localData = parseJsonToMap(conflict.getLocalData());
+        Map<String, Object> serverData = parseJsonToMap(conflict.getServerData());
+        Map<String, Object> mergedData = conflict.getMergedData() != null
+                ? parseJsonToMap(conflict.getMergedData()) : null;
+
+        String resolvedByName = null;
+        if (conflict.getResolvedBy() != null) {
+            resolvedByName = userRepository.findById(conflict.getResolvedBy())
+                    .map(User::getFullName)
+                    .orElse(null);
+        }
+
+        return SyncConflictDetailResponse.builder()
+                .id(conflict.getConflictId())
+                .entityType(conflict.getEntityType())
+                .entityId(conflict.getEntityId())
+                .localId(conflict.getLocalId())
+                .localData(localData)
+                .serverData(serverData)
+                .mergedData(mergedData)
+                .status(conflict.getStatus().name())
+                .resolutionType(conflict.getResolutionType() != null ? conflict.getResolutionType().name() : null)
+                .trainerName(conflict.getTrainerName())
+                .serverModifiedBy(conflict.getServerModifiedBy())
+                .conflictDetectedAt(conflict.getConflictDetectedAt())
+                .resolvedAt(conflict.getResolvedAt())
+                .resolvedByName(resolvedByName)
+                .resolutionNote(conflict.getResolutionNote())
+                .conflictedFields(findConflictedFields(conflict.getLocalData(), conflict.getServerData()))
                 .build();
     }
 
