@@ -185,7 +185,17 @@ export default function HealthRecordDetailScreen() {
                     <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         Chi tiết hồ sơ khám
                     </Text>
-                    <View style={styles.iconSpacer} />
+                    <TouchableOpacity
+                        onPress={() =>
+                            router.push(
+                                `/dog-management/health-records/new?recordId=${encodeURIComponent(String(record.recordId))}` as any,
+                            )
+                        }
+                        style={styles.iconButton}
+                        activeOpacity={0.85}
+                    >
+                        <Ionicons name="create-outline" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.heroCard}>

@@ -35,6 +35,8 @@ import ImportDataPage from '../features/import/ImportDataPage';
 import ExportDataPage from '../features/export/ExportDataPage';
 import NotificationsPage from '../features/notifications/NotificationsPage';
 import EntityDetailPage from '../features/details/EntityDetailPage';
+import ConflictListPage from '../features/sync-conflicts/ConflictListPage';
+import ConflictDetailPage from '../features/sync-conflicts/ConflictDetailPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -45,6 +47,10 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'sync-conflicts', element: <ConflictListPage /> },
+      { path: 'sync-conflicts/:id', element: <ConflictDetailPage /> },
+      { path: 'admin/sync-conflicts', element: <ConflictListPage /> },
+      { path: 'admin/sync-conflicts/:id', element: <ConflictDetailPage /> },
       { path: 'details/:entityType/:id', element: <EntityDetailPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'content', element: <ContentListPage /> },

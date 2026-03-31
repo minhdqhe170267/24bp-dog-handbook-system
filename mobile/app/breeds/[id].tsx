@@ -85,10 +85,15 @@ const parseBulletList = (value: string | null | undefined, fallback: string[]): 
   return parts.length > 0 ? parts : fallback;
 };
 
+const normalizeBreedText = (value: string | null | undefined, fallback = '') => {
+  const normalized = (value ?? '').trim();
+  return normalized.length > 0 ? normalized : fallback;
+};
+
 const buildWarningNotes = (breed: Breed, careBullets: string[], trainingBullets: string[]) => {
   const warnings: string[] = [];
-  const size = breed.sizeClassification.toLowerCase();
-  const trainability = breed.trainabilityLevel.toLowerCase();
+  const size = normalizeBreedText(breed.sizeClassification).toLowerCase();
+  const trainability = normalizeBreedText(breed.trainabilityLevel).toLowerCase();
   const maxWeight = Math.max(breed.weightMaleMaxKg || 0, breed.weightFemaleMaxKg || 0);
   const minLifespan = Number.parseInt(`${breed.lifespanYears}`, 10);
 
@@ -183,6 +188,12 @@ export default function BreedDetailScreen() {
 
   const heroColor = isDark ? colorsDark.hero : colorsLight.hero;
   const heroChipTextColor = isDark ? colorsDark.chipText : colorsLight.chipText;
+  const breedName = normalizeBreedText(breed?.breedName, breed ? `Giống chó #${breed.breedId}` : 'Giống chó');
+  const breedOrigin = normalizeBreedText(breed?.origin, 'Chưa rõ xuất xứ');
+  const breedDescription = normalizeBreedText(breed?.description, 'Chưa có mô tả chi tiết cho giống chó này.');
+  const breedSize = normalizeBreedText(breed?.sizeClassification, '--');
+  const breedTrainability = normalizeBreedText(breed?.trainabilityLevel, '--');
+  const breedLifespan = normalizeBreedText(breed?.lifespanYears, '--');
 
   const capabilities = useMemo(() => parseCapabilities(breed?.operationalCapabilities), [breed?.operationalCapabilities]);
   const metadata = useMemo(() => parseMetadata(breed?.metadata), [breed?.metadata]);
@@ -217,11 +228,11 @@ export default function BreedDetailScreen() {
   const heroStats = useMemo(
     () => [
       { label: 'Chiều cao', value: `${breed?.avgHeightCm ?? '--'} cm`, icon: 'resize-outline' as const },
-      { label: 'Thể hình', value: breed?.sizeClassification ?? '--', icon: 'barbell-outline' as const },
-      { label: 'Tuổi thọ', value: breed?.lifespanYears ?? '--', icon: 'time-outline' as const },
-      { label: 'Huấn luyện', value: breed?.trainabilityLevel ?? '--', icon: 'sparkles-outline' as const },
+      { label: 'Thể hình', value: breedSize, icon: 'barbell-outline' as const },
+      { label: 'Tuổi thọ', value: breedLifespan, icon: 'time-outline' as const },
+      { label: 'Huấn luyện', value: breedTrainability, icon: 'sparkles-outline' as const },
     ],
-    [breed],
+    [breed, breedLifespan, breedSize, breedTrainability],
   );
 
   const metadataHighlights = Object.entries(metadata).slice(0, 4);
@@ -256,7 +267,7 @@ export default function BreedDetailScreen() {
     <View style={styles.sectionStack}>
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Tổng quan nhiệm vụ</Text>
-        <Text style={[styles.panelBody, { color: colors.textSecondary }]}>{breed?.description}</Text>
+        <Text style={[styles.panelBody, { color: colors.textSecondary }]}>{breedDescription}</Text>
       </View>
 
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -283,7 +294,7 @@ export default function BreedDetailScreen() {
     <View style={styles.sectionStack}>
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Hồ sơ chi tiết</Text>
-        <InfoRow label="Xuất xứ" value={breed?.origin ?? 'Chưa rõ'} colors={colors} />
+        <InfoRow label="Xuất xứ" value={breedOrigin} colors={colors} />
         <InfoRow label="Cân nặng đực" value={`${breed?.weightMaleMinKg ?? '--'} - ${breed?.weightMaleMaxKg ?? '--'} kg`} colors={colors} />
         <InfoRow label="Cân nặng cái" value={`${breed?.weightFemaleMinKg ?? '--'} - ${breed?.weightFemaleMaxKg ?? '--'} kg`} colors={colors} />
         <InfoRow label="Người tạo" value={breed?.createdByName || 'Hệ thống'} colors={colors} />
@@ -490,24 +501,24 @@ export default function BreedDetailScreen() {
               </View>
             </View>
 
-            <Text style={styles.heroTitle}>{breed.breedName}</Text>
+            <Text style={styles.heroTitle}>{breedName}</Text>
             <View style={styles.heroOriginRow}>
               <Ionicons name="location-outline" size={14} color="#D8F3E4" />
-              <Text style={styles.heroOriginText}>{breed.origin}</Text>
+              <Text style={styles.heroOriginText}>{breedOrigin}</Text>
             </View>
             <Text style={styles.heroDescription} numberOfLines={3}>
-              {breed.description}
+              {breedDescription}
             </Text>
 
             <View style={styles.heroChipRow}>
               <View style={[styles.heroChip, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breed.sizeClassification}</Text>
+                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breedSize}</Text>
               </View>
               <View style={[styles.heroChip, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breed.trainabilityLevel}</Text>
+                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breedTrainability}</Text>
               </View>
               <View style={[styles.heroChip, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breed.lifespanYears}</Text>
+                <Text style={[styles.heroChipText, { color: heroChipTextColor }]}>{breedLifespan}</Text>
               </View>
             </View>
           </View>

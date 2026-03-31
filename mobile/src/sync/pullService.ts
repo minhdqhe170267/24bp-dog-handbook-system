@@ -94,6 +94,20 @@ const normalizeRecordForTable = (
   table: string,
   record: Record<string, unknown>,
 ): Record<string, unknown> => {
+  if (table === 'dog_breed') {
+    if (!record.breed_name) {
+      const fallbackBreedId =
+        typeof record.breed_id === 'number' || typeof record.breed_id === 'string'
+          ? record.breed_id
+          : 'N/A';
+      record.breed_name = `Giống chó #${fallbackBreedId}`;
+    }
+
+    if (record.status === null || record.status === undefined) {
+      record.status = 'DRAFT';
+    }
+  }
+
   if (table === 'first_aid_guide' && !record.immediate_steps) {
     record.immediate_steps = record.description || 'Chưa có hướng dẫn sơ cứu tức thì.';
   }

@@ -2,14 +2,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Loader2, LogOut, Moon, Search, Sun, User } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/utils';
 import { useToast } from '../ui/Toast';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useTheme } from '../../hooks/useTheme';
 import { approvalService } from '../../services/approvalService';
+import api from '../../services/api';
 import {
   formatNotificationTime,
+  getNotificationFeedbackMeta,
   groupNotificationsByRecency,
   getNotificationEntityLabel,
   getNotificationTypeLabel,
@@ -35,27 +37,17 @@ const searchItems = [
     keywords: ['noi dung de xuat', 'nội dung đề xuất', 'de xuat noi dung', 'đề xuất nội dung', 'suggestions'],
   },
   { label: 'Thông báo', href: '/notifications', keywords: ['thong bao', 'thông báo', 'notifications', 'notify'] },
+  {
+    label: 'Xung đột đồng bộ',
+    href: '/sync-conflicts',
+    keywords: ['xung dot', 'xung đột', 'dong bo', 'đồng bộ', 'sync conflict'],
+  },
   { label: 'Import dữ liệu', href: '/import-data', keywords: ['import', 'nhap du lieu', 'nhập dữ liệu', 'excel', 'csv'] },
   { label: 'Export dữ liệu', href: '/export-data', keywords: ['export', 'xuat du lieu', 'xuất dữ liệu', 'bao cao', 'báo cáo'] },
   { label: 'Quản lý người dùng', href: '/system/users', keywords: ['nguoi dung', 'người dùng', 'user', 'users'] },
   { label: 'Cài đặt hệ thống', href: '/system/settings', keywords: ['cai dat', 'cài đặt', 'settings', 'he thong', 'hệ thống'] },
   { label: 'Nhật ký kiểm tra', href: '/system/audit-logs', keywords: ['nhat ky', 'nhật ký', 'audit', 'log'] },
 ];
-
-const REVIEW_RESULT_TYPES = new Set([
-  'CONTENT_APPROVED',
-  'CONTENT_REJECTED',
-  'CONTENT_REVISION_REQUESTED',
-]);
-
-const getFeedbackKey = (notification) => {
-  const type = String(notification?.type || '').trim().toUpperCase();
-  if (!REVIEW_RESULT_TYPES.has(type)) return null;
-  const entityType = String(notification?.entityType || '').trim().toUpperCase();
-  const entityId = Number(notification?.entityId);
-  if (!entityType || !Number.isFinite(entityId) || entityId <= 0) return null;
-  return `${entityType}:${entityId}`;
-};
 
 const AppHeader = () => {
   const { user, logout } = useAuth();
@@ -163,42 +155,55 @@ const AppHeader = () => {
   useEffect(() => {
     let active = true;
 
-    const targetKeys = Array.from(
-      new Set(
-        notifications
-          .map((notification) => getFeedbackKey(notification))
-          .filter(Boolean)
-      )
-    );
+    const feedbackMetaByKey = new Map();
+    notifications.forEach((notification) => {
+      const meta = getNotificationFeedbackMeta(notification);
+      if (meta && !feedbackMetaByKey.has(meta.key)) {
+        feedbackMetaByKey.set(meta.key, meta);
+      }
+    });
 
-    const missingKeys = targetKeys.filter((key) => !(key in reviewFeedbackByKey));
-    if (missingKeys.length === 0) return () => { active = false; };
+    const missingMetas = Array.from(feedbackMetaByKey.values()).filter(
+      (meta) => !(meta.key in reviewFeedbackByKey)
+    );
+    if (missingMetas.length === 0) return () => { active = false; };
 
     const fetchFeedback = async () => {
       const nextMap = {};
 
       await Promise.all(
-        missingKeys.map(async (key) => {
+        missingMetas.map(async (meta) => {
           try {
-            const [entityType, entityIdRaw] = key.split(':');
-            const entityId = Number(entityIdRaw);
-            if (!entityType || !Number.isFinite(entityId) || entityId <= 0) {
-              nextMap[key] = null;
+            if (meta.source === 'approval') {
+              const res = await approvalService.getHistory(meta.entityType, meta.entityId);
+              const payload = res?.data || res || [];
+              const records = Array.isArray(payload) ? payload : payload.content || [];
+              const latestRecord = records[0];
+              nextMap[meta.key] = latestRecord && String(latestRecord?.comments || '').trim()
+                ? {
+                    comments: latestRecord.comments,
+                    reviewerName: latestRecord.reviewerName,
+                  }
+                : null;
               return;
             }
 
-            const res = await approvalService.getHistory(entityType, entityId);
-            const payload = res?.data || res || [];
-            const records = Array.isArray(payload) ? payload : payload.content || [];
-            const latestRecord = records[0];
-            nextMap[key] = latestRecord && String(latestRecord?.comments || '').trim()
-              ? {
-                  comments: latestRecord.comments,
-                  reviewerName: latestRecord.reviewerName,
-                }
-              : null;
+            if (meta.source === 'suggestion') {
+              const res = await api.get(`/suggestions/${meta.entityId}`);
+              const detail = res?.data || res || {};
+              const comments = String(detail?.adminResponse || '').trim();
+              nextMap[meta.key] = comments
+                ? {
+                    comments,
+                    reviewerName: detail?.reviewedByName || null,
+                  }
+                : null;
+              return;
+            }
+
+            nextMap[meta.key] = null;
           } catch {
-            nextMap[key] = null;
+            nextMap[meta.key] = null;
           }
         })
       );
@@ -266,8 +271,8 @@ const AppHeader = () => {
     items.map((notification) => {
       const id = notification.notificationId || `${notification.type}-${notification.createdAt}`;
       const isActionLoading = activeNotificationId === notification.notificationId;
-      const feedbackKey = getFeedbackKey(notification);
-      const feedback = feedbackKey ? reviewFeedbackByKey[feedbackKey] : null;
+      const feedbackMeta = getNotificationFeedbackMeta(notification);
+      const feedback = feedbackMeta ? reviewFeedbackByKey[feedbackMeta.key] : null;
       return (
         <button
           key={id}
@@ -335,7 +340,7 @@ const AppHeader = () => {
         />
         <AnimatePresence>
           {searchFocused && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -367,7 +372,7 @@ const AppHeader = () => {
                   ))}
                 </div>
               )}
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
       </div>
@@ -402,7 +407,7 @@ const AppHeader = () => {
 
           <AnimatePresence>
             {notificationOpen && (
-              <motion.div
+              <Motion.div
                 initial={{ opacity: 0, y: -4, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.96 }}
@@ -491,7 +496,7 @@ const AppHeader = () => {
                     </span>
                   </button>
                 </div>
-              </motion.div>
+              </Motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -515,7 +520,7 @@ const AppHeader = () => {
 
           <AnimatePresence>
             {dropdownOpen && (
-              <motion.div
+              <Motion.div
                 initial={{ opacity: 0, y: -4, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.95 }}
@@ -566,7 +571,7 @@ const AppHeader = () => {
                     Đăng xuất
                   </button>
                 </div>
-              </motion.div>
+              </Motion.div>
             )}
           </AnimatePresence>
         </div>

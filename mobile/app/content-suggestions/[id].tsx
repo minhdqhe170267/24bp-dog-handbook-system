@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   StyleSheet,
@@ -59,6 +60,7 @@ export default function ContentSuggestionDetailScreen() {
   const { colors, isDark } = useThemeStore();
 
   const [item, setItem] = useState<ContentSuggestionItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const introProgress = useRef(new Animated.Value(0)).current;
 
@@ -88,8 +90,58 @@ export default function ContentSuggestionDetailScreen() {
     [item?.status],
   );
 
+  const handleDelete = () => {
+    if (!item || deleting) {
+      return;
+    }
+
+    const isSyncedSuggestion = item.serverId != null && item.syncStatus === 'SYNCED';
+
+    Alert.alert(
+      isSyncedSuggestion ? 'Xóa khỏi thiết bị' : 'Xóa góp ý',
+      isSyncedSuggestion
+        ? 'Góp ý này đã được gửi lên hệ thống. Bạn chỉ có thể ẩn nó khỏi thiết bị của mình, admin/editor vẫn sẽ nhìn thấy.'
+        : 'Góp ý này sẽ bị xóa khỏi thiết bị và khỏi hàng chờ đồng bộ.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              const result = await contentSuggestionService.delete(item.routeId);
+              Alert.alert(
+                'Đã xóa',
+                result === 'DEVICE_HIDDEN'
+                  ? 'Góp ý đã được ẩn khỏi thiết bị của bạn.'
+                  : 'Góp ý đã được xóa khỏi thiết bị.',
+                [
+                  {
+                    text: 'Tiếp tục',
+                    onPress: () => router.replace('/content-suggestions/index' as never),
+                  },
+                ],
+              );
+            } catch (error) {
+              console.log('[SYNC_UI] Lỗi xóa góp ý:', error);
+              Alert.alert('Không thể xóa', 'Vui lòng thử lại sau.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: isDark ? colors.background : dogManagementUi.page },
+      ]}
+    >
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -110,7 +162,11 @@ export default function ContentSuggestionDetailScreen() {
           <View style={styles.heroGlowSmall} />
 
           <View style={styles.heroTopRow}>
-            <TouchableOpacity style={styles.heroIconBtn} onPress={() => router.back()} activeOpacity={0.9}>
+            <TouchableOpacity
+              style={styles.heroIconBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.9}
+            >
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -147,12 +203,24 @@ export default function ContentSuggestionDetailScreen() {
           </View>
         </View>
 
-        <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.panel,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Nội dung gửi đi</Text>
-          <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>{item?.description}</Text>
+          <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
+            {item?.description}
+          </Text>
         </View>
 
-        <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.panel,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Dòng thời gian</Text>
 
           <View style={styles.timelineItem}>
@@ -166,19 +234,38 @@ export default function ContentSuggestionDetailScreen() {
           </View>
 
           <View style={styles.timelineItem}>
-            <View style={[styles.timelineDot, { backgroundColor: item?.reviewedAt ? colors.primary : '#D8E5DE' }]} />
+            <View
+              style={[
+                styles.timelineDot,
+                { backgroundColor: item?.reviewedAt ? colors.primary : '#D8E5DE' },
+              ]}
+            />
             <View style={styles.timelineBody}>
-              <Text style={[styles.timelineTitle, { color: colors.text }]}>Phản hồi từ ban biên tập</Text>
+              <Text style={[styles.timelineTitle, { color: colors.text }]}>
+                Phản hồi từ ban biên tập
+              </Text>
               <Text style={[styles.timelineText, { color: colors.textSecondary }]}>
-                {item?.reviewedAt ? formatDateTime(item.reviewedAt) : 'Chưa có phản hồi chính thức'}
+                {item?.reviewedAt
+                  ? formatDateTime(item.reviewedAt)
+                  : 'Chưa có phản hồi chính thức'}
               </Text>
             </View>
           </View>
 
           <View style={styles.timelineItem}>
-            <View style={[styles.timelineDot, { backgroundColor: item?.status === 'IMPLEMENTED' ? colors.primary : '#D8E5DE' }]} />
+            <View
+              style={[
+                styles.timelineDot,
+                {
+                  backgroundColor:
+                    item?.status === 'IMPLEMENTED' ? colors.primary : '#D8E5DE',
+                },
+              ]}
+            />
             <View style={styles.timelineBody}>
-              <Text style={[styles.timelineTitle, { color: colors.text }]}>Trạng thái hiện tại</Text>
+              <Text style={[styles.timelineTitle, { color: colors.text }]}>
+                Trạng thái hiện tại
+              </Text>
               <Text style={[styles.timelineText, { color: colors.textSecondary }]}>
                 {STATUS_LABELS[item?.status ?? 'SUBMITTED']}
               </Text>
@@ -187,17 +274,58 @@ export default function ContentSuggestionDetailScreen() {
         </View>
 
         {item?.relatedExerciseName ? (
-          <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.panel,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Bài tập liên quan</Text>
-            <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>{item.relatedExerciseName}</Text>
+            <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
+              {item.relatedExerciseName}
+            </Text>
           </View>
         ) : null}
 
-        <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.panel,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Phản hồi</Text>
           <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
             {item?.adminResponse || 'Góp ý này đang chờ phản hồi từ đội nội dung.'}
           </Text>
+        </View>
+
+        <View
+          style={[
+            styles.panel,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quản lý góp ý</Text>
+          <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
+            {item?.serverId != null && item?.syncStatus === 'SYNCED'
+              ? 'Bạn có thể ẩn góp ý này khỏi thiết bị. Bản ghi trên hệ thống vẫn được giữ lại để admin/editor xử lý.'
+              : 'Bạn có thể xóa góp ý này khỏi thiết bị nếu không muốn giữ lại trong hàng chờ đồng bộ.'}
+          </Text>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            disabled={deleting}
+            onPress={handleDelete}
+            style={[styles.deleteButton, { opacity: deleting ? 0.65 : 1 }]}
+          >
+            <Ionicons name="trash-outline" size={18} color="#B53030" />
+            <Text style={styles.deleteButtonText}>
+              {deleting
+                ? 'Đang xử lý...'
+                : item?.serverId != null && item?.syncStatus === 'SYNCED'
+                  ? 'Xóa khỏi thiết bị'
+                  : 'Xóa góp ý'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </Animated.ScrollView>
     </SafeAreaView>
@@ -347,5 +475,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  deleteButton: {
+    minHeight: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F2C5C2',
+    backgroundColor: '#FFF4F3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteButtonText: {
+    color: '#B53030',
+    fontSize: fontSize.sm,
+    fontWeight: '800',
   },
 });

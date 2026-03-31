@@ -16,11 +16,11 @@ import { useToast } from '../../components/ui/Toast';
 import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { dogService } from '../../services/dogService';
 import { userService } from '../../services/userService';
-import { getAssignmentTypeLabel } from '../../utils/enumLabels';
+import { getAssignmentScopeLabel, getAssignmentTypeLabel } from '../../utils/enumLabels';
+import { mapAssignmentErrorToToast } from './assignmentErrorMapper';
 
 const assignmentTypeOptions = [
   { value: 'PRIMARY', label: 'Chính' },
-  { value: 'SECONDARY', label: 'Phụ' },
   { value: 'TEMPORARY', label: 'Tạm thời' },
 ];
 
@@ -187,6 +187,8 @@ const DogAssignmentsPage = () => {
     dogId: Number(formData.dogId),
     trainerId: Number(formData.trainerId),
     assignmentType: formData.assignmentType || 'PRIMARY',
+    assignmentScope: String(formData.assignmentType || '').toUpperCase() === 'PRIMARY' ? 'FULL_TRAINING' : 'CARE_ONLY',
+    coveredAssignmentId: null,
     startDate: formData.startDate,
     endDate: formData.endDate || null,
     notes: formData.notes?.trim() || null,
@@ -194,8 +196,16 @@ const DogAssignmentsPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.dogId || !formData.trainerId || !formData.startDate) {
-      toast.error('Vui lòng nhập đủ thông tin bắt buộc');
+    const missingFields = [];
+    if (!formData.dogId) missingFields.push('Chó');
+    if (!formData.trainerId) missingFields.push('Huấn luyện viên');
+    if (!formData.startDate) missingFields.push('Ngày bắt đầu');
+
+    if (missingFields.length > 0) {
+      toast.error({
+        title: 'Thiếu thông tin bắt buộc',
+        description: `Vui lòng chọn/nhập: ${missingFields.join(', ')}.`,
+      });
       return;
     }
     const selectedTrainer = trainers.find(
@@ -222,7 +232,8 @@ const DogAssignmentsPage = () => {
       setPagination((prev) => ({ ...prev, page: 0 }));
       await fetchAssignments();
     } catch (error) {
-      toast.error(error, { title: 'Không thể lưu phân công' });
+      const mapped = mapAssignmentErrorToToast(error, editing ? 'update' : 'create');
+      toast.error(mapped);
     }
   };
 
@@ -234,7 +245,8 @@ const DogAssignmentsPage = () => {
       setDeleteTarget(null);
       fetchAssignments();
     } catch (error) {
-      toast.error(error, { title: 'Không thể hủy phân công' });
+      const mapped = mapAssignmentErrorToToast(error, 'unassign');
+      toast.error(mapped);
     }
   };
 
@@ -274,10 +286,13 @@ const DogAssignmentsPage = () => {
       key: 'assignmentType',
       header: 'Loại phân công',
       className: 'w-40 whitespace-nowrap',
-      render: (row) => {
-        const labels = { PRIMARY: 'Chính', SECONDARY: 'Phụ', TEMPORARY: 'Tạm thời' };
-        return labels[row.assignmentType] || row.assignmentType || '—';
-      },
+      render: (row) => getAssignmentTypeLabel(row.assignmentType),
+    },
+    {
+      key: 'assignmentScope',
+      header: 'Phạm vi',
+      className: 'w-44 whitespace-nowrap',
+      render: (row) => getAssignmentScopeLabel(row.assignmentScope),
     },
     {
       key: 'isActive',
@@ -336,7 +351,7 @@ const DogAssignmentsPage = () => {
               label: `${trainer.fullName} (${trainer.username})`,
             })),
           ]}
-          className="w-72"
+          buttonClassName="min-w-[170px]"
         />
 
         <FilterSelect
@@ -354,7 +369,7 @@ const DogAssignmentsPage = () => {
               label: `${dog.dogCode || '---'} - ${dog.dogName || 'Không tên'}`,
             })),
           ]}
-          className="w-72"
+          buttonClassName="min-w-[130px]"
         />
       </div>
 

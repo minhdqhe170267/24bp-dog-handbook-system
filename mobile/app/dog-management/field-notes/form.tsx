@@ -19,6 +19,11 @@ import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { fieldNoteService } from '../../../src/services/fieldNoteService';
 import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
+import {
+    formatDisplayDateTime,
+    getCharacterCountLabel,
+    validateTextField,
+} from '../../../src/utils/formValidation';
 import { DogProfile, FieldNote } from '../../../src/types/dogManagement';
 import {
     dogManagementFonts,
@@ -26,6 +31,16 @@ import {
     findFallbackFieldNote,
     pickNoteImage,
 } from '../../../src/features/dog-management/ui';
+
+const formatLiveDateTime = (value: Date) => {
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
+    const hours = String(value.getHours()).padStart(2, '0');
+    const minutes = String(value.getMinutes()).padStart(2, '0');
+    const seconds = String(value.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
+};
 
 export default function FieldNoteFormScreen() {
     const router = useRouter();
@@ -39,11 +54,11 @@ export default function FieldNoteFormScreen() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [location, setLocation] = useState('Hồ Chí Minh, Việt Nam');
-    const [recordedAt, setRecordedAt] = useState('2026-03-18 14:30');
     const [mediaUrls, setMediaUrls] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
+    const [liveRecordedAt, setLiveRecordedAt] = useState(() => new Date());
 
     const resolvedNoteId = noteId ?? null;
     const fallbackNoteId = noteId && Number.isFinite(Number(noteId)) ? Number(noteId) : null;
@@ -71,7 +86,6 @@ export default function FieldNoteFormScreen() {
                         setTitle(detail.title);
                         setContent(detail.content);
                         setLocation(detail.location || 'Hồ Chí Minh, Việt Nam');
-                        setRecordedAt(detail.recordedAt ? detail.recordedAt.replace('T', ' ').slice(0, 16) : '2026-03-18 14:30');
                         setMediaUrls((detail.media || []).map((item) => item.url));
                         setAccessDenied(false);
                         return;
@@ -89,7 +103,6 @@ export default function FieldNoteFormScreen() {
                             setTitle(fallbackNote.title);
                             setContent(fallbackNote.content);
                             setLocation(fallbackNote.location || 'Hồ Chí Minh, Việt Nam');
-                            setRecordedAt(fallbackNote.recordedAt ? fallbackNote.recordedAt.replace('T', ' ').slice(0, 16) : '2026-03-18 14:30');
                             setMediaUrls((fallbackNote.media || []).map((item) => item.url));
                             setAccessDenied(false);
                             return;
@@ -124,12 +137,49 @@ export default function FieldNoteFormScreen() {
         loadData();
     }, [dogId, fallbackNoteId, resolvedNoteId, user?.userId]);
 
+    useEffect(() => {
+        if (editingNote?.recordedAt) {
+            return undefined;
+        }
+
+        const timer = setInterval(() => {
+            setLiveRecordedAt(new Date());
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [editingNote?.recordedAt]);
+
     const selectedDog = useMemo(
         () => dogs.find((item) => item.dogId === selectedDogId) || null,
         [dogs, selectedDogId],
     );
+    const titleError = validateTextField(title, {
+        label: 'Tiêu đề ghi chú',
+        required: true,
+        minLength: 4,
+        maxLength: 200,
+    });
+    const contentError = validateTextField(content, {
+        label: 'Nội dung ghi chú',
+        required: true,
+        minLength: 12,
+        maxLength: 50000,
+    });
+    const locationError = validateTextField(location, {
+        label: 'Địa điểm',
+        maxLength: 200,
+    });
+    const mediaError = mediaUrls.length > 8 ? 'Tối đa 8 ảnh cho một ghi chú thực địa.' : null;
+    const canSubmit = !titleError && !contentError && !locationError && !mediaError && !saving;
+    const recordedAtDisplay = editingNote?.recordedAt
+        ? formatDisplayDateTime(editingNote.recordedAt)
+        : null;
 
     const addMockImage = () => {
+        if (mediaUrls.length >= 8) {
+            Alert.alert('Đã đủ ảnh', 'Mỗi ghi chú thực địa chỉ nên lưu tối đa 8 ảnh để đồng bộ ổn định hơn.');
+            return;
+        }
         setMediaUrls((current) => [...current, pickNoteImage(Date.now() + current.length)]);
     };
 
@@ -138,6 +188,14 @@ export default function FieldNoteFormScreen() {
     };
 
     const submit = async () => {
+        if (!canSubmit) {
+            Alert.alert(
+                'Biểu mẫu chưa hợp lệ',
+                titleError || contentError || locationError || mediaError || 'Vui lòng kiểm tra lại thông tin ghi chú.',
+            );
+            return;
+        }
+
         if (!title.trim()) {
             Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề ghi chú.');
             return;
@@ -153,7 +211,7 @@ export default function FieldNoteFormScreen() {
             content: content.trim(),
             dogId: selectedDogId || null,
             location: location.trim() || null,
-            recordedAt: recordedAt.trim() ? recordedAt.trim().replace(' ', 'T') : null,
+            recordedAt: editingNote?.recordedAt ?? null,
             mediaUrls,
         };
 
@@ -241,7 +299,14 @@ export default function FieldNoteFormScreen() {
                         placeholder="Ví dụ: Tuần tra khu B"
                         placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                         style={[styles.input, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#FFFFFF', borderColor: isDark ? colors.border : dogManagementUi.border }]}
+                        maxLength={200}
                     />
+                    <View style={styles.metaRow}>
+                        <Text style={[styles.counterText, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>
+                            {getCharacterCountLabel(title, 200)}
+                        </Text>
+                    </View>
+                    {titleError ? <Text style={[styles.errorText, { color: colors.error }]}>{titleError}</Text> : null}
                 </View>
 
                 <View style={[styles.formGroup, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -291,7 +356,14 @@ export default function FieldNoteFormScreen() {
                         placeholder="Mô tả hành vi, cảnh báo, điều kiện môi trường hoặc diễn biến thực địa..."
                         placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                         style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#FFFFFF', borderColor: isDark ? colors.border : dogManagementUi.border }]}
+                        maxLength={50000}
                     />
+                    <View style={styles.metaRow}>
+                        <Text style={[styles.counterText, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>
+                            {getCharacterCountLabel(content, 50000)}
+                        </Text>
+                    </View>
+                    {contentError ? <Text style={[styles.errorText, { color: colors.error }]}>{contentError}</Text> : null}
                 </View>
 
                 <View style={[styles.formGroup, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -318,6 +390,7 @@ export default function FieldNoteFormScreen() {
                             <Text style={[styles.addMediaText, { fontFamily: dogManagementFonts.bold }]}>Thêm ảnh</Text>
                         </TouchableOpacity>
                     </ScrollView>
+                    {mediaError ? <Text style={[styles.errorText, { color: colors.error }]}>{mediaError}</Text> : null}
                 </View>
 
                 <View style={[styles.formGroup, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -332,17 +405,20 @@ export default function FieldNoteFormScreen() {
                             placeholder="Địa điểm ghi nhận"
                             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                             style={[styles.inlineInput, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}
+                            maxLength={200}
                         />
                     </View>
+                    <View style={styles.metaRow}>
+                        <Text style={[styles.counterText, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>
+                            {getCharacterCountLabel(location, 200)}
+                        </Text>
+                    </View>
+                    {locationError ? <Text style={[styles.errorText, { color: colors.error }]}>{locationError}</Text> : null}
                     <View style={[styles.inputRow, { backgroundColor: isDark ? colors.background : '#FFFFFF', borderColor: isDark ? colors.border : dogManagementUi.border }]}>
                         <Ionicons name="calendar-outline" size={18} color={dogManagementUi.textMuted} />
-                        <TextInput
-                            value={recordedAt}
-                            onChangeText={setRecordedAt}
-                            placeholder="yyyy-mm-dd hh:mm"
-                            placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
-                            style={[styles.inlineInput, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}
-                        />
+                        <Text style={[styles.inlineText, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}>
+                            {recordedAtDisplay ?? formatLiveDateTime(liveRecordedAt)}
+                        </Text>
                     </View>
                 </View>
 
@@ -360,7 +436,7 @@ export default function FieldNoteFormScreen() {
             </ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
-                <TouchableOpacity activeOpacity={0.9} disabled={saving} onPress={submit} style={[styles.saveButton, { backgroundColor: colors.primary, opacity: saving ? 0.72 : 1 }]}>
+                <TouchableOpacity activeOpacity={0.9} disabled={!canSubmit} onPress={submit} style={[styles.saveButton, { backgroundColor: colors.primary, opacity: canSubmit ? 1 : 0.6 }]}>
                     {saving ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
@@ -446,6 +522,22 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 17,
     },
+    metaRow: {
+        marginTop: 8,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+    },
+    counterText: {
+        fontSize: 11,
+        lineHeight: 14,
+        fontWeight: '700',
+    },
+    errorText: {
+        marginTop: 8,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: '700',
+    },
     textArea: {
         minHeight: 132,
         borderWidth: 1,
@@ -518,6 +610,11 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     inlineInput: {
+        flex: 1,
+        fontSize: 14,
+        lineHeight: 18,
+    },
+    inlineText: {
         flex: 1,
         fontSize: 14,
         lineHeight: 18,

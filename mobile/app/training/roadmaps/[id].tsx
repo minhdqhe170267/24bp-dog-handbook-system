@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { TrainingRoadmap } from '../../../src/types/training';
 import { roadmapService } from '../../../src/services/roadmapService';
 import { normalizeStatus, pickTrainingImage, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { useTrainingEntrance } from '../../../src/features/training/presentation';
 
 export default function RoadmapDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,7 @@ export default function RoadmapDetailScreen() {
     const [error, setError] = useState('');
     const scrollRef = useRef<ScrollView>(null);
     const [exerciseSectionY, setExerciseSectionY] = useState(0);
+    const { animatedStyle } = useTrainingEntrance();
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -98,7 +100,7 @@ export default function RoadmapDetailScreen() {
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView ref={scrollRef as any} style={animatedStyle} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
@@ -143,6 +145,21 @@ export default function RoadmapDetailScreen() {
 
                     <View style={[styles.statusPill, { backgroundColor: statusInfo.bg }]}>
                         <Text style={[styles.statusText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+                    </View>
+
+                    <View style={styles.summaryMetricsRow}>
+                        <View style={[styles.summaryMetricCard, { backgroundColor: isDark ? colors.background : '#EDF5F0', borderColor: isDark ? colors.border : trainingUi.border }]}>
+                            <Text style={[styles.summaryMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{orderedExercises.length}</Text>
+                            <Text style={[styles.summaryMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Bài tập</Text>
+                        </View>
+                        <View style={[styles.summaryMetricCard, { backgroundColor: isDark ? colors.background : '#EDF5F0', borderColor: isDark ? colors.border : trainingUi.border }]}>
+                            <Text style={[styles.summaryMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{completedCount}</Text>
+                            <Text style={[styles.summaryMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Hoàn thành</Text>
+                        </View>
+                        <View style={[styles.summaryMetricCard, { backgroundColor: isDark ? colors.background : '#EDF5F0', borderColor: isDark ? colors.border : trainingUi.border }]}>
+                            <Text style={[styles.summaryMetricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{phaseOrder}</Text>
+                            <Text style={[styles.summaryMetricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Giai đoạn</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -260,7 +277,7 @@ export default function RoadmapDetailScreen() {
                         )}
                     </View>
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
@@ -382,6 +399,27 @@ const styles = StyleSheet.create({
         borderRadius: borderRadius.full,
         paddingHorizontal: 12,
         justifyContent: 'center',
+    },
+    summaryMetricsRow: {
+        marginTop: spacing.md,
+        flexDirection: 'row',
+        gap: spacing.sm,
+    },
+    summaryMetricCard: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: borderRadius.xl,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+    },
+    summaryMetricValue: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    summaryMetricLabel: {
+        marginTop: 2,
+        fontSize: 12,
+        fontWeight: '600',
     },
     statusText: {
         fontSize: 11,

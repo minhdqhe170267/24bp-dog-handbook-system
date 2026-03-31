@@ -10,6 +10,7 @@ import { spacing, fontSize } from '../../src/constants/theme';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeStore } from '../../src/stores/themeStore';
 import { useNetworkStore } from '../../src/stores/networkStore';
+import { validateTextField } from '../../src/utils/formValidation';
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
@@ -19,13 +20,39 @@ export default function LoginScreen() {
     const isConnected = useNetworkStore((s) => s.isConnected);
     const isInternetReachable = useNetworkStore((s) => s.isInternetReachable);
     const isOnline = isConnected && isInternetReachable !== false;
+    const usernameError = validateTextField(username, {
+        label: 'Tên đăng nhập',
+        required: true,
+        minLength: 3,
+        maxLength: 50,
+    });
+    const passwordError = validateTextField(password, {
+        label: 'Mật khẩu',
+        required: true,
+        minLength: 6,
+        maxLength: 100,
+    });
+    const canSubmit = !usernameError && !passwordError && !isLoading;
 
     useEffect(() => {
         clearError();
     }, [clearError]);
 
     const handleLogin = async (nextUsername = username, nextPassword = password) => {
-        if (!nextUsername.trim() || !nextPassword.trim()) {
+        const nextUsernameError = validateTextField(nextUsername, {
+            label: 'Tên đăng nhập',
+            required: true,
+            minLength: 3,
+            maxLength: 50,
+        });
+        const nextPasswordError = validateTextField(nextPassword, {
+            label: 'Mật khẩu',
+            required: true,
+            minLength: 6,
+            maxLength: 100,
+        });
+
+        if (nextUsernameError || nextPasswordError) {
             return;
         }
 
@@ -77,6 +104,7 @@ export default function LoginScreen() {
                             value={username}
                             onChangeText={setUsername}
                             leftIcon="person-outline"
+                            error={usernameError ?? undefined}
                         />
                         <View style={{ height: spacing.md }} />
                         <Input
@@ -86,6 +114,7 @@ export default function LoginScreen() {
                             onChangeText={setPassword}
                             leftIcon="lock-closed-outline"
                             secureTextEntry
+                            error={passwordError ?? undefined}
                         />
                         {error ? (
                             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
@@ -96,6 +125,7 @@ export default function LoginScreen() {
                             variant="primary"
                             onPress={() => handleLogin()}
                             loading={isLoading}
+                            disabled={!canSubmit}
                         />
                     </Card>
 

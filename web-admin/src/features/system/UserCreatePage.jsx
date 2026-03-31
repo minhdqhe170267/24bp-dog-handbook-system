@@ -4,6 +4,7 @@ import CreateFormPage from '../../components/shared/CreateFormPage';
 import { FormField, FormInput, FormSelect } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { userService } from '../../services/userService';
+import { validateUserForm } from '../../utils/formValidation';
 
 const roleOptions = [
   { value: 'ADMIN', label: 'Admin' },
@@ -67,12 +68,12 @@ const UserCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.username.trim() || !formData.fullName.trim() || !formData.role) {
-      toast.error('Vui lòng nhập đủ thông tin bắt buộc');
-      return;
-    }
-    if (!isEditMode && !formData.password.trim()) {
-      toast.error('Vui lòng nhập mật khẩu');
+    const errors = validateUserForm(formData, { isEditMode });
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin người dùng chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 
@@ -124,15 +125,15 @@ const UserCreatePage = () => {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Tên đăng nhập" required>
-          <FormInput value={formData.username} onChange={(e) => updateField('username', e.target.value)} />
+          <FormInput maxLength={50} value={formData.username} onChange={(e) => updateField('username', e.target.value)} />
         </FormField>
         <FormField label={isEditMode ? 'Mật khẩu mới (không bắt buộc)' : 'Mật khẩu'} required={!isEditMode}>
-          <FormInput type="password" value={formData.password} onChange={(e) => updateField('password', e.target.value)} />
+          <FormInput type="password" minLength={6} maxLength={100} value={formData.password} onChange={(e) => updateField('password', e.target.value)} />
         </FormField>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Họ tên" required>
-          <FormInput value={formData.fullName} onChange={(e) => updateField('fullName', e.target.value)} />
+          <FormInput maxLength={100} value={formData.fullName} onChange={(e) => updateField('fullName', e.target.value)} />
         </FormField>
         <FormField label="Vai trò" required>
           <FormSelect
@@ -145,18 +146,24 @@ const UserCreatePage = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Email">
-          <FormInput type="email" value={formData.email} onChange={(e) => updateField('email', e.target.value)} />
+          <FormInput type="email" maxLength={150} value={formData.email} onChange={(e) => updateField('email', e.target.value)} />
         </FormField>
-        <FormField label="Số điện thoại">
-          <FormInput value={formData.phone} onChange={(e) => updateField('phone', e.target.value)} />
+        <FormField label="Số điện thoại" required={!isEditMode}>
+          <FormInput
+            maxLength={12}
+            inputMode="tel"
+            pattern="^(\\+84|0)[0-9]{9,10}$"
+            value={formData.phone}
+            onChange={(e) => updateField('phone', e.target.value)}
+          />
         </FormField>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Quân hàm">
-          <FormInput value={formData.militaryRank} onChange={(e) => updateField('militaryRank', e.target.value)} />
+          <FormInput maxLength={50} value={formData.militaryRank} onChange={(e) => updateField('militaryRank', e.target.value)} />
         </FormField>
         <FormField label="Đơn vị">
-          <FormInput value={formData.unit} onChange={(e) => updateField('unit', e.target.value)} />
+          <FormInput maxLength={100} value={formData.unit} onChange={(e) => updateField('unit', e.target.value)} />
         </FormField>
       </div>
     </CreateFormPage>

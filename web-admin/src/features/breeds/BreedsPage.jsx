@@ -160,7 +160,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Submit breed for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt giống chó' });
     }
   };
 
@@ -173,7 +173,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Publish breed error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản giống chó' });
     }
   };
 
@@ -186,7 +186,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Unpublish breed error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản giống chó' });
     }
   };
 
@@ -218,7 +218,7 @@ const BreedsPage = () => {
       fetchData();
     } catch (err) {
       console.error('Update error:', err);
-      toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' });
+      toast.error(err, { title: 'Không thể cập nhật giống chó' });
     } finally {
       setSaving(false);
     }
@@ -233,7 +233,7 @@ const BreedsPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Create error:', err);
-      toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' });
+      toast.error(err, { title: 'Không thể tạo giống chó mới' });
     } finally {
       setSaving(false);
     }
@@ -274,7 +274,7 @@ const BreedsPage = () => {
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/DOG_BREED/${getBreedId(r)}`)}><Eye className="h-4 w-4" /></button>
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
           {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/breeds/${getBreedId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-          {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getBreedId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
+          {canDelete && getStatus(r) === 'DRAFT' && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getBreedId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
               <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
@@ -348,4 +348,5 @@ const BreedsPage = () => {
 };
 
 export default BreedsPage;
+
 

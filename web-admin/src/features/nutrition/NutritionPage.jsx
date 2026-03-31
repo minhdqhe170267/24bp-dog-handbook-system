@@ -129,7 +129,7 @@ const NutritionPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Submit nutrition for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt khẩu phần dinh dưỡng' });
     }
   };
 
@@ -142,7 +142,7 @@ const NutritionPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Publish nutrition error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản khẩu phần dinh dưỡng' });
     }
   };
 
@@ -155,7 +155,7 @@ const NutritionPage = () => {
       await fetchData(0, pageSize);
     } catch (err) {
       console.error('Unpublish nutrition error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản khẩu phần dinh dưỡng' });
     }
   };
 
@@ -182,7 +182,7 @@ const NutritionPage = () => {
   const handleEdit = async (formData) => {
     setSaving(true);
     try { await api.put(`/nutrition-standards/${editItem.standardId}`, toNutritionPayload(formData)); setEditItem(null); fetchData(); }
-    catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi cập nhật' }); }
+    catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật khẩu phần dinh dưỡng' }); }
     finally { setSaving(false); }
   };
 
@@ -194,7 +194,7 @@ const NutritionPage = () => {
       setPage(0);
       await fetchData(0, pageSize);
     }
-    catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Có lỗi xảy ra khi tạo mới' }); }
+    catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo khẩu phần dinh dưỡng mới' }); }
     finally { setSaving(false); }
   };
 
@@ -233,7 +233,7 @@ const NutritionPage = () => {
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem" onClick={() => navigate(`/details/NUTRITION_STANDARD/${getStandardId(r)}`)}><Eye className="h-4 w-4" /></button>
           <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
           {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/nutrition/${getStandardId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-          {canDelete && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getStandardId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
+          {canDelete && getStatus(r) === 'DRAFT' && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getStandardId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
               <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
@@ -301,4 +301,5 @@ const NutritionPage = () => {
 };
 
 export default NutritionPage;
+
 

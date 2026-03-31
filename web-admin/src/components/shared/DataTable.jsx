@@ -107,10 +107,10 @@ const DataTable = ({
             <div className="rounded-lg border border-border/60 overflow-hidden">
                 <table className="w-full border-collapse">
                     <thead>
-                        <tr className="bg-muted/50">
+                        <tr className="bg-muted/70">
                             {columns.map((col) => (
                                 <th key={col.key} className={cn(
-                                    'text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-4 py-3',
+                                    'text-left text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-foreground/85 px-4 py-3',
                                     col.className
                                 )}>
                                     {col.header}
