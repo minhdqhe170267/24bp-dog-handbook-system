@@ -2,7 +2,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Loader2, LogOut, Moon, Search, Sun, User } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/utils';
 import { useToast } from '../ui/Toast';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -37,6 +37,11 @@ const searchItems = [
     keywords: ['noi dung de xuat', 'nội dung đề xuất', 'de xuat noi dung', 'đề xuất nội dung', 'suggestions'],
   },
   { label: 'Thông báo', href: '/notifications', keywords: ['thong bao', 'thông báo', 'notifications', 'notify'] },
+  {
+    label: 'Xung đột đồng bộ',
+    href: '/sync-conflicts',
+    keywords: ['xung dot', 'xung đột', 'dong bo', 'đồng bộ', 'sync conflict'],
+  },
   { label: 'Import dữ liệu', href: '/import-data', keywords: ['import', 'nhap du lieu', 'nhập dữ liệu', 'excel', 'csv'] },
   { label: 'Export dữ liệu', href: '/export-data', keywords: ['export', 'xuat du lieu', 'xuất dữ liệu', 'bao cao', 'báo cáo'] },
   { label: 'Quản lý người dùng', href: '/system/users', keywords: ['nguoi dung', 'người dùng', 'user', 'users'] },
@@ -335,7 +340,7 @@ const AppHeader = () => {
         />
         <AnimatePresence>
           {searchFocused && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -367,7 +372,7 @@ const AppHeader = () => {
                   ))}
                 </div>
               )}
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
       </div>
@@ -402,7 +407,7 @@ const AppHeader = () => {
 
           <AnimatePresence>
             {notificationOpen && (
-              <motion.div
+              <Motion.div
                 initial={{ opacity: 0, y: -4, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.96 }}
@@ -491,7 +496,7 @@ const AppHeader = () => {
                     </span>
                   </button>
                 </div>
-              </motion.div>
+              </Motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -515,7 +520,7 @@ const AppHeader = () => {
 
           <AnimatePresence>
             {dropdownOpen && (
-              <motion.div
+              <Motion.div
                 initial={{ opacity: 0, y: -4, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.95 }}
@@ -566,7 +571,7 @@ const AppHeader = () => {
                     Đăng xuất
                   </button>
                 </div>
-              </motion.div>
+              </Motion.div>
             )}
           </AnimatePresence>
         </div>

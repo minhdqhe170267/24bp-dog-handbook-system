@@ -26,6 +26,8 @@ const ROLE_ROUTES = {
     REVIEWER: [
         '/dashboard', '/',
         '/notifications',
+        '/sync-conflicts',
+        '/admin/sync-conflicts',
         '/details',
         '/profile',
         '/content',
