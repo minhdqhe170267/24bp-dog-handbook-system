@@ -7,18 +7,22 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 import vn.edu.fpt.doghandbook.backend.dto.request.OperationReportRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.OperationReportResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
 import vn.edu.fpt.doghandbook.backend.entity.OperationReport;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ReportType;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.OperationReportRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.OperationReportService;
 
@@ -33,6 +37,8 @@ public class OperationReportServiceImpl implements OperationReportService {
     private final OperationReportRepository operationReportRepository;
     private final UserRepository userRepository;
     private final DogProfileRepository dogProfileRepository;
+    private final SyncConflictLogRepository syncConflictLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResponse<OperationReportResponse> getAll(int page, int size, String type) {
@@ -134,6 +140,28 @@ public class OperationReportServiceImpl implements OperationReportService {
                 && report.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
             log.warn("[SYNC:CONFLICT] operation_report id={} serverTime={} > localTime={}",
                     reportId, report.getUpdatedAt(), request.getLocalUpdatedAt());
+
+            // Save conflict details before throwing
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("operation_report")
+                        .entityId(reportId)
+                        .localId(request.getLocalId())
+                        .localData(objectMapper.writeValueAsString(request))
+                        .serverData(objectMapper.writeValueAsString(toResponse(report)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(trainerId)
+                        .trainerName(report.getTrainer().getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: operation_report id={}, localId={}",
+                        reportId, request.getLocalId());
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: operation_report id={}, error={}",
+                        reportId, ex.getMessage());
+            }
+
             throw new SyncConflictException("Record modified on server", toResponse(report));
         }
 

@@ -7,13 +7,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthRecordRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthRecordResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
 import vn.edu.fpt.doghandbook.backend.entity.HealthRecord;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AppetiteLevel;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.DogActivityLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FecesStatus;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
@@ -21,6 +24,7 @@ import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthRecordRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.HealthRecordService;
 
@@ -35,6 +39,8 @@ public class HealthRecordServiceImpl implements HealthRecordService {
     private final HealthRecordRepository healthRecordRepository;
     private final DogProfileRepository dogProfileRepository;
     private final UserRepository userRepository;
+    private final SyncConflictLogRepository syncConflictLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResponse<HealthRecordResponse> getAll(int page, int size) {
@@ -139,6 +145,28 @@ public class HealthRecordServiceImpl implements HealthRecordService {
                 && record.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
             log.warn("[SYNC:CONFLICT] health_record id={} serverTime={} > localTime={}",
                     recordId, record.getUpdatedAt(), request.getLocalUpdatedAt());
+
+            // Save conflict details before throwing
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("health_record")
+                        .entityId(recordId)
+                        .localId(request.getLocalId())
+                        .localData(objectMapper.writeValueAsString(request))
+                        .serverData(objectMapper.writeValueAsString(toResponse(record)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(examinerId)
+                        .trainerName(record.getExaminer().getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: health_record id={}, localId={}",
+                        recordId, request.getLocalId());
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: health_record id={}, error={}",
+                        recordId, ex.getMessage());
+            }
+
             throw new SyncConflictException("Record modified on server", toResponse(record));
         }
 
