@@ -46,6 +46,14 @@ const migrations: Migration[] = [
       addColumnIfMissing(db, 'user_session', 'password_hash', 'TEXT');
     },
   },
+  {
+    version: 4,
+    description: 'Add assignment_scope and covered_assignment_id to dog_assignment',
+    run: (db) => {
+      addColumnIfMissing(db, 'dog_assignment', 'assignment_scope', "TEXT NOT NULL DEFAULT 'FULL_TRAINING'");
+      addColumnIfMissing(db, 'dog_assignment', 'covered_assignment_id', 'INTEGER');
+    },
+  },
 ];
 
 /**

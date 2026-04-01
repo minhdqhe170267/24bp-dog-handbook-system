@@ -308,6 +308,8 @@ export interface DogAssignmentRow {
   trainer_id: number;
   dog_id: number;
   assignment_type: AssignmentType;
+  assignment_scope: string;
+  covered_assignment_id: number | null;
   start_date: string;
   end_date: string | null;
   is_active: number;

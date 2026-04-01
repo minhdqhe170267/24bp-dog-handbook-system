@@ -74,12 +74,6 @@ public class DogAssignment {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "assignment_scope", nullable = false, length = 30)
-    private String assignmentScope;
-
-    @Column(name = "covered_assignment_id", nullable = true)
-    private Integer coveredAssignmentId;
-
     @Column(name = "notes", nullable = true)
     private String notes;
 

@@ -318,6 +318,8 @@ CREATE TABLE IF NOT EXISTS dog_assignment (
   trainer_id      INTEGER NOT NULL,
   dog_id          INTEGER NOT NULL REFERENCES dog_profile(dog_id),
   assignment_type TEXT    NOT NULL DEFAULT 'PRIMARY',
+  assignment_scope TEXT   NOT NULL DEFAULT 'FULL_TRAINING',
+  covered_assignment_id INTEGER,
   start_date      TEXT    NOT NULL,
   end_date        TEXT,
   is_active       INTEGER NOT NULL DEFAULT 1,
@@ -647,6 +649,10 @@ export const initDatabase = async (): Promise<void> => {
 
   // Ensure password_hash column exists for offline login (safe for existing DBs)
   ensureColumnExists('user_session', 'password_hash', 'TEXT');
+
+  // Ensure assignment_scope and covered_assignment_id exist (added for sync compatibility)
+  ensureColumnExists('dog_assignment', 'assignment_scope', "TEXT NOT NULL DEFAULT 'FULL_TRAINING'");
+  ensureColumnExists('dog_assignment', 'covered_assignment_id', 'INTEGER');
 
   // Seed sync_metadata
   db.execSync(SEED_SYNC_METADATA);
