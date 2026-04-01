@@ -209,6 +209,7 @@ export interface TrainingExerciseRow {
 
 export interface TrainingRoadmapRow {
   roadmap_id: number;
+  program_id: number | null;
   roadmap_name: string;
   breed_id: number | null;
   target_role: string | null;
@@ -231,6 +232,7 @@ export interface TrainingRoadmapRow {
 export interface RoadmapExerciseRow {
   roadmap_exercise_id: number;
   roadmap_id: number;
+  phase_id: number | null;
   exercise_id: number;
   exercise_order: number;
   is_mandatory: number;
