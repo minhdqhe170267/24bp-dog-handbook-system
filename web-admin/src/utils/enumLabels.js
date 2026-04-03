@@ -18,6 +18,13 @@ const STATUS_LABELS = {
   IMPLEMENTING: 'Đang xử lý',
   REVIEWED: 'Đã xem',
   NEW: 'Mới',
+  ENROLLED: 'Đã ghi danh',
+  IN_PROGRESS: 'Đang huấn luyện',
+  COMPLETED: 'Hoàn thành',
+  SUSPENDED: 'Tạm dừng',
+  WITHDRAWN: 'Đã rút',
+  NOT_STARTED: 'Chưa bắt đầu',
+  SKIPPED: 'Bỏ qua',
 };
 
 const CONTENT_TYPE_LABELS = {

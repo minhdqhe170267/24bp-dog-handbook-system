@@ -96,6 +96,8 @@ const DataTable = ({
             row?.methodId,
             row?.exerciseId,
             row?.roadmapId,
+            row?.enrollmentId,
+            row?.progressId,
             row?.symptomId,
         ];
         const firstValid = candidates.find((value) => value !== undefined && value !== null && value !== '');

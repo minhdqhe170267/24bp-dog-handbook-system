@@ -15,8 +15,6 @@ const ROLE_ROUTES = {
         '/import-data',
         '/export-data',
         '/breeds',
-        '/dogs',
-        '/assignments',
         '/diseases',
         '/training/exercises', '/training/methods', '/training/roadmaps',
         '/nutrition',

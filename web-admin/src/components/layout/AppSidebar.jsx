@@ -9,6 +9,7 @@ import {
     ChevronDown, ChevronLeft, BookOpen, Route, HeartPulse,
     FileText, CheckCircle, Lightbulb, Upload, Download, AlertTriangle,
     Settings, ClipboardList, Users,
+    ClipboardCheck,
 } from 'lucide-react';
 
 // roles: if not specified, all roles can see; if specified, only those roles
@@ -33,6 +34,7 @@ const allNavItems = [
             { label: 'Bài tập', href: '/training/exercises', icon: BookOpen },
             { label: 'Phương pháp', href: '/training/methods', icon: Dumbbell },
             { label: 'Lộ trình', href: '/training/roadmaps', icon: Route },
+            { label: 'Ghi danh huấn luyện', href: '/enrollments', icon: ClipboardCheck, roles: ['ADMIN'] },
         ]
     },
     {

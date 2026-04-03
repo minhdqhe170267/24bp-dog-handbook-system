@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Globe, Loader2, MessageSquare, Pencil, RotateCcw, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCheck,
+  Globe,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Plus,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import PageHeader from '../../components/shared/PageHeader';
 import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
@@ -218,11 +229,38 @@ const ENTITY_CONFIG = {
       { key: 'breedName', label: 'Giống chó' },
       { key: 'targetRole', label: 'Vai trò mục tiêu', render: (value) => formatDetailEnumValue('targetRole', value) },
       { key: 'totalDurationWeeks', label: 'Tổng thời gian (tuần)' },
-      { key: 'phaseName', label: 'Tên giai đoạn' },
-      { key: 'phaseOrder', label: 'Thứ tự giai đoạn' },
-      { key: 'phaseDurationWeeks', label: 'Thời gian giai đoạn (tuần)' },
-      { key: 'phaseObjectives', label: 'Mục tiêu giai đoạn', textarea: true },
-      { key: 'assessmentCriteria', label: 'Tiêu chí đánh giá', textarea: true },
+      { key: 'totalPhases', label: 'Tổng số giai đoạn' },
+      {
+        key: 'phases',
+        label: 'Danh sách giai đoạn',
+        textarea: true,
+        render: (value, row) => {
+          const phases = Array.isArray(value) ? value : Array.isArray(row?.phases) ? row.phases : [];
+          if (phases.length > 0) {
+            const sortedPhases = [...phases].sort(
+              (left, right) => Number(left?.phaseOrder || 0) - Number(right?.phaseOrder || 0)
+            );
+            return sortedPhases
+              .map((phase) => {
+                const phaseOrder = phase?.phaseOrder ? `GĐ ${phase.phaseOrder}` : 'GĐ';
+                const phaseName = phase?.phaseName || 'Chưa đặt tên';
+                const phaseDuration = phase?.phaseDurationWeeks ? ` (${phase.phaseDurationWeeks} tuần)` : '';
+                const exerciseCount = Number(phase?.totalExercises || 0);
+                const exerciseSuffix = exerciseCount > 0 ? ` - ${exerciseCount} bài tập` : '';
+                return `${phaseOrder}: ${phaseName}${phaseDuration}${exerciseSuffix}`;
+              })
+              .join('\n');
+          }
+
+          if (row?.phaseName) {
+            const phaseOrder = row?.phaseOrder ? `GĐ ${row.phaseOrder}: ` : '';
+            const phaseDuration = row?.phaseDurationWeeks ? ` (${row.phaseDurationWeeks} tuần)` : '';
+            return `${phaseOrder}${row.phaseName}${phaseDuration}`;
+          }
+
+          return '—';
+        },
+      },
       { key: 'description', label: 'Mô tả', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
@@ -470,7 +508,7 @@ const EntityDetailPage = () => {
         if (active) {
           setLatestReviewerFeedback(latest && String(latest?.comments || '').trim() ? latest : null);
         }
-      } catch (error) {
+      } catch {
         if (active) setLatestReviewerFeedback(null);
       } finally {
         if (active) setReviewerFeedbackLoading(false);
@@ -731,6 +769,29 @@ const EntityDetailPage = () => {
         onClick: openSuggestionResponseModal,
         disabled: suggestionResponding,
       });
+    }
+
+    if (entityType === 'DOG_PROFILE' && isAdmin && resolvedEntityId) {
+      const query = new URLSearchParams({ dogId: String(resolvedEntityId) }).toString();
+      const enrollQuery = new URLSearchParams({
+        dogId: String(resolvedEntityId),
+        action: 'enroll',
+      }).toString();
+      buttons.push(
+        {
+          key: 'dog-enrollments',
+          label: 'Xem ghi danh',
+          icon: ClipboardCheck,
+          variant: 'outline',
+          onClick: () => navigate(`/enrollments?${query}`),
+        },
+        {
+          key: 'dog-enroll',
+          label: 'Ghi danh mới',
+          icon: Plus,
+          onClick: () => navigate(`/enrollments?${enrollQuery}`),
+        }
+      );
     }
 
     return buttons;

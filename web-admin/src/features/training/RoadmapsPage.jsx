@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { EditForm } from '../../components/shared/DetailModal';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
 import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
 import api from '../../services/api';
@@ -24,18 +23,6 @@ const statusOptions = [
     { value: 'REJECTED', label: 'Từ chối' },
 ];
 
-const createFields = [
-    { key: 'roadmapName', label: 'Tên lộ trình', required: true },
-    { key: 'targetRole', label: 'Vai trò mục tiêu' },
-    { key: 'totalDurationWeeks', label: 'Tổng thời gian (tuần)', type: 'number' },
-    { key: 'description', label: 'Mô tả', type: 'textarea' },
-    { key: 'phaseName', label: 'Tên giai đoạn' },
-    { key: 'phaseOrder', label: 'Thứ tự giai đoạn', type: 'number' },
-    { key: 'phaseDurationWeeks', label: 'Thời gian giai đoạn (tuần)', type: 'number' },
-    { key: 'phaseObjectives', label: 'Mục tiêu giai đoạn', type: 'textarea' },
-    { key: 'assessmentCriteria', label: 'Tiêu chí đánh giá', type: 'textarea' },
-];
-
 const RoadmapsPage = () => {
     const navigate = useNavigate();
     const [page, setPage] = useState(0);
@@ -45,8 +32,6 @@ const RoadmapsPage = () => {
     const [items, setItems] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [createOpen, setCreateOpen] = useState(false);
-    const [saving, setSaving] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyRecords, setHistoryRecords] = useState([]);
@@ -59,19 +44,7 @@ const RoadmapsPage = () => {
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
-    const toRoadmapPayload = (formData) => ({
-        roadmapName: formData.roadmapName?.trim() || '',
-        targetRole: formData.targetRole?.trim() || '',
-        totalDurationWeeks: formData.totalDurationWeeks ? Number(formData.totalDurationWeeks) : null,
-        description: formData.description?.trim() || '',
-        phaseName: formData.phaseName?.trim() || '',
-        phaseOrder: formData.phaseOrder ? Number(formData.phaseOrder) : null,
-        phaseDurationWeeks: formData.phaseDurationWeeks ? Number(formData.phaseDurationWeeks) : null,
-        phaseObjectives: formData.phaseObjectives?.trim() || '',
-        assessmentCriteria: formData.assessmentCriteria?.trim() || '',
-    });
-
-    const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
+    const fetchData = useCallback(async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
         try {
             const allRows = await fetchAllPages((pageIndex, batchSize) => {
@@ -96,9 +69,11 @@ const RoadmapsPage = () => {
             if (effectivePage !== nextPage) setPage(effectivePage);
         } catch (err) { console.error('Fetch roadmaps error:', err); setItems([]); }
         finally { setLoading(false); }
-    };
+    }, [page, pageSize, search, statusFilter]);
 
-    useEffect(() => { fetchData(page, pageSize); }, [page, pageSize, search, statusFilter]);
+    useEffect(() => {
+        fetchData(page, pageSize);
+    }, [fetchData, page, pageSize]);
 
     const handleDelete = async () => {
         if (!deleteId) return;
@@ -179,18 +154,6 @@ const RoadmapsPage = () => {
         }
     };
 
-    const handleCreate = async (formData) => {
-        setSaving(true);
-        try {
-            await api.post('/roadmaps', toRoadmapPayload(formData));
-            setCreateOpen(false);
-            setPage(0);
-            await fetchData(0, pageSize);
-        }
-        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo lộ trình mới' }); }
-        finally { setSaving(false); }
-    };
-
     const getDateTimeParts = (value) => {
         if (!value) return null;
         const dt = new Date(value);
@@ -223,7 +186,18 @@ const RoadmapsPage = () => {
             className: 'w-28 whitespace-nowrap',
             render: (r) => r.totalDurationWeeks ? `${r.totalDurationWeeks} tuần` : '-',
         },
-        { key: 'phaseName', header: 'Giai đoạn', render: (r) => r.phaseName || '-' },
+        {
+            key: 'totalPhases',
+            header: 'Giai đoạn',
+            className: 'w-36',
+            render: (r) => {
+                const totalPhases = Number(r?.totalPhases || 0);
+                if (Number.isFinite(totalPhases) && totalPhases > 0) {
+                    return `${totalPhases} giai đoạn`;
+                }
+                return r?.phaseName || '-';
+            },
+        },
         { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
         { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
         {
@@ -275,9 +249,6 @@ const RoadmapsPage = () => {
                 <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
                     onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có lộ trình nào" />
             )}
-            <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm lộ trình" size="lg">
-                <EditForm fields={createFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
-            </DetailModal>
             <ApprovalHistoryModal
                 open={historyOpen}
                 onClose={() => setHistoryOpen(false)}

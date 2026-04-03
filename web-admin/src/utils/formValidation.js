@@ -119,17 +119,64 @@ export const validateMethodForm = (form = {}) => {
 export const validateRoadmapForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.roadmapName, 'Tên lộ trình');
-  addRequired(errors, form.phaseName, 'Tên giai đoạn');
-  addRequired(errors, form.phaseOrder, 'Thứ tự giai đoạn');
   addMaxLength(errors, form.roadmapName, 200, 'Tên lộ trình');
   addMaxLength(errors, form.targetRole, 100, 'Vai trò mục tiêu');
   addMaxLength(errors, form.description, 5000, 'Mô tả');
   addNumericRange(errors, form.totalDurationWeeks, 'Tổng thời gian (tuần)', { min: 1, max: 104, integer: true });
-  addMaxLength(errors, form.phaseName, 100, 'Tên giai đoạn');
-  addNumericRange(errors, form.phaseOrder, 'Thứ tự giai đoạn', { min: 1, integer: true });
-  addNumericRange(errors, form.phaseDurationWeeks, 'Thời gian giai đoạn (tuần)', { min: 1, max: 52, integer: true });
-  addMaxLength(errors, form.phaseObjectives, 5000, 'Mục tiêu giai đoạn');
-  addMaxLength(errors, form.assessmentCriteria, 5000, 'Tiêu chí đánh giá');
+
+  const phases = Array.isArray(form.phases) && form.phases.length > 0
+    ? form.phases
+    : [{
+        phaseName: form.phaseName,
+        phaseOrder: form.phaseOrder,
+        phaseDurationWeeks: form.phaseDurationWeeks,
+        phaseObjectives: form.phaseObjectives,
+        assessmentCriteria: form.assessmentCriteria,
+        exerciseIds: form.exerciseIds,
+      }];
+
+  if (!Array.isArray(phases) || phases.length === 0) {
+    errors.push('Lộ trình phải có ít nhất 1 giai đoạn');
+    return errors;
+  }
+
+  const phaseOrderSet = new Set();
+  const exerciseIdSet = new Set();
+
+  phases.forEach((phase, phaseIndex) => {
+    const phasePrefix = `Giai đoạn ${phaseIndex + 1}`;
+    addRequired(errors, phase?.phaseName, `${phasePrefix} - Tên giai đoạn`);
+    addRequired(errors, phase?.phaseOrder, `${phasePrefix} - Thứ tự giai đoạn`);
+    addMaxLength(errors, phase?.phaseName, 100, `${phasePrefix} - Tên giai đoạn`);
+    addNumericRange(errors, phase?.phaseOrder, `${phasePrefix} - Thứ tự giai đoạn`, { min: 1, integer: true });
+    addNumericRange(errors, phase?.phaseDurationWeeks, `${phasePrefix} - Thời gian giai đoạn (tuần)`, { min: 1, max: 52, integer: true });
+    addMaxLength(errors, phase?.phaseObjectives, 5000, `${phasePrefix} - Mục tiêu giai đoạn`);
+    addMaxLength(errors, phase?.assessmentCriteria, 5000, `${phasePrefix} - Tiêu chí đánh giá`);
+
+    const phaseOrderNumber = Number(phase?.phaseOrder);
+    if (Number.isFinite(phaseOrderNumber) && phaseOrderNumber > 0) {
+      if (phaseOrderSet.has(phaseOrderNumber)) {
+        errors.push(`Thứ tự giai đoạn bị trùng: ${phaseOrderNumber}`);
+      } else {
+        phaseOrderSet.add(phaseOrderNumber);
+      }
+    }
+
+    const exerciseIds = Array.isArray(phase?.exerciseIds) ? phase.exerciseIds : [];
+    exerciseIds.forEach((exerciseId) => {
+      const normalizedExerciseId = Number(exerciseId);
+      if (!Number.isFinite(normalizedExerciseId) || normalizedExerciseId <= 0) {
+        errors.push(`${phasePrefix} - Bài tập không hợp lệ`);
+        return;
+      }
+      if (exerciseIdSet.has(normalizedExerciseId)) {
+        errors.push(`Mỗi bài tập chỉ được xuất hiện 1 lần trong toàn bộ lộ trình (ID: ${normalizedExerciseId})`);
+      } else {
+        exerciseIdSet.add(normalizedExerciseId);
+      }
+    });
+  });
+
   return errors;
 };
 

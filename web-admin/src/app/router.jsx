@@ -37,6 +37,8 @@ import NotificationsPage from '../features/notifications/NotificationsPage';
 import EntityDetailPage from '../features/details/EntityDetailPage';
 import ConflictListPage from '../features/sync-conflicts/ConflictListPage';
 import ConflictDetailPage from '../features/sync-conflicts/ConflictDetailPage';
+import EnrollmentsPage from '../features/enrollments/EnrollmentsPage';
+import EnrollmentDetailPage from '../features/enrollments/EnrollmentDetailPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -75,6 +77,8 @@ const router = createBrowserRouter([
       { path: 'training/roadmaps', element: <RoadmapsPage /> },
       { path: 'training/roadmaps/create', element: <RoadmapsCreatePage /> },
       { path: 'training/roadmaps/:id/edit', element: <RoadmapsCreatePage /> },
+      { path: 'enrollments', element: <EnrollmentsPage /> },
+      { path: 'enrollments/:id', element: <EnrollmentDetailPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'nutrition/create', element: <NutritionCreatePage /> },
       { path: 'nutrition/:id/edit', element: <NutritionCreatePage /> },
