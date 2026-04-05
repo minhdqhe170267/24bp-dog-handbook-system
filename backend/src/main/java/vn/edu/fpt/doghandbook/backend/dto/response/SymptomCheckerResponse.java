@@ -36,5 +36,35 @@ public class SymptomCheckerResponse {
         private List<String> missingSymptomNames;
         private String treatmentGuidelines;
         private String preventionMeasures;
+        private List<RecommendedMedication> recommendedMedications;
+        private List<RecommendedFirstAid> recommendedFirstAidGuides;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RecommendedMedication {
+        private Integer medicationId;
+        private String medicationName;
+        private String dosageInstructions;
+        private String administrationMethod;
+        private Integer priority;
+        private String notes;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class RecommendedFirstAid {
+        private Integer guideId;
+        private String guideTitle;
+        private String emergencyType;
+        private String immediateSteps;
+        private Integer priority;
+        private String notes;
     }
 }
