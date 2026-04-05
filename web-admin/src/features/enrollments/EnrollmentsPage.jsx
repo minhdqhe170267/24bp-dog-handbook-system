@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
@@ -138,6 +138,33 @@ const EnrollmentsPage = () => {
       } else if (selectedTrainerId) {
         const response = await dogTrainingEnrollmentService.getByTrainer(selectedTrainerId);
         rows = response?.data || [];
+      } else {
+        // "Tất cả chó" + "Tất cả huấn luyện viên": gom toàn bộ ghi danh từ tất cả trainer.
+        const trainerIds = (trainers || [])
+          .map((trainer) => Number(trainer?.userId))
+          .filter((trainerId) => Number.isFinite(trainerId) && trainerId > 0);
+
+        if (trainerIds.length > 0) {
+          const settledResponses = await Promise.allSettled(
+            trainerIds.map((trainerId) => dogTrainingEnrollmentService.getByTrainer(trainerId))
+          );
+
+          rows = settledResponses.flatMap((result) => {
+            if (result.status !== 'fulfilled') return [];
+            const payload = result.value?.data;
+            return Array.isArray(payload) ? payload : [];
+          });
+
+          rows = Array.from(
+            new Map(
+              rows.map((item) => [
+                item?.enrollmentId ??
+                  `${item?.dogName || ''}-${item?.roadmapName || ''}-${item?.trainerName || ''}-${item?.enrolledAt || ''}`,
+                item,
+              ])
+            ).values()
+          );
+        }
       }
 
       const normalizedSearch = search.trim().toLowerCase();
@@ -180,7 +207,7 @@ const EnrollmentsPage = () => {
 
   useEffect(() => {
     fetchEnrollments(page, pageSize);
-  }, [page, pageSize, search, statusFilter, dogFilter, trainerFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, pageSize, search, statusFilter, dogFilter, trainerFilter, trainers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateEnrollForm = (key, value) =>
     setEnrollForm((prev) => ({
@@ -362,7 +389,6 @@ const EnrollmentsPage = () => {
     },
   ];
 
-  const isFilterMissing = !toPositiveInt(dogFilter) && !toPositiveInt(trainerFilter);
   const pageLoading = loadingLookup || loadingData;
 
   return (
@@ -417,7 +443,7 @@ const EnrollmentsPage = () => {
             setPage(0);
           }}
           options={[
-            { value: '', label: 'Theo chó' },
+            { value: '', label: 'Tất cả chó' },
             ...dogs.map((dog) => ({
               value: String(dog.dogId),
               label: `${dog.dogCode || '---'} - ${dog.dogName || 'Không tên'}`,
@@ -433,7 +459,7 @@ const EnrollmentsPage = () => {
             setPage(0);
           }}
           options={[
-            { value: '', label: 'Theo huấn luyện viên' },
+            { value: '', label: 'Tất cả huấn luyện viên' },
             ...trainers.map((trainer) => ({
               value: String(trainer.userId),
               label: `${trainer.fullName} (${trainer.username})`,
@@ -452,26 +478,20 @@ const EnrollmentsPage = () => {
         />
       </div>
 
-      {isFilterMissing ? (
-        <div className="rounded-xl border border-border/60 bg-card p-6 text-sm text-muted-foreground">
-          Chọn bộ lọc theo chó hoặc theo huấn luyện viên để xem danh sách ghi danh.
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={items}
-          loading={pageLoading}
-          page={page}
-          pageSize={pageSize}
-          totalItems={totalItems}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPage(0);
-          }}
-          emptyMessage="Không có ghi danh huấn luyện phù hợp"
-        />
-      )}
+      <DataTable
+        columns={columns}
+        data={items}
+        loading={pageLoading}
+        page={page}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
+        emptyMessage="Không có ghi danh huấn luyện phù hợp"
+      />
 
       <Modal
         open={enrollModalOpen}
@@ -551,4 +571,3 @@ const EnrollmentsPage = () => {
 };
 
 export default EnrollmentsPage;
-
