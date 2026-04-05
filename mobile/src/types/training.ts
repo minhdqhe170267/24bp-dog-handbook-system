@@ -39,6 +39,10 @@ export interface RoadmapExerciseItem {
 export interface TrainingRoadmap {
     roadmapId: number;
     roadmapName: string;
+    roadmapOrder?: number | null;
+    specialtyId?: number | null;
+    specialtyCode?: string | null;
+    specialtyName?: string | null;
     breedId: number | null;
     breedName?: string | null;
     targetRole: string | null;
@@ -49,11 +53,24 @@ export interface TrainingRoadmap {
     phaseDurationWeeks: number | null;
     phaseObjectives: string | null;
     assessmentCriteria: string | null;
+    totalPhases?: number | null;
     status: string | null;
     exercises?: RoadmapExerciseItem[];
+    phases?: TrainingRoadmapPhaseItem[];
     createdByName?: string | null;
     createdAt?: string | null;
     updatedAt?: string | null;
+}
+
+export interface TrainingRoadmapPhaseItem {
+    phaseId: number;
+    phaseName: string;
+    phaseOrder: number;
+    phaseDurationWeeks: number | null;
+    phaseObjectives: string | null;
+    assessmentCriteria: string | null;
+    totalExercises: number | null;
+    exercises: RoadmapExerciseItem[];
 }
 
 export type EnrollmentStatus =
@@ -71,16 +88,22 @@ export type EnrollmentExerciseStatus =
 
 export interface TrainingEnrollmentSummary {
     enrollmentId: number;
+    dogId: number;
     dogName: string;
-    breedName: string | null;
-    roadmapName: string;
-    targetRole: string | null;
-    currentPhase: number | null;
-    totalPhases: number | null;
+    trainerId: number | null;
+    trainerName: string | null;
+    specialtyId: number | null;
+    specialtyName: string | null;
+    specialtyVersion: number | null;
+    currentRoadmapName: string | null;
+    currentRoadmapOrder: number | null;
+    currentPhaseName: string | null;
+    currentPhaseOrder: number | null;
     progressPercent: number;
     status: EnrollmentStatus | string;
-    trainerName: string | null;
     enrolledAt: string | null;
+    completedAt: string | null;
+    notes: string | null;
 }
 
 export interface TrainingExerciseProgress {
@@ -101,12 +124,50 @@ export interface TrainingPhaseProgress {
     exercises: TrainingExerciseProgress[];
 }
 
-export interface TrainingEnrollmentDetail extends TrainingEnrollmentSummary {
+export interface TrainingRoadmapProgress {
+    roadmapId: number;
+    roadmapName: string;
+    roadmapOrder: number | null;
+    targetRole: string | null;
+    currentPhaseOrder: number | null;
+    progressPercent: number;
+    status: EnrollmentStatus | string;
+    startedAt: string | null;
+    completedAt: string | null;
     phases: TrainingPhaseProgress[];
 }
 
+export interface TrainingEnrollmentDetail {
+    summary: TrainingEnrollmentSummary;
+    roadmaps: TrainingRoadmapProgress[];
+}
+
+export interface TrainingSpecialty {
+    specialtyId: number;
+    specialtyCode: string | null;
+    specialtyName: string;
+    description: string | null;
+    version: number | null;
+    isActive: boolean | null;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+}
+
+export interface TrainingSpecialtyDetail extends TrainingSpecialty {
+    roadmaps: TrainingRoadmap[];
+    enrollments: TrainingEnrollmentSummary[];
+    roadmapCount: number;
+    activeProgramCount: number;
+    enrolledDogCount: number;
+}
+
+export interface UpdateEnrollmentProgressPayload {
+    status?: EnrollmentStatus;
+    notes?: string;
+}
+
 export interface EvaluateEnrollmentExercisePayload {
-    exerciseId: number;
+    progressId: number;
     status: EnrollmentExerciseStatus;
     score?: number;
     trainerNotes?: string;
