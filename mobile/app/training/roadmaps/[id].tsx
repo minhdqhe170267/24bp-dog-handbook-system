@@ -163,6 +163,38 @@ export default function RoadmapDetailScreen() {
                     </View>
                 </View>
 
+                <TouchableOpacity
+                    activeOpacity={0.88}
+                    style={[
+                        styles.enrollmentShortcut,
+                        {
+                            backgroundColor: isDark ? colors.surface : '#F4F9F5',
+                            borderColor: isDark ? colors.border : '#DCE7E0',
+                        },
+                    ]}
+                    onPress={() =>
+                        router.push({
+                            pathname: '/training/enrollments',
+                            params: { roadmapName: roadmap.roadmapName },
+                        } as any)
+                    }
+                >
+                    <View style={styles.enrollmentShortcutCopy}>
+                        <Text style={[styles.enrollmentShortcutEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
+                            THEO DÕI CHƯƠNG TRÌNH
+                        </Text>
+                        <Text style={[styles.enrollmentShortcutTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                            Theo dõi chương trình đang gắn với lộ trình này
+                        </Text>
+                        <Text style={[styles.enrollmentShortcutMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                            Mở khu theo dõi để xem phase, bài tập và đánh giá đồng bộ cho lộ trình này.
+                        </Text>
+                    </View>
+                    <View style={[styles.enrollmentShortcutIcon, { backgroundColor: colors.primary }]}>
+                        <Ionicons name="sparkles-outline" size={20} color="#FFFFFF" />
+                    </View>
+                </TouchableOpacity>
+
                 <View style={styles.sectionTitleRow}>
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Giai đoạn hiện tại</Text>
                     <Text style={[styles.sectionStatus, { color: colors.primary }]}>Đang áp dụng</Text>
@@ -420,6 +452,42 @@ const styles = StyleSheet.create({
         marginTop: 2,
         fontSize: 12,
         fontWeight: '600',
+    },
+    enrollmentShortcut: {
+        borderWidth: 1,
+        borderRadius: 20,
+        padding: spacing.md,
+        marginBottom: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.md,
+    },
+    enrollmentShortcutCopy: {
+        flex: 1,
+    },
+    enrollmentShortcutEyebrow: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1,
+        marginBottom: 6,
+    },
+    enrollmentShortcutTitle: {
+        fontSize: 20,
+        lineHeight: 25,
+        fontWeight: '700',
+    },
+    enrollmentShortcutMeta: {
+        marginTop: 6,
+        fontSize: 13,
+        lineHeight: 19,
+        fontWeight: '500',
+    },
+    enrollmentShortcutIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     statusText: {
         fontSize: 11,

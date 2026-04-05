@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { useThemeStore } from '../../../src/stores/themeStore';
+import { useEnrollmentStore } from '../../../src/stores/enrollmentStore';
 import { useTrainingProgressStore } from '../../../src/stores/trainingProgressStore';
 import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { exerciseService } from '../../../src/services/exerciseService';
+import { enrollmentService } from '../../../src/services/enrollmentService';
 import { TrainingExercise } from '../../../src/types/training';
 import {
     difficultyMeta,
@@ -21,8 +23,27 @@ import {
 } from '../../../src/features/training/ui';
 import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
+const resolveProgressStatus = (value: string | null | undefined) => {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === 'COMPLETED' || normalized === 'SKIPPED') {
+        return 'COMPLETED';
+    }
+    if (normalized === 'IN_PROGRESS') {
+        return 'IN_PROGRESS';
+    }
+    return 'NOT_STARTED';
+};
+
 export default function ExerciseDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const {
+        id,
+        enrollmentId: enrollmentIdParam,
+        exerciseStatus,
+    } = useLocalSearchParams<{
+        id: string;
+        enrollmentId?: string;
+        exerciseStatus?: string;
+    }>();
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
 
@@ -30,11 +51,19 @@ export default function ExerciseDetailScreen() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeStepIndex, setActiveStepIndex] = useState(0);
+    const [remoteProgressStatus, setRemoteProgressStatus] = useState(resolveProgressStatus(exerciseStatus));
+    const [syncing, setSyncing] = useState(false);
     const { animatedStyle } = useTrainingEntrance();
     const progressByExercise = useTrainingProgressStore((state) => state.progressByExercise);
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
-    const resetExercise = useTrainingProgressStore((state) => state.resetExercise);
+    const applyExercisePatch = useEnrollmentStore((state) => state.applyExercisePatch);
+    const parsedEnrollmentId = Number(enrollmentIdParam);
+    const activeEnrollmentId = Number.isFinite(parsedEnrollmentId) && parsedEnrollmentId > 0 ? parsedEnrollmentId : null;
+
+    useEffect(() => {
+        setRemoteProgressStatus(resolveProgressStatus(exerciseStatus));
+    }, [exerciseStatus]);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -100,7 +129,8 @@ export default function ExerciseDetailScreen() {
     const safety = splitToBullets(exercise.safetyPrecautions);
     const tools = parseToolItems(exercise.requiredEquipment);
     const durationLabel = exercise.durationMinutes ? `${exercise.durationMinutes} phút` : 'Chưa rõ';
-    const progressStatus = progressByExercise[exercise.exerciseId]?.status || 'NOT_STARTED';
+    const progressStatus = progressByExercise[exercise.exerciseId]?.status
+        || (activeEnrollmentId ? remoteProgressStatus : 'NOT_STARTED');
     const progressMeta =
         progressStatus === 'IN_PROGRESS'
             ? { label: 'Đang luyện', bg: '#FFF2D8', color: '#9B6A00', icon: 'play' as const }
@@ -124,23 +154,86 @@ export default function ExerciseDetailScreen() {
         setActiveStepIndex(Math.max(0, Math.min(index, instructionSteps.length - 1)));
     };
 
-    const onPressStart = () => {
+    const syncEnrollmentProgress = async (nextStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED') => {
+        if (!activeEnrollmentId) {
+            return true;
+        }
+
+        try {
+            await enrollmentService.evaluate(activeEnrollmentId, {
+                exerciseId: exercise.exerciseId,
+                status: nextStatus,
+            });
+            setRemoteProgressStatus(nextStatus);
+            applyExercisePatch(activeEnrollmentId, {
+                exerciseId: exercise.exerciseId,
+                status: nextStatus,
+            });
+            return true;
+        } catch (syncError: any) {
+            Alert.alert(
+                'Không thể đồng bộ theo dõi',
+                syncError?.message || 'Tiến độ chương trình chưa được cập nhật. Vui lòng thử lại.',
+            );
+            return false;
+        }
+    };
+
+    const buildStepRoute = (stepNumber: number, nextStatus: string) => ({
+        pathname: `/training/exercises/${exercise.exerciseId}/steps/${stepNumber}` as any,
+        params: activeEnrollmentId
+            ? {
+                enrollmentId: String(activeEnrollmentId),
+                exerciseStatus: nextStatus,
+            }
+            : undefined,
+    });
+
+    const onPressStart = async () => {
+        if (syncing) {
+            return;
+        }
+
         if (progressStatus === 'COMPLETED') {
-            resetExercise(exercise.exerciseId);
+            setSyncing(true);
+            const canReset = await syncEnrollmentProgress('IN_PROGRESS');
+            setSyncing(false);
+            if (!canReset) {
+                return;
+            }
+
+            startExercise(exercise.exerciseId);
             setActiveStepIndex(0);
+            if (instructionSteps.length > 0) {
+                router.push(buildStepRoute(1, 'IN_PROGRESS'));
+            }
             return;
         }
 
         if (progressStatus === 'NOT_STARTED') {
+            setSyncing(true);
+            const canStart = await syncEnrollmentProgress('IN_PROGRESS');
+            setSyncing(false);
+            if (!canStart) {
+                return;
+            }
+
             startExercise(exercise.exerciseId);
         }
 
         if (instructionSteps.length > 0) {
-            router.push(`/training/exercises/${exercise.exerciseId}/steps/${safeActiveStepIndex + 1}` as any);
+            router.push(buildStepRoute(safeActiveStepIndex + 1, 'IN_PROGRESS'));
             return;
         }
 
         if (progressStatus === 'IN_PROGRESS') {
+            setSyncing(true);
+            const canComplete = await syncEnrollmentProgress('COMPLETED');
+            setSyncing(false);
+            if (!canComplete) {
+                return;
+            }
+
             completeExercise(exercise.exerciseId);
         }
     };
@@ -393,7 +486,12 @@ export default function ExerciseDetailScreen() {
                                         <TouchableOpacity
                                             style={[styles.openStepButton, { backgroundColor: colors.primary }]}
                                             onPress={() =>
-                                                router.push(`/training/exercises/${exercise.exerciseId}/steps/${safeActiveStepIndex + 1}` as any)
+                                                router.push(
+                                                    buildStepRoute(
+                                                        safeActiveStepIndex + 1,
+                                                        progressStatus === 'COMPLETED' ? 'COMPLETED' : progressStatus,
+                                                    ),
+                                                )
                                             }
                                             activeOpacity={0.88}
                                         >
@@ -482,12 +580,19 @@ export default function ExerciseDetailScreen() {
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
-                    style={[styles.startButton, { backgroundColor: colors.primary }]}
+                    style={[styles.startButton, { backgroundColor: colors.primary, opacity: syncing ? 0.72 : 1 }]}
                     activeOpacity={0.88}
+                    disabled={syncing}
                     onPress={onPressStart}
                 >
-                    <Ionicons name={ctaMeta.icon} size={18} color="#FFFFFF" />
-                    <Text style={styles.startButtonText}>{ctaMeta.label}</Text>
+                    {syncing ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                        <>
+                            <Ionicons name={ctaMeta.icon} size={18} color="#FFFFFF" />
+                            <Text style={styles.startButtonText}>{ctaMeta.label}</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
             </View>
         </ScreenWrapper>
