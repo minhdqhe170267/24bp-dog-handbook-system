@@ -30,6 +30,8 @@ public class DiseaseResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<DiseaseSymptomItem> symptoms;
+    private List<DiseaseMedicationItem> medications;
+    private List<DiseaseFirstAidItem> firstAidGuides;
 
     @Getter
     @Setter
@@ -41,5 +43,33 @@ public class DiseaseResponse {
         private String symptomName;
         private Double weight;
         private Boolean isPrimary;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DiseaseMedicationItem {
+        private Integer medicationId;
+        private String medicationName;
+        private String dosageInstructions;
+        private String administrationMethod;
+        private Integer priority;
+        private String notes;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class DiseaseFirstAidItem {
+        private Integer guideId;
+        private String guideTitle;
+        private String emergencyType;
+        private String immediateSteps;
+        private Integer priority;
+        private String notes;
     }
 }

@@ -6,10 +6,15 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.fpt.doghandbook.backend.dto.request.SymptomCheckerRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.SymptomCheckerResponse;
 import vn.edu.fpt.doghandbook.backend.entity.Disease;
+import vn.edu.fpt.doghandbook.backend.entity.DiseaseFirstAidMapping;
+import vn.edu.fpt.doghandbook.backend.entity.DiseaseMedicationMapping;
 import vn.edu.fpt.doghandbook.backend.entity.DiseaseSymptomMapping;
 import vn.edu.fpt.doghandbook.backend.entity.Symptom;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SeverityLevel;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
+import vn.edu.fpt.doghandbook.backend.repository.DiseaseFirstAidMappingRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DiseaseMedicationMappingRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiseaseSymptomMappingRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SymptomRepository;
 import vn.edu.fpt.doghandbook.backend.service.SymptomCheckerService;
@@ -28,6 +33,8 @@ public class SymptomCheckerServiceImpl implements SymptomCheckerService {
 
     private final SymptomRepository symptomRepository;
     private final DiseaseSymptomMappingRepository diseaseSymptomMappingRepository;
+    private final DiseaseMedicationMappingRepository diseaseMedicationMappingRepository;
+    private final DiseaseFirstAidMappingRepository diseaseFirstAidMappingRepository;
 
     @Override
     public SymptomCheckerResponse check(SymptomCheckerRequest request) {
@@ -112,10 +119,57 @@ public class SymptomCheckerServiceImpl implements SymptomCheckerService {
         // 5. Sort by matchPercentage descending
         results.sort(Comparator.comparingDouble(SymptomCheckerResponse.DiagnosisResult::getMatchPercentage).reversed());
 
-        // 6. Determine urgency level
+        // 6. Batch-load medication & first-aid mappings for matched diseases
+        if (!results.isEmpty()) {
+            List<Integer> matchedDiseaseIds = results.stream()
+                    .map(SymptomCheckerResponse.DiagnosisResult::getDiseaseId)
+                    .toList();
+
+            Map<Integer, List<DiseaseMedicationMapping>> medMap = diseaseMedicationMappingRepository
+                    .findByDiseaseDiseaseIdIn(matchedDiseaseIds)
+                    .stream()
+                    .filter(m -> m.getMedication().getStatus() == ContentStatus.PUBLISHED)
+                    .collect(Collectors.groupingBy(m -> m.getDisease().getDiseaseId()));
+
+            Map<Integer, List<DiseaseFirstAidMapping>> faMap = diseaseFirstAidMappingRepository
+                    .findByDiseaseDiseaseIdIn(matchedDiseaseIds)
+                    .stream()
+                    .filter(m -> m.getFirstAidGuide().getStatus() == ContentStatus.PUBLISHED)
+                    .collect(Collectors.groupingBy(m -> m.getDisease().getDiseaseId()));
+
+            for (SymptomCheckerResponse.DiagnosisResult result : results) {
+                List<DiseaseMedicationMapping> meds = medMap.getOrDefault(result.getDiseaseId(), List.of());
+                result.setRecommendedMedications(meds.stream()
+                        .sorted(Comparator.comparingInt(DiseaseMedicationMapping::getPriority))
+                        .map(m -> SymptomCheckerResponse.RecommendedMedication.builder()
+                                .medicationId(m.getMedication().getMedicationId())
+                                .medicationName(m.getMedication().getMedicationName())
+                                .dosageInstructions(m.getMedication().getDosageInstructions())
+                                .administrationMethod(m.getMedication().getAdministrationMethod())
+                                .priority(m.getPriority())
+                                .notes(m.getNotes())
+                                .build())
+                        .toList());
+
+                List<DiseaseFirstAidMapping> fas = faMap.getOrDefault(result.getDiseaseId(), List.of());
+                result.setRecommendedFirstAidGuides(fas.stream()
+                        .sorted(Comparator.comparingInt(DiseaseFirstAidMapping::getPriority))
+                        .map(m -> SymptomCheckerResponse.RecommendedFirstAid.builder()
+                                .guideId(m.getFirstAidGuide().getGuideId())
+                                .guideTitle(m.getFirstAidGuide().getGuideTitle())
+                                .emergencyType(m.getFirstAidGuide().getEmergencyType())
+                                .immediateSteps(m.getFirstAidGuide().getImmediateSteps())
+                                .priority(m.getPriority())
+                                .notes(m.getNotes())
+                                .build())
+                        .toList());
+            }
+        }
+
+        // 7. Determine urgency level
         String urgencyLevel = determineUrgencyLevel(results);
 
-        // 7. Generate recommendation
+        // 8. Generate recommendation
         String recommendation = generateRecommendation(urgencyLevel, results);
 
         return SymptomCheckerResponse.builder()
