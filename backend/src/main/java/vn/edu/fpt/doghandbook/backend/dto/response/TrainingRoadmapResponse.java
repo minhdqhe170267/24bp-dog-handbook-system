@@ -14,6 +14,10 @@ public class TrainingRoadmapResponse {
 
     private Integer roadmapId;
     private String roadmapName;
+    private Integer roadmapOrder;
+    private Integer specialtyId;
+    private String specialtyCode;
+    private String specialtyName;
     private Integer breedId;
     private String breedName;
     private String targetRole;

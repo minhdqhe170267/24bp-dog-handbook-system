@@ -13,25 +13,21 @@ import java.util.Optional;
 public interface DogExerciseProgressRepository extends JpaRepository<DogExerciseProgress, Integer> {
 
     @Query("SELECT dep FROM DogExerciseProgress dep "
-            + "JOIN FETCH dep.roadmapExercise re "
-            + "JOIN FETCH re.trainingExercise te "
-            + "JOIN FETCH re.trainingPhase tp "
+            + "LEFT JOIN FETCH dep.evaluatedBy eb "
             + "WHERE dep.enrollment.enrollmentId = :enrollmentId "
-            + "ORDER BY tp.phaseOrder, re.exerciseOrder")
+            + "ORDER BY dep.roadmapOrder, dep.phaseOrder, dep.exerciseOrder")
     List<DogExerciseProgress> findByEnrollmentIdWithDetails(@Param("enrollmentId") Integer enrollmentId);
 
     @Query("SELECT dep FROM DogExerciseProgress dep "
-            + "JOIN FETCH dep.roadmapExercise re "
-            + "JOIN FETCH re.trainingExercise te "
-            + "JOIN FETCH re.trainingPhase tp "
-            + "WHERE dep.enrollment.enrollmentId = :enrollmentId "
-            + "AND te.exerciseId = :exerciseId")
-    Optional<DogExerciseProgress> findByEnrollmentIdAndExerciseId(
-            @Param("enrollmentId") Integer enrollmentId,
-            @Param("exerciseId") Integer exerciseId
-    );
+            + "JOIN FETCH dep.enrollment dse "
+            + "LEFT JOIN FETCH dep.evaluatedBy eb "
+            + "WHERE dep.progressId = :progressId")
+    Optional<DogExerciseProgress> findDetailByProgressId(@Param("progressId") Integer progressId);
 
     long countByEnrollmentEnrollmentId(Integer enrollmentId);
 
-    long countByEnrollmentEnrollmentIdAndStatusIn(Integer enrollmentId, Collection<ExerciseProgressStatus> statuses);
+    long countByEnrollmentEnrollmentIdAndStatusIn(
+            Integer enrollmentId,
+            Collection<ExerciseProgressStatus> statuses
+    );
 }

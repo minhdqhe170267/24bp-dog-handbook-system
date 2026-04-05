@@ -39,11 +39,49 @@ public class DogExerciseProgress {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "enrollment_id", nullable = false)
-    private DogTrainingEnrollment enrollment;
+    private DogSpecialtyEnrollment enrollment;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roadmap_exercise_id", nullable = false)
-    private RoadmapExercise roadmapExercise;
+    @Column(name = "roadmap_exercise_id", nullable = false)
+    private Integer roadmapExerciseId;
+
+    @Column(name = "roadmap_id", nullable = false)
+    private Integer roadmapId;
+
+    @Column(name = "roadmap_name", nullable = false)
+    private String roadmapName;
+
+    @Column(name = "roadmap_order", nullable = false)
+    private Integer roadmapOrder;
+
+    @Column(name = "target_role")
+    private String targetRole;
+
+    @Column(name = "phase_id", nullable = false)
+    private Integer phaseId;
+
+    @Column(name = "phase_name", nullable = false)
+    private String phaseName;
+
+    @Column(name = "phase_order", nullable = false)
+    private Integer phaseOrder;
+
+    @Column(name = "phase_duration_weeks")
+    private Integer phaseDurationWeeks;
+
+    @Column(name = "phase_objectives")
+    private String phaseObjectives;
+
+    @Column(name = "assessment_criteria")
+    private String assessmentCriteria;
+
+    @Column(name = "exercise_id", nullable = false)
+    private Integer exerciseId;
+
+    @Column(name = "exercise_name", nullable = false)
+    private String exerciseName;
+
+    @Column(name = "exercise_order", nullable = false)
+    private Integer exerciseOrder;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -78,6 +116,15 @@ public class DogExerciseProgress {
         this.createdAt = now;
         this.updatedAt = now;
 
+        if (this.roadmapOrder == null || this.roadmapOrder <= 0) {
+            this.roadmapOrder = 1;
+        }
+        if (this.phaseOrder == null || this.phaseOrder <= 0) {
+            this.phaseOrder = 1;
+        }
+        if (this.exerciseOrder == null || this.exerciseOrder <= 0) {
+            this.exerciseOrder = 1;
+        }
         if (this.status == null) {
             this.status = ExerciseProgressStatus.NOT_STARTED;
         }

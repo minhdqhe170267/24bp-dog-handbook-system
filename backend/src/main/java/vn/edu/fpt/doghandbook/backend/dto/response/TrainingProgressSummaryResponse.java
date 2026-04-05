@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -14,24 +14,23 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class DogAssignmentResponse {
+public class TrainingProgressSummaryResponse {
 
-    private Integer assignmentId;
+    private Integer enrollmentId;
     private Integer dogId;
     private String dogName;
-    private String dogCode;
     private Integer trainerId;
     private String trainerName;
-    private String trainerUsername;
     private Integer specialtyId;
     private String specialtyName;
-    private String assignmentType;
-    private String assignmentScope;
-    private Integer coveredAssignmentId;
-    private LocalDate startDate;
-    private LocalDate endDate;
-    private Boolean isActive;
+    private Integer specialtyVersion;
+    private String currentRoadmapName;
+    private Integer currentRoadmapOrder;
+    private String currentPhaseName;
+    private Integer currentPhaseOrder;
+    private BigDecimal progressPercent;
+    private String status;
+    private LocalDateTime enrolledAt;
+    private LocalDateTime completedAt;
     private String notes;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }
