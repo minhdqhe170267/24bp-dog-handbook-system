@@ -62,6 +62,15 @@ const homeActions: HomeAction[] = [
     accentSoft: '#E6F6FA',
   },
   {
+    id: 'reports',
+    title: '\u0042\u00e1o c\u00e1o c\u00f4ng t\u00e1c',
+    description: '\u0054\u1ea1o b\u00e1o c\u00e1o hu\u1ea5n luy\u1ec7n, s\u1ee9c kh\u1ecfe v\u00e0 theo d\u00f5i tr\u1ea1ng th\u00e1i \u0111\u1ed3ng b\u1ed9.',
+    icon: 'bar-chart',
+    route: '/reports',
+    accent: '#8C4B17',
+    accentSoft: '#FFF1E6',
+  },
+  {
     id: 'nutrition',
     title: 'Dinh dưỡng',
     description: 'Khẩu phần, tiêu chuẩn và máy tính dinh dưỡng.',
