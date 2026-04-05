@@ -55,3 +55,59 @@ export interface TrainingRoadmap {
     createdAt?: string | null;
     updatedAt?: string | null;
 }
+
+export type EnrollmentStatus =
+    | 'ENROLLED'
+    | 'IN_PROGRESS'
+    | 'COMPLETED'
+    | 'SUSPENDED'
+    | 'WITHDRAWN';
+
+export type EnrollmentExerciseStatus =
+    | 'NOT_STARTED'
+    | 'IN_PROGRESS'
+    | 'COMPLETED'
+    | 'SKIPPED';
+
+export interface TrainingEnrollmentSummary {
+    enrollmentId: number;
+    dogName: string;
+    breedName: string | null;
+    roadmapName: string;
+    targetRole: string | null;
+    currentPhase: number | null;
+    totalPhases: number | null;
+    progressPercent: number;
+    status: EnrollmentStatus | string;
+    trainerName: string | null;
+    enrolledAt: string | null;
+}
+
+export interface TrainingExerciseProgress {
+    progressId: number;
+    exerciseId: number;
+    exerciseName: string;
+    status: EnrollmentExerciseStatus | string;
+    score: number | null;
+    trainerNotes: string | null;
+    completedAt: string | null;
+}
+
+export interface TrainingPhaseProgress {
+    phaseName: string | null;
+    phaseOrder: number | null;
+    totalExercises: number | null;
+    completedExercises: number | null;
+    exercises: TrainingExerciseProgress[];
+}
+
+export interface TrainingEnrollmentDetail extends TrainingEnrollmentSummary {
+    phases: TrainingPhaseProgress[];
+}
+
+export interface EvaluateEnrollmentExercisePayload {
+    exerciseId: number;
+    status: EnrollmentExerciseStatus;
+    score?: number;
+    trainerNotes?: string;
+}
