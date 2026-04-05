@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenWrapper } from '../src/components/ScreenWrapper';
 import { borderRadius, fontSize, spacing } from '../src/constants/theme';
 import { syncConflictDBService } from '../src/database/services/syncConflictDBService';
@@ -9,17 +9,27 @@ import { offlineCacheDBService } from '../src/database/services/offlineCacheDBSe
 import { syncMetadataDBService } from '../src/database/services/syncMetadataDBService';
 import { syncQueueDBService } from '../src/database/services/syncQueueDBService';
 import type {
-  EntityType,
   SyncAction,
   SyncConflictLogRow,
   SyncMetadataRow,
   SyncMetadataStatus,
   SyncQueueRow,
 } from '../src/database/types';
+import {
+  formatDateTime,
+  formatDuration,
+  formatEntityLabel,
+  formatShortDateTime,
+  getEntityIcon,
+  getErrorMessage,
+  humanizeKey,
+} from '../src/features/sync/ui';
 import { useSyncStatus } from '../src/hooks/useSyncStatus';
+import { syncConflictService } from '../src/services/syncConflictService';
 import { useNetworkStore } from '../src/stores/networkStore';
 import { type ThemeColors, useThemeStore } from '../src/stores/themeStore';
 import { useSyncStore } from '../src/stores/syncStore';
+import type { SyncServerConflictSummary } from '../src/types/sync';
 
 type QueueTab = 'pending' | 'failed';
 
@@ -38,87 +48,59 @@ interface LoadedSyncData {
   pendingItems: SyncQueueRow[];
   failedItems: SyncQueueRow[];
   metadataRows: SyncMetadataRow[];
-  conflicts: SyncConflictLogRow[];
+  localConflicts: SyncConflictLogRow[];
+  serverConflicts: SyncServerConflictSummary[];
+  serverConflictError: string | null;
   backgroundSummary: BackgroundSyncSummary | null;
 }
 
-interface DisplayPair {
-  key: string;
-  value: string;
-}
-
-const ENTITY_LABELS: Partial<Record<EntityType, string>> = {
-  field_note: 'Nhật ký thực địa',
-  health_record: 'Hồ sơ sức khỏe',
-  health_session: 'Phiên theo dõi sức khỏe',
-  session_follow_up: 'Theo dõi sau phiên',
-  content_suggestion: 'Góp ý nội dung',
-  weight_assessment: 'Đánh giá cân nặng',
-  operation_report: 'Báo cáo công tác',
-  diagnosis_record: 'Bản ghi chẩn đoán',
-};
-
-const ENTITY_ICONS: Partial<Record<EntityType, React.ComponentProps<typeof Ionicons>['name']>> = {
-  field_note: 'document-text',
-  health_record: 'medkit',
-  weight_assessment: 'barbell',
-  health_session: 'pulse',
-  session_follow_up: 'calendar',
-  content_suggestion: 'chatbubble-ellipses',
-  operation_report: 'clipboard',
-  diagnosis_record: 'search',
-};
-
-const pad = (value: number) => String(value).padStart(2, '0');
-
-const formatDateTime = (value: string | null) => {
-  if (!value) {
-    return 'Chưa đồng bộ';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Chưa đồng bộ';
-  }
-
-  return `${pad(date.getHours())}:${pad(date.getMinutes())} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
-};
-
-const formatShortDateTime = (value: string | null) => {
-  if (!value) {
-    return 'Chưa đồng bộ';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Chưa đồng bộ';
-  }
-
-  return `${pad(date.getHours())}:${pad(date.getMinutes())} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
-};
-
-const formatDuration = (durationMs: number) => `${(durationMs / 1000).toFixed(1)}s`;
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  return 'Đã xảy ra lỗi không xác định.';
-};
-
-const capitalizeWords = (value: string) =>
-  value
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-
-const humanizeKey = (value: string) => capitalizeWords(value.replace(/_/g, ' '));
+const COPY = {
+  syncTitle: 'Đồng bộ dữ liệu',
+  syncSubtitle: 'Theo dõi hàng chờ, xung đột và trạng thái đồng bộ giữa thiết bị với máy chủ.',
+  loading: 'Đang tải dữ liệu đồng bộ...',
+  currentStatus: 'Trạng thái hiện tại',
+  syncQueue: 'Hàng chờ đồng bộ',
+  tableHistory: 'Lịch sử đồng bộ từng bảng',
+  conflictTitle: 'Xung đột đồng bộ',
+  serverConflictTitle: 'Xung đột trên máy chủ',
+  localConflictTitle: 'Xung đột lưu trên thiết bị',
+  backgroundSync: 'Đồng bộ nền',
+  syncNow: 'Đồng bộ ngay',
+  syncing: 'Đang đồng bộ...',
+  networkRequired: 'Cần kết nối mạng',
+  retryAll: 'Thử lại tất cả',
+  noSyncedData: 'Tất cả dữ liệu đã được đồng bộ',
+  noBackgroundSync: 'Chưa có lịch sử đồng bộ nền',
+  noInternet: 'Thiết bị đang có mạng nhưng chưa truy cập được Internet. Hãy kiểm tra lại rồi thử đồng bộ sau.',
+  alreadySyncing: 'Một tiến trình đồng bộ khác đang chạy. Vui lòng chờ trong giây lát.',
+  removeFailedTitle: 'Xóa mục đồng bộ lỗi',
+  removeFailedDescription:
+    'Mục này sẽ bị xóa khỏi hàng chờ đồng bộ. Dữ liệu cục bộ trên thiết bị vẫn được giữ nguyên.',
+  cancel: 'Hủy',
+  remove: 'Xóa',
+  cannotRemove: 'Không thể xóa mục đồng bộ lỗi.',
+  cannotRetry: 'Không thể thử lại các mục lỗi.',
+  cannotSync: 'Không thể đồng bộ ngay lúc này.',
+  pendingTab: 'Chờ đẩy',
+  failedTab: 'Thất bại',
+  connectionPrefix: 'Đang kết nối',
+  offline: 'Ngoại tuyến',
+  notSyncedYet: 'Chưa đồng bộ',
+  unresolvedFields: 'trường cần kiểm tra',
+  openConflict: 'Xem chi tiết',
+  reviewServerConflict: 'So sánh bản di động và bản máy chủ, sau đó xử lý trên màn chi tiết.',
+  reviewLocalConflict: 'Đây là khác biệt còn lưu trên thiết bị. Mở chi tiết để xem hai phiên bản hoặc ẩn cục bộ.',
+  serverConflictFallback:
+    'Không thể tải danh sách xung đột từ máy chủ. Ứng dụng đang hiển thị các xung đột cục bộ còn lưu trên thiết bị.',
+  lastSync: 'Đồng bộ lần cuối',
+  syncedCount: 'Đã đẩy',
+  pulledCount: 'Đã tải',
+  duration: 'Thời gian',
+  records: 'bản ghi',
+  neverSynced: 'Chưa đồng bộ',
+  pendingServerBadge: 'Máy chủ',
+  localBadge: 'Thiết bị',
+} as const;
 
 const formatConnectionType = (connectionType: string | null) => {
   switch (connectionType) {
@@ -130,18 +112,10 @@ const formatConnectionType = (connectionType: string | null) => {
       return 'Ethernet';
     case 'none':
       return 'Không có mạng';
-    case 'unknown':
-      return 'Mạng khả dụng';
     default:
       return 'Mạng khả dụng';
   }
 };
-
-const formatEntityLabel = (entityType: string) =>
-  ENTITY_LABELS[entityType as EntityType] ?? humanizeKey(entityType);
-
-const getEntityIcon = (entityType: string): React.ComponentProps<typeof Ionicons>['name'] =>
-  ENTITY_ICONS[entityType as EntityType] ?? 'layers';
 
 const getActionBadge = (action: SyncAction) => {
   if (action === 'CREATE') {
@@ -174,43 +148,6 @@ const getMetadataVisual = (status: SyncMetadataStatus, colors: ThemeColors) => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const stringifyValue = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => stringifyValue(item)).join(', ');
-  }
-
-  if (isRecord(value)) {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === 'boolean') {
-    return value ? 'Có' : 'Không';
-  }
-
-  return String(value);
-};
-
-const parseConflictData = (rawValue: string): DisplayPair[] => {
-  try {
-    const parsed = JSON.parse(rawValue) as unknown;
-
-    if (isRecord(parsed)) {
-      return Object.entries(parsed).map(([key, value]) => ({
-        key: humanizeKey(key),
-        value: stringifyValue(value),
-      }));
-    }
-
-    return [{ key: 'Dữ liệu', value: stringifyValue(parsed) }];
-  } catch {
-    return [{ key: 'Dữ liệu', value: rawValue }];
-  }
-};
-
 const parseBackgroundSummary = (rawValue: string | null): BackgroundSyncSummary | null => {
   if (!rawValue) {
     return null;
@@ -239,22 +176,33 @@ const parseBackgroundSummary = (rawValue: string | null): BackgroundSyncSummary 
   }
 };
 
-const loadSyncScreenData = async (
-  getConflicts: () => Promise<SyncConflictLogRow[]>,
-): Promise<LoadedSyncData> => {
-  const [pendingItems, failedItems, metadataRows, conflicts, backgroundRaw] = await Promise.all([
+const loadSyncScreenData = async (isOnline: boolean): Promise<LoadedSyncData> => {
+  const [pendingItems, failedItems, metadataRows, localConflicts, backgroundRaw] = await Promise.all([
     syncQueueDBService.getPending(),
     syncQueueDBService.getFailed(),
     syncMetadataDBService.getAll(),
-    getConflicts(),
+    syncConflictDBService.getPending(),
     offlineCacheDBService.get('bg_sync_last_result'),
   ]);
+
+  let serverConflicts: SyncServerConflictSummary[] = [];
+  let serverConflictError: string | null = null;
+
+  if (isOnline) {
+    try {
+      serverConflicts = await syncConflictService.getMyConflicts();
+    } catch (error) {
+      serverConflictError = getErrorMessage(error);
+    }
+  }
 
   return {
     pendingItems,
     failedItems,
     metadataRows,
-    conflicts,
+    localConflicts,
+    serverConflicts,
+    serverConflictError,
     backgroundSummary: parseBackgroundSummary(backgroundRaw),
   };
 };
@@ -266,85 +214,101 @@ export default function SyncScreen() {
   const isInternetReachable = useNetworkStore((state) => state.isInternetReachable);
   const connectionType = useNetworkStore((state) => state.connectionType);
   const refreshSyncCounts = useSyncStore((state) => state.refreshCounts);
-  const { isSyncing, lastSyncAt, syncProgress, syncNow, getConflicts } = useSyncStatus();
+  const { isSyncing, lastSyncAt, syncProgress, syncNow } = useSyncStatus();
 
   const [activeTab, setActiveTab] = useState<QueueTab>('pending');
   const [pendingItems, setPendingItems] = useState<SyncQueueRow[]>([]);
   const [failedItems, setFailedItems] = useState<SyncQueueRow[]>([]);
   const [metadataRows, setMetadataRows] = useState<SyncMetadataRow[]>([]);
-  const [conflicts, setConflicts] = useState<SyncConflictLogRow[]>([]);
+  const [localConflicts, setLocalConflicts] = useState<SyncConflictLogRow[]>([]);
+  const [serverConflicts, setServerConflicts] = useState<SyncServerConflictSummary[]>([]);
+  const [serverConflictError, setServerConflictError] = useState<string | null>(null);
   const [backgroundSummary, setBackgroundSummary] = useState<BackgroundSyncSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRetryingFailed, setIsRetryingFailed] = useState(false);
+
+  const isOnline = isConnected && isInternetReachable !== false;
+  const connectionLabel = formatConnectionType(connectionType);
 
   const applyLoadedData = useCallback((data: LoadedSyncData) => {
     setPendingItems(data.pendingItems);
     setFailedItems(data.failedItems);
     setMetadataRows(data.metadataRows);
-    setConflicts(data.conflicts);
+    setLocalConflicts(data.localConflicts);
+    setServerConflicts(data.serverConflicts);
+    setServerConflictError(data.serverConflictError);
     setBackgroundSummary(data.backgroundSummary);
   }, []);
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
+
     try {
-      const data = await loadSyncScreenData(getConflicts);
+      const data = await loadSyncScreenData(isOnline);
       applyLoadedData(data);
     } catch (error) {
-      console.error('[SYNC_UI] Không thể cập nhật dữ liệu màn hình sync:', getErrorMessage(error));
-    }
-  }, [applyLoadedData, getConflicts]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const data = await loadSyncScreenData(getConflicts);
-        if (isMounted) {
-          applyLoadedData(data);
-        }
-      } catch (error) {
-        console.error('[SYNC_UI] Không thể tải dữ liệu đồng bộ:', getErrorMessage(error));
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      console.error('[SYNC_UI] Không thể tải dữ liệu đồng bộ:', getErrorMessage(error));
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
       }
-    };
+    }
+  }, [applyLoadedData, isOnline]);
 
-    void load();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [applyLoadedData, getConflicts]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshData(true);
+      return undefined;
+    }, [refreshData]),
+  );
 
   useEffect(() => {
     if (!lastSyncAt) {
       return;
     }
 
-    void refreshData();
+    void refreshData(false);
   }, [lastSyncAt, refreshData]);
+
+  const remoteConflictKeys = useMemo(
+    () =>
+      new Set(
+        serverConflicts
+          .filter((item) => item.localId)
+          .map((item) => `${item.entityType}:${item.localId}`),
+      ),
+    [serverConflicts],
+  );
+
+  const localOnlyConflicts = useMemo(() => {
+    if (!serverConflicts.length) {
+      return localConflicts;
+    }
+
+    return localConflicts.filter(
+      (item) => !remoteConflictKeys.has(`${item.entity_type}:${item.entity_id}`),
+    );
+  }, [localConflicts, remoteConflictKeys, serverConflicts.length]);
 
   const handleSyncNow = async () => {
     try {
       const result = await syncNow();
-      await refreshData();
+      await refreshData(false);
 
       if (result.errors.includes('Offline')) {
-        Alert.alert('ChÆ°a thá»ƒ Ä‘á»“ng bá»™', 'Thiáº¿t bá»‹ Ä‘ang káº¿t ná»‘i WiFi nhÆ°ng chÆ°a cÃ³ Internet. HÃ£y kiá»ƒm tra máº¡ng rá»“i thá»­ láº¡i.');
+        Alert.alert(COPY.networkRequired, COPY.noInternet);
         return;
       }
 
       if (result.errors.includes('Already syncing')) {
-        Alert.alert('Äang Ä‘á»“ng bá»™', 'Má»™t tiáº¿n trÃ¬nh Ä‘á»“ng bá»™ khÃ¡c Ä‘ang cháº¡y. Vui lÃ²ng chá» trong giÃ¢y lÃ¡t.');
+        Alert.alert(COPY.syncTitle, COPY.alreadySyncing);
       }
     } catch (error) {
       const message = getErrorMessage(error);
       console.error('[SYNC_UI] Đồng bộ thủ công thất bại:', message);
-      Alert.alert('Không thể đồng bộ', message);
+      Alert.alert(COPY.cannotSync, message || COPY.cannotSync);
     }
   };
 
@@ -354,66 +318,47 @@ export default function SyncScreen() {
       await syncQueueDBService.resetFailed();
       await refreshSyncCounts();
       await syncNow();
-      await refreshData();
+      await refreshData(false);
     } catch (error) {
       const message = getErrorMessage(error);
-      console.error('[SYNC_UI] Thử lại hàng đợi thất bại:', message);
-      Alert.alert('Không thể thử lại', message);
+      console.error('[SYNC_UI] Không thể thử lại các mục lỗi:', message);
+      Alert.alert(COPY.cannotRetry, message);
     } finally {
       setIsRetryingFailed(false);
     }
   };
 
   const handleRemoveFailedItem = (item: SyncQueueRow) => {
-    Alert.alert(
-      'Xóa mục đồng bộ lỗi',
-      'Mục này sẽ bị xóa khỏi hàng chờ đồng bộ. Dữ liệu cục bộ vẫn được giữ lại trên thiết bị.',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              try {
-                await syncQueueDBService.deleteById(item.id);
-                await refreshSyncCounts();
-                await refreshData();
-              } catch (error) {
-                const message = getErrorMessage(error);
-                console.error('[SYNC_UI] Không thể xóa mục đồng bộ lỗi:', message);
-                Alert.alert('Không thể xóa', message);
-              }
-            })();
-          },
+    Alert.alert(COPY.removeFailedTitle, COPY.removeFailedDescription, [
+      { text: COPY.cancel, style: 'cancel' },
+      {
+        text: COPY.remove,
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await syncQueueDBService.deleteById(item.id);
+              await refreshSyncCounts();
+              await refreshData(false);
+            } catch (error) {
+              const message = getErrorMessage(error);
+              console.error('[SYNC_UI] Không thể xóa mục đồng bộ lỗi:', message);
+              Alert.alert(COPY.cannotRemove, message);
+            }
+          })();
         },
-      ],
-    );
-  };
-
-  const handleDismissConflict = async (id: number) => {
-    try {
-      await syncConflictDBService.dismiss(id);
-      setConflicts((current) => current.filter((item) => item.id !== id));
-      await refreshSyncCounts();
-    } catch (error) {
-      const message = getErrorMessage(error);
-      console.error('[SYNC_UI] Không thể bỏ qua xung đột:', message);
-      Alert.alert('Không thể bỏ qua', message);
-    }
+      },
+    ]);
   };
 
   const queueItems = activeTab === 'pending' ? pendingItems : failedItems;
-  const isOnline = isConnected && isInternetReachable !== false;
   const syncButtonDisabled = !isOnline || isSyncing;
   const syncButtonText = !isOnline
-    ? 'Cần kết nối mạng'
+    ? COPY.networkRequired
     : isSyncing
-      ? syncProgress || 'Đang đồng bộ...'
-      : 'Đồng bộ ngay';
-
-  const connectionLabel = formatConnectionType(connectionType);
-  const connectionText = isConnected ? `Đang kết nối ${connectionLabel}` : 'Ngoại tuyến';
+      ? syncProgress || COPY.syncing
+      : COPY.syncNow;
+  const connectionText = isConnected ? `${COPY.connectionPrefix} ${connectionLabel}` : COPY.offline;
 
   return (
     <ScreenWrapper scrollable style={styles.screenContent}>
@@ -427,9 +372,9 @@ export default function SyncScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerTextWrapper}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Đồng bộ dữ liệu</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{COPY.syncTitle}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            Quản lý dữ liệu ngoại tuyến và trạng thái đồng bộ
+            {COPY.syncSubtitle}
           </Text>
         </View>
       </View>
@@ -437,14 +382,12 @@ export default function SyncScreen() {
       {isLoading ? (
         <View style={[styles.loadingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Đang tải dữ liệu đồng bộ...
-          </Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{COPY.loading}</Text>
         </View>
       ) : null}
 
       <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Trạng thái hiện tại</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{COPY.currentStatus}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statusRow}>
             <View style={styles.statusMain}>
@@ -456,16 +399,16 @@ export default function SyncScreen() {
               />
               <Text style={[styles.statusText, { color: colors.text }]}>
                 {isConnected && isInternetReachable === false
-                  ? `${connectionLabel} nhÆ°ng chÆ°a cÃ³ Internet`
+                  ? `${connectionLabel} nhưng chưa có Internet`
                   : connectionText}
               </Text>
             </View>
+
             <View
               style={[
                 styles.connectionPill,
                 {
-                  backgroundColor:
-                    isDark ? colors.accentLight : 'rgba(82, 183, 136, 0.14)',
+                  backgroundColor: isDark ? colors.accentLight : 'rgba(82, 183, 136, 0.14)',
                 },
               ]}
             >
@@ -476,7 +419,7 @@ export default function SyncScreen() {
           </View>
 
           <Text style={[styles.lastSyncText, { color: colors.textSecondary }]}>
-            Đồng bộ lần cuối: {lastSyncAt ? formatDateTime(lastSyncAt) : 'Chưa đồng bộ'}
+            {COPY.lastSync}: {lastSyncAt ? formatDateTime(lastSyncAt) : COPY.notSyncedYet}
           </Text>
 
           <TouchableOpacity
@@ -513,7 +456,7 @@ export default function SyncScreen() {
       </View>
 
       <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Hàng chờ đồng bộ</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{COPY.syncQueue}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.tabRow}>
             <TouchableOpacity
@@ -537,7 +480,7 @@ export default function SyncScreen() {
                   { color: activeTab === 'pending' ? colors.white : colors.textSecondary },
                 ]}
               >
-                Chờ đẩy ({pendingItems.length})
+                {`${COPY.pendingTab} (${pendingItems.length})`}
               </Text>
             </TouchableOpacity>
 
@@ -562,7 +505,7 @@ export default function SyncScreen() {
                   { color: activeTab === 'failed' ? colors.white : colors.textSecondary },
                 ]}
               >
-                Thất bại ({failedItems.length})
+                {`${COPY.failedTab} (${failedItems.length})`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -584,7 +527,7 @@ export default function SyncScreen() {
               ) : (
                 <Ionicons name="refresh" size={16} color={colors.warning} />
               )}
-              <Text style={[styles.retryButtonText, { color: colors.warning }]}>Thử lại tất cả</Text>
+              <Text style={[styles.retryButtonText, { color: colors.warning }]}>{COPY.retryAll}</Text>
             </TouchableOpacity>
           ) : null}
 
@@ -592,7 +535,7 @@ export default function SyncScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="checkmark-circle" size={30} color={colors.success} />
               <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-                Tất cả dữ liệu đã được đồng bộ
+                {COPY.noSyncedData}
               </Text>
             </View>
           ) : (
@@ -608,8 +551,7 @@ export default function SyncScreen() {
                     style={[
                       styles.entityIconWrap,
                       {
-                        backgroundColor:
-                          isDark ? colors.accentLight : 'rgba(82, 183, 136, 0.12)',
+                        backgroundColor: isDark ? colors.accentLight : 'rgba(82, 183, 136, 0.12)',
                       },
                     ]}
                   >
@@ -644,8 +586,7 @@ export default function SyncScreen() {
                           style={[
                             styles.removeFailedButton,
                             {
-                              backgroundColor:
-                                isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgba(254, 242, 242, 1)',
+                              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : 'rgb(254, 242, 242)',
                             },
                           ]}
                           activeOpacity={0.85}
@@ -653,7 +594,7 @@ export default function SyncScreen() {
                         >
                           <Ionicons name="trash-outline" size={14} color={colors.error} />
                           <Text style={[styles.removeFailedButtonText, { color: colors.error }]}>
-                            Xóa
+                            {COPY.remove}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -667,130 +608,198 @@ export default function SyncScreen() {
       </View>
 
       <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Lịch sử đồng bộ từng bảng</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{COPY.tableHistory}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          {metadataRows.map((row, index) => {
-            const visual = getMetadataVisual(row.sync_status, colors);
+          {metadataRows.length === 0 ? (
+            <Text style={[styles.backgroundSummary, { color: colors.textSecondary }]}>
+              {COPY.neverSynced}
+            </Text>
+          ) : (
+            metadataRows.map((row, index) => {
+              const visual = getMetadataVisual(row.sync_status, colors);
 
-            return (
-              <View
-                key={row.table_name}
-                style={[
-                  styles.metadataRow,
-                  index < metadataRows.length - 1 && {
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                  },
-                ]}
-              >
-                <Ionicons name={visual.icon} size={18} color={visual.iconColor} />
-                <View style={styles.metadataBody}>
-                  <Text style={[styles.metadataTableName, { color: colors.text }]}>
-                    {humanizeKey(row.table_name)}
-                  </Text>
-                  <Text style={[styles.metadataStatus, { color: colors.textSecondary }]}>
-                    {row.sync_status === 'SUCCESS' || row.sync_status === 'PARTIAL'
-                      ? formatShortDateTime(row.last_sync_at)
-                      : visual.statusText}
+              return (
+                <View
+                  key={row.table_name}
+                  style={[
+                    styles.metadataRow,
+                    index < metadataRows.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Ionicons name={visual.icon} size={18} color={visual.iconColor} />
+                  <View style={styles.metadataBody}>
+                    <Text style={[styles.metadataTableName, { color: colors.text }]}>
+                      {humanizeKey(row.table_name)}
+                    </Text>
+                    <Text style={[styles.metadataStatus, { color: colors.textSecondary }]}>
+                      {row.sync_status === 'SUCCESS' || row.sync_status === 'PARTIAL'
+                        ? formatShortDateTime(row.last_sync_at)
+                        : visual.statusText}
+                    </Text>
+                  </View>
+                  <Text style={[styles.metadataCount, { color: colors.textSecondary }]}>
+                    {row.record_count > 0 ? `${row.record_count} ${COPY.records}` : visual.statusText}
                   </Text>
                 </View>
-                <Text style={[styles.metadataCount, { color: colors.textSecondary }]}>
-                  {row.record_count > 0 ? `${row.record_count} bản ghi` : visual.statusText}
-                </Text>
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </View>
       </View>
 
-      {conflicts.length > 0 ? (
+      {(serverConflicts.length > 0 || localOnlyConflicts.length > 0 || serverConflictError) ? (
         <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Xung đột dữ liệu</Text>
-          {conflicts.map((conflict) => (
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{COPY.conflictTitle}</Text>
+
+          {serverConflicts.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>{COPY.serverConflictTitle}</Text>
+              {serverConflicts.map((conflict) => (
+                <TouchableOpacity
+                  key={`server-conflict-${conflict.id}`}
+                  activeOpacity={0.9}
+                  style={[
+                    styles.card,
+                    styles.conflictCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/sync-conflicts/[id]' as any,
+                      params: { id: String(conflict.id), source: 'server' },
+                    })
+                  }
+                >
+                  <View style={styles.conflictHeader}>
+                    <View style={styles.conflictHeaderBody}>
+                      <Text style={[styles.conflictTitle, { color: colors.text }]}>
+                        {formatEntityLabel(conflict.entityType)}
+                      </Text>
+                      <Text style={[styles.conflictTime, { color: colors.textSecondary }]}>
+                        {formatDateTime(conflict.conflictDetectedAt)}
+                      </Text>
+                    </View>
+                    <View style={[styles.sourceBadge, { backgroundColor: 'rgba(245, 158, 11, 0.14)' }]}>
+                      <Text style={[styles.sourceBadgeText, { color: colors.warning }]}>
+                        {COPY.pendingServerBadge}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.conflictMetaRow}>
+                    <View style={styles.conflictMeta}>
+                      <Ionicons name="warning-outline" size={15} color={colors.warning} />
+                      <Text style={[styles.conflictMetaText, { color: colors.textSecondary }]}>
+                        {`${conflict.conflictedFieldCount} ${COPY.unresolvedFields}`}
+                      </Text>
+                    </View>
+                    {conflict.trainerName ? (
+                      <View style={styles.conflictMeta}>
+                        <Ionicons name="person-outline" size={15} color={colors.textLight} />
+                        <Text style={[styles.conflictMetaText, { color: colors.textSecondary }]}>
+                          {conflict.trainerName}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Text style={[styles.conflictNote, { color: colors.textSecondary }]}>
+                    {COPY.reviewServerConflict}
+                  </Text>
+
+                  <View style={styles.conflictActionRow}>
+                    <Text style={[styles.conflictActionText, { color: colors.primary }]}>
+                      {COPY.openConflict}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+
+          {serverConflictError ? (
             <View
-              key={`conflict-${conflict.id}`}
               style={[
-                styles.card,
-                styles.conflictCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                styles.warningBanner,
+                {
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : '#FFF7E6',
+                  borderColor: colors.warning,
+                },
               ]}
             >
-              <View style={styles.conflictHeader}>
-                <View>
-                  <Text style={[styles.conflictTitle, { color: colors.text }]}>
-                    {formatEntityLabel(conflict.entity_type)}
-                  </Text>
-                  <Text style={[styles.conflictTime, { color: colors.textSecondary }]}>
-                    {formatDateTime(conflict.created_at)}
-                  </Text>
-                </View>
-                <Ionicons name="warning" size={20} color={colors.warning} />
-              </View>
-
-              <View
-                style={[
-                  styles.dataBlock,
-                  {
-                    backgroundColor:
-                      isDark ? 'rgba(239, 68, 68, 0.12)' : 'rgba(254, 242, 242, 1)',
-                  },
-                ]}
-              >
-                <Text style={[styles.dataBlockTitle, { color: colors.text }]}>Bản của bạn</Text>
-                {parseConflictData(conflict.local_data).map((pair) => (
-                  <View key={`${conflict.id}-local-${pair.key}`} style={styles.dataRow}>
-                    <Text style={[styles.dataKey, { color: colors.textSecondary }]}>{pair.key}</Text>
-                    <Text style={[styles.dataValue, { color: colors.text }]}>{pair.value}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View
-                style={[
-                  styles.dataBlock,
-                  {
-                    backgroundColor:
-                      isDark ? 'rgba(34, 197, 94, 0.12)' : 'rgba(240, 253, 244, 1)',
-                  },
-                ]}
-              >
-                <Text style={[styles.dataBlockTitle, { color: colors.text }]}>
-                  Bản hệ thống (đang dùng)
-                </Text>
-                {parseConflictData(conflict.server_data).map((pair) => (
-                  <View key={`${conflict.id}-server-${pair.key}`} style={styles.dataRow}>
-                    <Text style={[styles.dataKey, { color: colors.textSecondary }]}>{pair.key}</Text>
-                    <Text style={[styles.dataValue, { color: colors.text }]}>{pair.value}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <Text style={[styles.conflictNote, { color: colors.textSecondary }]}>
-                Bản hệ thống đang được áp dụng. Liên hệ admin để giải quyết.
+              <Ionicons name="cloud-offline-outline" size={18} color={colors.warning} />
+              <Text style={[styles.warningBannerText, { color: isDark ? colors.text : '#8A5A00' }]}>
+                {COPY.serverConflictFallback}
               </Text>
-
-              <TouchableOpacity
-                style={[styles.dismissButton, { backgroundColor: colors.warning }]}
-                activeOpacity={0.85}
-                onPress={() => handleDismissConflict(conflict.id)}
-              >
-                <Text style={styles.dismissButtonText}>Bỏ qua</Text>
-              </TouchableOpacity>
             </View>
-          ))}
+          ) : null}
+
+          {localOnlyConflicts.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>{COPY.localConflictTitle}</Text>
+              {localOnlyConflicts.map((conflict) => (
+                <TouchableOpacity
+                  key={`local-conflict-${conflict.id}`}
+                  activeOpacity={0.9}
+                  style={[
+                    styles.card,
+                    styles.conflictCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/sync-conflicts/[id]' as any,
+                      params: { id: String(conflict.id), source: 'local' },
+                    })
+                  }
+                >
+                  <View style={styles.conflictHeader}>
+                    <View style={styles.conflictHeaderBody}>
+                      <Text style={[styles.conflictTitle, { color: colors.text }]}>
+                        {formatEntityLabel(conflict.entity_type)}
+                      </Text>
+                      <Text style={[styles.conflictTime, { color: colors.textSecondary }]}>
+                        {formatDateTime(conflict.created_at)}
+                      </Text>
+                    </View>
+                    <View style={[styles.sourceBadge, { backgroundColor: 'rgba(59, 130, 246, 0.14)' }]}>
+                      <Text style={[styles.sourceBadgeText, { color: '#2563EB' }]}>
+                        {COPY.localBadge}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={[styles.conflictNote, { color: colors.textSecondary }]}>
+                    {COPY.reviewLocalConflict}
+                  </Text>
+
+                  <View style={styles.conflictActionRow}>
+                    <Text style={[styles.conflictActionText, { color: colors.primary }]}>
+                      {COPY.openConflict}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
         </View>
       ) : null}
 
       <View style={styles.sectionBlock}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Background sync</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{COPY.backgroundSync}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {backgroundSummary ? (
             <>
               <Text style={[styles.backgroundHeadline, { color: colors.text }]}>
-                Đồng bộ nền lần cuối: {formatShortDateTime(backgroundSummary.timestamp)}
+                {`Đồng bộ nền lần cuối: ${formatShortDateTime(backgroundSummary.timestamp)}`}
               </Text>
               <Text style={[styles.backgroundSummary, { color: colors.textSecondary }]}>
-                Đã đẩy: {backgroundSummary.pushed}  |  Đã tải: {backgroundSummary.pulled} bảng  |  Thời gian: {formatDuration(backgroundSummary.durationMs)}
+                {`${COPY.syncedCount}: ${backgroundSummary.pushed}  |  ${COPY.pulledCount}: ${backgroundSummary.pulled}  |  ${COPY.duration}: ${formatDuration(backgroundSummary.durationMs)}`}
               </Text>
               {backgroundSummary.error ? (
                 <Text style={[styles.backgroundError, { color: colors.error }]}>
@@ -800,7 +809,7 @@ export default function SyncScreen() {
             </>
           ) : (
             <Text style={[styles.backgroundSummary, { color: colors.textSecondary }]}>
-              Chưa có lịch sử đồng bộ nền
+              {COPY.noBackgroundSync}
             </Text>
           )}
         </View>
@@ -858,6 +867,10 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: fontSize.lg,
+    fontWeight: '700',
+  },
+  subSectionTitle: {
+    fontSize: fontSize.md,
     fontWeight: '700',
   },
   card: {
@@ -1041,15 +1054,19 @@ const styles = StyleSheet.create({
   metadataCount: {
     fontSize: fontSize.sm,
     textAlign: 'right',
-    maxWidth: 116,
+    maxWidth: 120,
   },
   conflictCard: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   conflictHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  conflictHeaderBody: {
+    flex: 1,
   },
   conflictTitle: {
     fontSize: fontSize.md,
@@ -1059,40 +1076,55 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: fontSize.sm,
   },
-  dataBlock: {
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    gap: 8,
+  sourceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
   },
-  dataBlockTitle: {
-    fontSize: fontSize.sm,
+  sourceBadgeText: {
+    fontSize: fontSize.xs,
     fontWeight: '700',
   },
-  dataRow: {
-    gap: 4,
+  conflictMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  dataKey: {
+  conflictMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  conflictMetaText: {
     fontSize: fontSize.sm,
     fontWeight: '600',
-  },
-  dataValue: {
-    fontSize: fontSize.sm,
-    lineHeight: 18,
   },
   conflictNote: {
     fontSize: fontSize.sm,
     lineHeight: 20,
   },
-  dismissButton: {
-    alignSelf: 'flex-start',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+  conflictActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  dismissButtonText: {
-    color: '#FFFFFF',
+  conflictActionText: {
     fontSize: fontSize.sm,
     fontWeight: '700',
+  },
+  warningBanner: {
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  warningBannerText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    lineHeight: 20,
   },
   backgroundHeadline: {
     fontSize: fontSize.md,

@@ -1,6 +1,7 @@
 import api, { ApiResponse, PageResponse, unwrapApiData } from './api';
 import { offlineFirstRead, isOnline, toPageResponse } from './offlineFirst';
 import { exerciseDBService, roadmapDBService, roadmapExerciseDBService } from '../database/services';
+import { atlasTrainingMock } from '../features/training/mockEnrollment';
 import { rowToApi, apiToRow, ROADMAP_COLS } from './mappers';
 import type { TrainingRoadmap } from '../types/training';
 import type { RoadmapExerciseRow } from '../database/types';
@@ -103,6 +104,13 @@ export const roadmapService = {
         }),
 
     getById: async (id: number): Promise<TrainingRoadmap> => {
+        if (atlasTrainingMock.isMockRoadmapId(id)) {
+            const mockRoadmap = atlasTrainingMock.getRoadmapById(id);
+            if (mockRoadmap) {
+                return mockRoadmap;
+            }
+        }
+
         try {
             const localData = await buildLocalRoadmapDetail(id);
             const hasLocalData = !!localData;

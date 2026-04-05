@@ -1,29 +1,71 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../../../src/components/ScreenWrapper';
 import { useThemeStore } from '../../../../../src/stores/themeStore';
+import { useEnrollmentStore } from '../../../../../src/stores/enrollmentStore';
 import { useTrainingProgressStore } from '../../../../../src/stores/trainingProgressStore';
 import { spacing, borderRadius, fontSize } from '../../../../../src/constants/theme';
 import { exerciseService } from '../../../../../src/services/exerciseService';
+import { enrollmentService } from '../../../../../src/services/enrollmentService';
 import { TrainingExercise } from '../../../../../src/types/training';
 import { trainingUi } from '../../../../../src/features/training/ui';
 import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../../../src/features/training/presentation';
 
+const resolveProgressStatus = (value: string | null | undefined) => {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === 'COMPLETED' || normalized === 'SKIPPED') {
+        return 'COMPLETED';
+    }
+    if (normalized === 'IN_PROGRESS') {
+        return 'IN_PROGRESS';
+    }
+    return 'NOT_STARTED';
+};
+
 export default function ExerciseStepScreen() {
-    const { id, step } = useLocalSearchParams<{ id: string; step: string }>();
+    const {
+        id,
+        step,
+        enrollmentId: enrollmentIdParam,
+        exerciseStatus,
+        progressId: progressIdParam,
+        roadmapName,
+        phaseName,
+    } = useLocalSearchParams<{
+        id: string;
+        step: string;
+        enrollmentId?: string;
+        exerciseStatus?: string;
+        progressId?: string;
+        roadmapName?: string;
+        phaseName?: string;
+    }>();
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
+    const progressByExercise = useTrainingProgressStore((state) => state.progressByExercise);
     const getExerciseStatus = useTrainingProgressStore((state) => state.getExerciseStatus);
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
+    const applyExercisePatch = useEnrollmentStore((state) => state.applyExercisePatch);
+    const setSummary = useEnrollmentStore((state) => state.setSummary);
 
     const [exercise, setExercise] = useState<TrainingExercise | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [remoteProgressStatus, setRemoteProgressStatus] = useState(resolveProgressStatus(exerciseStatus));
+    const [syncing, setSyncing] = useState(false);
     const { animatedStyle } = useTrainingEntrance();
+    const parsedEnrollmentId = Number(enrollmentIdParam);
+    const parsedProgressId = Number(progressIdParam);
+    const activeEnrollmentId = Number.isFinite(parsedEnrollmentId) && parsedEnrollmentId > 0 ? parsedEnrollmentId : null;
+    const activeProgressId = Number.isFinite(parsedProgressId) && parsedProgressId > 0 ? parsedProgressId : null;
+
+    useEffect(() => {
+        setRemoteProgressStatus(resolveProgressStatus(exerciseStatus));
+    }, [exerciseStatus]);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -44,6 +86,9 @@ export default function ExerciseStepScreen() {
         }
     }, [id]);
 
+    const localProgressStatus = exercise ? progressByExercise[exercise.exerciseId]?.status : undefined;
+    const progressStatus = activeEnrollmentId ? remoteProgressStatus : localProgressStatus || remoteProgressStatus;
+
     useEffect(() => {
         if (!exercise) {
             return;
@@ -52,7 +97,41 @@ export default function ExerciseStepScreen() {
         if (getExerciseStatus(exercise.exerciseId) === 'NOT_STARTED') {
             startExercise(exercise.exerciseId);
         }
-    }, [exercise, getExerciseStatus, startExercise]);
+
+        if (!activeEnrollmentId || !activeProgressId || remoteProgressStatus !== 'NOT_STARTED') {
+            return;
+        }
+
+        let cancelled = false;
+
+        const syncStarted = async () => {
+            try {
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
+                    status: 'IN_PROGRESS',
+                });
+                setSummary(summary);
+                setRemoteProgressStatus('IN_PROGRESS');
+                applyExercisePatch(activeEnrollmentId, {
+                    progressId: activeProgressId,
+                    status: 'IN_PROGRESS',
+                });
+            } catch (syncError: any) {
+                if (!cancelled) {
+                    Alert.alert(
+                        'Không thể đồng bộ theo dõi',
+                        syncError?.message || 'Trạng thái bài tập chưa được cập nhật trên chương trình.',
+                    );
+                }
+            }
+        };
+
+        void syncStarted();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeEnrollmentId, activeProgressId, applyExercisePatch, exercise, getExerciseStatus, remoteProgressStatus, setSummary, startExercise]);
 
     const stepIndex = useMemo(() => {
         const parsed = Number(step);
@@ -79,6 +158,32 @@ export default function ExerciseStepScreen() {
     const progressText = `${Math.min(safeIndex + 1, Math.max(steps.length, 1))}/${Math.max(steps.length, 1)}`;
     const isLastStep = steps.length > 0 && safeIndex >= steps.length - 1;
 
+    const buildExerciseRoute = (nextStatus: string) => ({
+        pathname: `/training/exercises/${exercise?.exerciseId}` as any,
+        params: activeEnrollmentId
+            ? {
+                enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
+                exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
+            }
+            : undefined,
+    });
+
+    const buildStepRoute = (stepNumber: number, nextStatus: string) => ({
+        pathname: `/training/exercises/${exercise?.exerciseId}/steps/${stepNumber}` as any,
+        params: activeEnrollmentId
+            ? {
+                enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
+                exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
+            }
+            : undefined,
+    });
+
     const onPressPrevious = () => {
         if (!exercise) {
             router.back();
@@ -86,30 +191,63 @@ export default function ExerciseStepScreen() {
         }
 
         if (safeIndex === 0) {
-            router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+            router.replace(buildExerciseRoute(progressStatus === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'));
             return;
         }
 
-        router.replace(`/training/exercises/${exercise.exerciseId}/steps/${safeIndex}` as any);
+        router.replace(buildStepRoute(safeIndex, 'IN_PROGRESS'));
     };
 
-    const onPressNext = () => {
+    const onPressNext = async () => {
+        if (syncing) {
+            return;
+        }
+
         if (!exercise) {
             return;
         }
 
         if (steps.length === 0) {
-            router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+            router.replace(buildExerciseRoute(progressStatus));
             return;
         }
 
         if (!isLastStep) {
-            router.replace(`/training/exercises/${exercise.exerciseId}/steps/${safeIndex + 2}` as any);
+            router.replace(buildStepRoute(safeIndex + 2, 'IN_PROGRESS'));
             return;
         }
 
+        if (activeEnrollmentId && activeProgressId) {
+            setSyncing(true);
+            try {
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
+                    status: 'COMPLETED',
+                });
+                setSummary(summary);
+                setRemoteProgressStatus('COMPLETED');
+                applyExercisePatch(activeEnrollmentId, {
+                    progressId: activeProgressId,
+                    status: 'COMPLETED',
+                });
+            } catch (syncError: any) {
+                Alert.alert(
+                    'Không thể đồng bộ hoàn thành',
+                    syncError?.message || 'Hệ thống chưa ghi nhận bài tập này là hoàn thành.',
+                );
+                setSyncing(false);
+                return;
+            }
+            setSyncing(false);
+        }
+
         completeExercise(exercise.exerciseId);
-        router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+        if (activeEnrollmentId) {
+            router.replace(`/training/enrollments/${activeEnrollmentId}` as any);
+            return;
+        }
+
+        router.replace(buildExerciseRoute('COMPLETED'));
     };
 
     const goToStep = (targetIndex: number) => {
@@ -118,7 +256,7 @@ export default function ExerciseStepScreen() {
         }
 
         const nextIndex = Math.max(0, Math.min(targetIndex, steps.length - 1));
-        router.replace(`/training/exercises/${exercise.exerciseId}/steps/${nextIndex + 1}` as any);
+        router.replace(buildStepRoute(nextIndex + 1, 'IN_PROGRESS'));
     };
 
     if (loading) {
@@ -303,7 +441,13 @@ export default function ExerciseStepScreen() {
                     </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={onPressNext} activeOpacity={0.88}>
+                <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: syncing ? 0.72 : 1 }]}
+                    onPress={onPressNext}
+                    activeOpacity={0.88}
+                    disabled={syncing}
+                >
+                    {syncing ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
                     <Text style={styles.primaryButtonText}>{isLastStep ? 'Hoàn tất bài tập' : 'Sang bước tiếp theo'}</Text>
                     <Ionicons name={isLastStep ? 'checkmark-circle' : 'arrow-forward'} size={16} color="#FFFFFF" />
                 </TouchableOpacity>

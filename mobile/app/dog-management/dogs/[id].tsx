@@ -353,6 +353,7 @@ export default function DogDetailScreen() {
                         { icon: 'document-text-outline', label: 'Ghi chú thực địa', route: `/dog-management/field-notes?dogId=${dog.dogId}` },
                         { icon: 'add-circle-outline', label: 'Khám mới', route: `/dog-management/health-records/new?dogId=${dog.dogId}` },
                         { icon: 'barbell-outline', label: 'Đánh giá cân nặng', route: `/dog-management/weight-assessment/${dog.dogId}` },
+                        { icon: 'school-outline', label: 'Chương trình huấn luyện', route: `/training/enrollments?dogId=${dog.dogId}&dogName=${encodeURIComponent(dog.dogName || '')}` },
                     ].map((item) => (
                         <TouchableOpacity
                             key={item.label}

@@ -69,6 +69,7 @@ export const trainingImages = {
     hero: fallbackHero,
     methods: imagePool[1],
     exercises: imagePool[2],
+    specialties: imagePool[4],
     roadmaps: imagePool[5],
 };
 
@@ -325,4 +326,101 @@ export const pickToolIcon = (tool: string | null | undefined): ToolIconName => {
     }
 
     return 'construct-outline';
+};
+
+export type EnrollmentStatusKey = 'ENROLLED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED' | 'WITHDRAWN' | 'UNKNOWN';
+
+export const enrollmentStatusMeta: Record<
+    EnrollmentStatusKey,
+    { bg: string; text: string; label: string }
+> = {
+    ENROLLED: { bg: '#EEF3FF', text: '#3559C7', label: 'Đã ghi danh' },
+    IN_PROGRESS: { bg: '#FFF2D8', text: '#9B6A00', label: 'Đang huấn luyện' },
+    COMPLETED: { bg: '#DFF4E7', text: '#1D6A43', label: 'Đã hoàn thành' },
+    SUSPENDED: { bg: '#FFE8D7', text: '#B45A12', label: 'Tạm dừng' },
+    WITHDRAWN: { bg: '#FFE4E4', text: '#9F2B2B', label: 'Đã rút' },
+    UNKNOWN: { bg: '#EEF1F4', text: '#5A6571', label: 'Không rõ' },
+};
+
+export type EnrollmentExerciseStatusKey =
+    | 'NOT_STARTED'
+    | 'IN_PROGRESS'
+    | 'COMPLETED'
+    | 'SKIPPED'
+    | 'UNKNOWN';
+
+export const enrollmentExerciseStatusMeta: Record<
+    EnrollmentExerciseStatusKey,
+    { bg: string; text: string; label: string }
+> = {
+    NOT_STARTED: { bg: '#EEF1F4', text: '#5A6571', label: 'Chưa bắt đầu' },
+    IN_PROGRESS: { bg: '#FFF2D8', text: '#9B6A00', label: 'Đang thực hiện' },
+    COMPLETED: { bg: '#DFF4E7', text: '#1D6A43', label: 'Đã hoàn thành' },
+    SKIPPED: { bg: '#F2E8FF', text: '#6E43B8', label: 'Đã bỏ qua' },
+    UNKNOWN: { bg: '#EEF1F4', text: '#5A6571', label: 'Không rõ' },
+};
+
+export const normalizeEnrollmentStatus = (
+    status: string | null | undefined,
+): EnrollmentStatusKey => {
+    if (!status) {
+        return 'UNKNOWN';
+    }
+
+    const normalized = status.toUpperCase();
+    if (normalized in enrollmentStatusMeta) {
+        return normalized as EnrollmentStatusKey;
+    }
+
+    return 'UNKNOWN';
+};
+
+export const normalizeEnrollmentExerciseStatus = (
+    status: string | null | undefined,
+): EnrollmentExerciseStatusKey => {
+    if (!status) {
+        return 'UNKNOWN';
+    }
+
+    const normalized = status.toUpperCase();
+    if (normalized in enrollmentExerciseStatusMeta) {
+        return normalized as EnrollmentExerciseStatusKey;
+    }
+
+    return 'UNKNOWN';
+};
+
+export const formatProgressPercent = (value: number | null | undefined) =>
+    `${Math.max(0, Math.min(100, Math.round(value || 0)))}%`;
+
+export const formatTrainingRole = (value: string | null | undefined) => {
+    if (!value) {
+        return 'Tổng quát';
+    }
+
+    const normalized = value.trim().toUpperCase();
+    const roleMap: Record<string, string> = {
+        GENERAL: 'Tổng quát',
+        FULL_TRAINING: 'Huấn luyện toàn phần',
+        CARE_ONLY: 'Chăm sóc',
+        PRIMARY: 'Phụ trách chính',
+        SECONDARY: 'Phụ trách phụ',
+        PATROL: 'Tuần tra',
+        DETECTION: 'Phát hiện',
+        TRACKING: 'Truy vết',
+        SEARCH_AND_RESCUE: 'Tìm kiếm cứu nạn',
+        EXPLOSIVE_DETECTION: 'Phát hiện chất nổ',
+        NARCOTICS_DETECTION: 'Phát hiện ma túy',
+        GUARD: 'Bảo vệ',
+    };
+
+    if (roleMap[normalized]) {
+        return roleMap[normalized];
+    }
+
+    return value
+        .split(/[_\s]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
 };
