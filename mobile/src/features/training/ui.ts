@@ -69,6 +69,7 @@ export const trainingImages = {
     hero: fallbackHero,
     methods: imagePool[1],
     exercises: imagePool[2],
+    specialties: imagePool[4],
     roadmaps: imagePool[5],
 };
 
