@@ -7,6 +7,7 @@ import vn.edu.fpt.doghandbook.backend.dto.request.DogAssignmentRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.DogAssignmentResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
+import vn.edu.fpt.doghandbook.backend.entity.DogSpecialtyEnrollment;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentScope;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentType;
@@ -16,8 +17,10 @@ import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.DogAssignmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DogSpecialtyEnrollmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.DogAssignmentService;
+import vn.edu.fpt.doghandbook.backend.service.DogTrainingProgressService;
 import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
 import java.time.LocalDate;
@@ -32,6 +35,8 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
     private final DogAssignmentRepository dogAssignmentRepository;
     private final DogProfileRepository dogProfileRepository;
     private final UserRepository userRepository;
+    private final DogSpecialtyEnrollmentRepository dogSpecialtyEnrollmentRepository;
+    private final DogTrainingProgressService dogTrainingProgressService;
     private final NotificationService notificationService;
 
     @Override
@@ -43,6 +48,7 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
         DogProfile dog = getDog(request.getDogId());
         User trainer = getTrainer(request.getTrainerId());
         validateTrainerRole(trainer);
+        validateSpecialtyConflict(dog, trainer, null);
 
         AssignmentType assignmentType = parseAssignmentType(request.getAssignmentType());
         AssignmentScope assignmentScope = resolveAssignmentScope(assignmentType, request.getAssignmentScope());
@@ -70,6 +76,7 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
         DogAssignment assignment = DogAssignment.builder()
                 .dogProfile(dog)
                 .trainer(trainer)
+                .trainingSpecialty(trainer.getTrainingSpecialty())
                 .assignmentType(assignmentType)
                 .assignmentScope(assignmentScope)
                 .coveredAssignment(coveredAssignment)
@@ -79,6 +86,9 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
                 .build();
 
         assignment = dogAssignmentRepository.save(assignment);
+        if (isPrimaryTrainingAssignment(assignment)) {
+            dogTrainingProgressService.initializeForAssignment(assignment);
+        }
 
         User assignor = userRepository.findById(assignorId).orElse(null);
         notificationService.notifyUser(
@@ -104,6 +114,7 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
         DogProfile dog = getDog(request.getDogId());
         User trainer = getTrainer(request.getTrainerId());
         validateTrainerRole(trainer);
+        validateSpecialtyConflict(dog, trainer, assignmentId);
 
         AssignmentType assignmentType = parseAssignmentType(request.getAssignmentType());
         AssignmentScope assignmentScope = resolveAssignmentScope(assignmentType, request.getAssignmentScope());
@@ -131,6 +142,7 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
 
         assignment.setDogProfile(dog);
         assignment.setTrainer(trainer);
+        assignment.setTrainingSpecialty(trainer.getTrainingSpecialty());
         assignment.setAssignmentType(assignmentType);
         assignment.setAssignmentScope(assignmentScope);
         assignment.setCoveredAssignment(coveredAssignment);
@@ -139,6 +151,9 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
         assignment.setNotes(request.getNotes());
 
         assignment = dogAssignmentRepository.save(assignment);
+        if (isPrimaryTrainingAssignment(assignment)) {
+            dogTrainingProgressService.initializeForAssignment(assignment);
+        }
         return toResponse(assignment);
     }
 
@@ -149,6 +164,9 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
 
         assignment.setIsActive(false);
         dogAssignmentRepository.save(assignment);
+        if (isPrimaryTrainingAssignment(assignment)) {
+            dogTrainingProgressService.suspendForAssignment(assignment);
+        }
 
         if (isPrimaryTrainingAssignment(assignment)) {
             List<DogAssignment> dependentAssignments =
@@ -471,6 +489,8 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
                 .trainerId(assignment.getTrainer().getUserId())
                 .trainerName(assignment.getTrainer().getFullName())
                 .trainerUsername(assignment.getTrainer().getUsername())
+                .specialtyId(assignment.getTrainingSpecialty() == null ? null : assignment.getTrainingSpecialty().getSpecialtyId())
+                .specialtyName(assignment.getTrainingSpecialty() == null ? null : assignment.getTrainingSpecialty().getSpecialtyName())
                 .assignmentType(assignment.getAssignmentType() != null ? assignment.getAssignmentType().name() : null)
                 .assignmentScope(assignment.getAssignmentScope() != null ? assignment.getAssignmentScope().name() : null)
                 .coveredAssignmentId(assignment.getCoveredAssignment() != null
@@ -483,5 +503,31 @@ public class DogAssignmentServiceImpl implements DogAssignmentService {
                 .createdAt(assignment.getCreatedAt())
                 .updatedAt(assignment.getUpdatedAt())
                 .build();
+    }
+
+    private void validateSpecialtyConflict(DogProfile dog, User trainer, Integer currentAssignmentId) {
+        if (trainer.getTrainingSpecialty() == null) {
+            throw new BadRequestException("Huấn luyện viên phải có chuyên ngành trước khi được phân chó");
+        }
+
+        List<DogSpecialtyEnrollment> activeEnrollments = dogSpecialtyEnrollmentRepository
+                .findByDogProfileDogIdAndIsDeletedFalseOrderByEnrolledAtDesc(dog.getDogId())
+                .stream()
+                .filter(enrollment -> enrollment.getStatus() != null)
+                .filter(enrollment -> enrollment.getStatus().name().equals("ENROLLED")
+                        || enrollment.getStatus().name().equals("IN_PROGRESS")
+                        || enrollment.getStatus().name().equals("SUSPENDED"))
+                .filter(enrollment -> currentAssignmentId == null
+                        || !Objects.equals(enrollment.getAssignment().getAssignmentId(), currentAssignmentId))
+                .toList();
+
+        boolean hasDifferentSpecialty = activeEnrollments.stream()
+                .anyMatch(enrollment -> !Objects.equals(
+                        enrollment.getTrainingSpecialty().getSpecialtyId(),
+                        trainer.getTrainingSpecialty().getSpecialtyId()
+                ));
+        if (hasDifferentSpecialty) {
+            throw new BadRequestException("Chó đang có kế hoạch huấn luyện active ở chuyên ngành khác");
+        }
     }
 }

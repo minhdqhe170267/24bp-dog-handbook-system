@@ -46,6 +46,10 @@ public class DogAssignment {
     @JoinColumn(name = "dog_id", nullable = false)
     private DogProfile dogProfile;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "specialty_id", nullable = false)
+    private TrainingSpecialty trainingSpecialty;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "assignment_type", nullable = false)

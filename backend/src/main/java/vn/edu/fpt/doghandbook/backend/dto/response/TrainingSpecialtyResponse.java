@@ -13,21 +13,14 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserResponse {
+public class TrainingSpecialtyResponse {
 
-    private Integer userId;
-    private String username;
-    private String fullName;
-    private String email;
-    private String phone;
-    private String role;
-    private String militaryRank;
-    private String unit;
     private Integer specialtyId;
+    private String specialtyCode;
     private String specialtyName;
+    private String description;
+    private Integer version;
     private Boolean isActive;
-    private Boolean isLocked;
-    private Integer failedLoginCount;
-    private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

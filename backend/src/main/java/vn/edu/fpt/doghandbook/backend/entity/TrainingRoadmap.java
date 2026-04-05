@@ -43,9 +43,16 @@ public class TrainingRoadmap {
     @Column(name = "roadmap_name", nullable = false)
     private String roadmapName;
 
+    @Column(name = "roadmap_order", nullable = false)
+    private Integer roadmapOrder;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "breed_id", nullable = true)
     private DogBreed dogBreed;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "specialty_id", nullable = false)
+    private TrainingSpecialty trainingSpecialty;
 
     @Column(name = "target_role", nullable = true)
     private String targetRole;
@@ -90,6 +97,9 @@ public class TrainingRoadmap {
 
         if (this.status == null) {
             this.status = ContentStatus.DRAFT;
+        }
+        if (this.roadmapOrder == null || this.roadmapOrder <= 0) {
+            this.roadmapOrder = 1;
         }
         if (this.isDeleted == null) {
             this.isDeleted = false;

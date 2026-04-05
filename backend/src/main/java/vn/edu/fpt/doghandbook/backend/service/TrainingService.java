@@ -30,7 +30,7 @@ public interface TrainingService {
 
     void deleteExercise(Integer id);
 
-    PageResponse<TrainingRoadmapResponse> getAllRoadmaps(int page, int size);
+    PageResponse<TrainingRoadmapResponse> getAllRoadmaps(int page, int size, Integer specialtyId);
 
     TrainingRoadmapResponse getRoadmapById(Integer id);
 

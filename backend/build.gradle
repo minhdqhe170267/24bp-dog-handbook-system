@@ -15,14 +15,6 @@ java {
     }
 }
 
-sourceSets {
-    test {
-        java {
-            exclude 'vn/edu/fpt/doghandbook/backend/controller/DogProfileControllerTest.java'
-        }
-    }
-}
-
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
@@ -63,6 +55,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
+    testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.fasterxml.jackson.core:jackson-databind'
     testRuntimeOnly 'com.h2database:h2'

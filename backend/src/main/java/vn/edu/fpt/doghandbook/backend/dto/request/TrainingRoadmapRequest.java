@@ -18,6 +18,11 @@ public class TrainingRoadmapRequest {
     @Size(max = 200, message = "Tên lộ trình tối đa 200 ký tự")
     private String roadmapName;
 
+    private Integer specialtyId;
+
+    @Min(value = 1, message = "Thứ tự lộ trình phải >= 1")
+    private Integer roadmapOrder;
+
     private Integer breedId;
 
     @Size(max = 100, message = "Vai trò mục tiêu tối đa 100 ký tự")
