@@ -1,7 +1,8 @@
 import api, { ApiResponse, PageResponse, unwrapApiData } from './api';
-import { offlineFirstRead, isOnline, toPageResponse } from './offlineFirst';
+import { offlineFirstRead, toPageResponse } from './offlineFirst';
 import { exerciseDBService } from '../database/services';
 import { rowToApi, apiToRow, EXERCISE_COLS } from './mappers';
+import { atlasTrainingMock } from '../features/training/mockEnrollment';
 import type { TrainingExercise } from '../types/training';
 
 export const exerciseService = {
@@ -37,20 +38,22 @@ export const exerciseService = {
         }),
 
     getById: (id: number): Promise<TrainingExercise> =>
-        offlineFirstRead<TrainingExercise>({
-            localFetch: async () => {
-                const row = await exerciseDBService.getById(id);
-                return row ? rowToApi<TrainingExercise>(row) : (null as any);
-            },
-            remoteFetch: async () => {
-                const res = (await api.get(`/exercises/${id}`)) as ApiResponse<TrainingExercise>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async (exercise) => {
-                await exerciseDBService.upsertFromServer([apiToRow(exercise, EXERCISE_COLS)] as any);
-            },
-            entityName: `exercise:${id}`,
-        }),
+        atlasTrainingMock.isMockExerciseId(id)
+            ? Promise.resolve(atlasTrainingMock.getExerciseById(id) as TrainingExercise)
+            : offlineFirstRead<TrainingExercise>({
+                localFetch: async () => {
+                    const row = await exerciseDBService.getById(id);
+                    return row ? rowToApi<TrainingExercise>(row) : (null as any);
+                },
+                remoteFetch: async () => {
+                    const res = (await api.get(`/exercises/${id}`)) as ApiResponse<TrainingExercise>;
+                    return unwrapApiData(res);
+                },
+                saveToLocal: async (exercise) => {
+                    await exerciseDBService.upsertFromServer([apiToRow(exercise, EXERCISE_COLS)] as any);
+                },
+                entityName: `exercise:${id}`,
+            }),
 
     getByDifficulty: (difficulty: string): Promise<PageResponse<TrainingExercise>> =>
         offlineFirstRead<PageResponse<TrainingExercise>>({

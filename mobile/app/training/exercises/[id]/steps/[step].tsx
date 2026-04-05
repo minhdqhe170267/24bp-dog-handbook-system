@@ -31,11 +31,17 @@ export default function ExerciseStepScreen() {
         step,
         enrollmentId: enrollmentIdParam,
         exerciseStatus,
+        progressId: progressIdParam,
+        roadmapName,
+        phaseName,
     } = useLocalSearchParams<{
         id: string;
         step: string;
         enrollmentId?: string;
         exerciseStatus?: string;
+        progressId?: string;
+        roadmapName?: string;
+        phaseName?: string;
     }>();
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
@@ -44,6 +50,7 @@ export default function ExerciseStepScreen() {
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
     const applyExercisePatch = useEnrollmentStore((state) => state.applyExercisePatch);
+    const setSummary = useEnrollmentStore((state) => state.setSummary);
 
     const [exercise, setExercise] = useState<TrainingExercise | null>(null);
     const [loading, setLoading] = useState(true);
@@ -52,7 +59,9 @@ export default function ExerciseStepScreen() {
     const [syncing, setSyncing] = useState(false);
     const { animatedStyle } = useTrainingEntrance();
     const parsedEnrollmentId = Number(enrollmentIdParam);
+    const parsedProgressId = Number(progressIdParam);
     const activeEnrollmentId = Number.isFinite(parsedEnrollmentId) && parsedEnrollmentId > 0 ? parsedEnrollmentId : null;
+    const activeProgressId = Number.isFinite(parsedProgressId) && parsedProgressId > 0 ? parsedProgressId : null;
 
     useEffect(() => {
         setRemoteProgressStatus(resolveProgressStatus(exerciseStatus));
@@ -78,7 +87,7 @@ export default function ExerciseStepScreen() {
     }, [id]);
 
     const localProgressStatus = exercise ? progressByExercise[exercise.exerciseId]?.status : undefined;
-    const progressStatus = localProgressStatus || remoteProgressStatus;
+    const progressStatus = activeEnrollmentId ? remoteProgressStatus : localProgressStatus || remoteProgressStatus;
 
     useEffect(() => {
         if (!exercise) {
@@ -89,7 +98,7 @@ export default function ExerciseStepScreen() {
             startExercise(exercise.exerciseId);
         }
 
-        if (!activeEnrollmentId || remoteProgressStatus !== 'NOT_STARTED') {
+        if (!activeEnrollmentId || !activeProgressId || remoteProgressStatus !== 'NOT_STARTED') {
             return;
         }
 
@@ -97,13 +106,14 @@ export default function ExerciseStepScreen() {
 
         const syncStarted = async () => {
             try {
-                await enrollmentService.evaluate(activeEnrollmentId, {
-                    exerciseId: exercise.exerciseId,
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
                     status: 'IN_PROGRESS',
                 });
+                setSummary(summary);
                 setRemoteProgressStatus('IN_PROGRESS');
                 applyExercisePatch(activeEnrollmentId, {
-                    exerciseId: exercise.exerciseId,
+                    progressId: activeProgressId,
                     status: 'IN_PROGRESS',
                 });
             } catch (syncError: any) {
@@ -121,7 +131,7 @@ export default function ExerciseStepScreen() {
         return () => {
             cancelled = true;
         };
-    }, [activeEnrollmentId, applyExercisePatch, exercise, getExerciseStatus, remoteProgressStatus, startExercise]);
+    }, [activeEnrollmentId, activeProgressId, applyExercisePatch, exercise, getExerciseStatus, remoteProgressStatus, setSummary, startExercise]);
 
     const stepIndex = useMemo(() => {
         const parsed = Number(step);
@@ -153,7 +163,10 @@ export default function ExerciseStepScreen() {
         params: activeEnrollmentId
             ? {
                 enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
                 exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
             }
             : undefined,
     });
@@ -163,7 +176,10 @@ export default function ExerciseStepScreen() {
         params: activeEnrollmentId
             ? {
                 enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
                 exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
             }
             : undefined,
     });
@@ -201,16 +217,17 @@ export default function ExerciseStepScreen() {
             return;
         }
 
-        if (activeEnrollmentId) {
+        if (activeEnrollmentId && activeProgressId) {
             setSyncing(true);
             try {
-                await enrollmentService.evaluate(activeEnrollmentId, {
-                    exerciseId: exercise.exerciseId,
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
                     status: 'COMPLETED',
                 });
+                setSummary(summary);
                 setRemoteProgressStatus('COMPLETED');
                 applyExercisePatch(activeEnrollmentId, {
-                    exerciseId: exercise.exerciseId,
+                    progressId: activeProgressId,
                     status: 'COMPLETED',
                 });
             } catch (syncError: any) {

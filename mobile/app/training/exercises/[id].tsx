@@ -39,10 +39,16 @@ export default function ExerciseDetailScreen() {
         id,
         enrollmentId: enrollmentIdParam,
         exerciseStatus,
+        progressId: progressIdParam,
+        roadmapName,
+        phaseName,
     } = useLocalSearchParams<{
         id: string;
         enrollmentId?: string;
         exerciseStatus?: string;
+        progressId?: string;
+        roadmapName?: string;
+        phaseName?: string;
     }>();
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
@@ -58,8 +64,11 @@ export default function ExerciseDetailScreen() {
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
     const applyExercisePatch = useEnrollmentStore((state) => state.applyExercisePatch);
+    const setSummary = useEnrollmentStore((state) => state.setSummary);
     const parsedEnrollmentId = Number(enrollmentIdParam);
+    const parsedProgressId = Number(progressIdParam);
     const activeEnrollmentId = Number.isFinite(parsedEnrollmentId) && parsedEnrollmentId > 0 ? parsedEnrollmentId : null;
+    const activeProgressId = Number.isFinite(parsedProgressId) && parsedProgressId > 0 ? parsedProgressId : null;
 
     useEffect(() => {
         setRemoteProgressStatus(resolveProgressStatus(exerciseStatus));
@@ -129,8 +138,9 @@ export default function ExerciseDetailScreen() {
     const safety = splitToBullets(exercise.safetyPrecautions);
     const tools = parseToolItems(exercise.requiredEquipment);
     const durationLabel = exercise.durationMinutes ? `${exercise.durationMinutes} phút` : 'Chưa rõ';
-    const progressStatus = progressByExercise[exercise.exerciseId]?.status
-        || (activeEnrollmentId ? remoteProgressStatus : 'NOT_STARTED');
+    const progressStatus = activeEnrollmentId
+        ? remoteProgressStatus
+        : progressByExercise[exercise.exerciseId]?.status || 'NOT_STARTED';
     const progressMeta =
         progressStatus === 'IN_PROGRESS'
             ? { label: 'Đang luyện', bg: '#FFF2D8', color: '#9B6A00', icon: 'play' as const }
@@ -155,18 +165,19 @@ export default function ExerciseDetailScreen() {
     };
 
     const syncEnrollmentProgress = async (nextStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED') => {
-        if (!activeEnrollmentId) {
+        if (!activeEnrollmentId || !activeProgressId) {
             return true;
         }
 
         try {
-            await enrollmentService.evaluate(activeEnrollmentId, {
-                exerciseId: exercise.exerciseId,
+            const summary = await enrollmentService.evaluate(activeProgressId, {
+                progressId: activeProgressId,
                 status: nextStatus,
             });
+            setSummary(summary);
             setRemoteProgressStatus(nextStatus);
             applyExercisePatch(activeEnrollmentId, {
-                exerciseId: exercise.exerciseId,
+                progressId: activeProgressId,
                 status: nextStatus,
             });
             return true;
@@ -184,7 +195,10 @@ export default function ExerciseDetailScreen() {
         params: activeEnrollmentId
             ? {
                 enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
                 exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
             }
             : undefined,
     });
@@ -299,6 +313,18 @@ export default function ExerciseDetailScreen() {
                             <Ionicons name={progressMeta.icon} size={12} color={progressMeta.color} />
                             <Text style={[styles.tagPillText, { color: progressMeta.color, marginLeft: 4 }]}>{progressMeta.label}</Text>
                         </View>
+                        {roadmapName ? (
+                            <View style={[styles.tagPill, { backgroundColor: '#EDF4F0', borderColor: 'transparent' }]}>
+                                <Ionicons name="map-outline" size={12} color={colors.primary} />
+                                <Text style={[styles.tagPillText, { color: colors.primary, marginLeft: 4 }]}>{roadmapName}</Text>
+                            </View>
+                        ) : null}
+                        {phaseName ? (
+                            <View style={[styles.tagPill, { backgroundColor: '#EEF1FF', borderColor: 'transparent' }]}>
+                                <Ionicons name="flag-outline" size={12} color="#3559C7" />
+                                <Text style={[styles.tagPillText, { color: '#3559C7', marginLeft: 4 }]}>{phaseName}</Text>
+                            </View>
+                        ) : null}
                     </View>
 
                     <Text style={[styles.description, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
