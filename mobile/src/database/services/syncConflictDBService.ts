@@ -11,6 +11,14 @@ export const syncConflictDBService = {
   getPending: (): Promise<SyncConflictLogRow[]> =>
     repository.getAllWhere<SyncConflictLogRow>(TABLE, "status = 'PENDING'", [], 'created_at DESC'),
 
+  getByEntity: (entityType: string, entityId: string): Promise<SyncConflictLogRow[]> =>
+    repository.getAllWhere<SyncConflictLogRow>(
+      TABLE,
+      'entity_type = ? AND entity_id = ?',
+      [entityType, entityId],
+      'created_at DESC',
+    ),
+
   getById: (id: number): Promise<SyncConflictLogRow | null> =>
     repository.getById<SyncConflictLogRow>(TABLE, id, 'id'),
 
