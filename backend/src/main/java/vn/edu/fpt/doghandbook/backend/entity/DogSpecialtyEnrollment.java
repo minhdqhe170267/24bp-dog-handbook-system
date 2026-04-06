@@ -21,17 +21,18 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.EnrollmentStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "dog_training_enrollment")
+@Table(name = "dog_specialty_enrollment")
 @SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DogTrainingEnrollment {
+public class DogSpecialtyEnrollment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -43,16 +44,23 @@ public class DogTrainingEnrollment {
     private DogProfile dogProfile;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "roadmap_id", nullable = false)
-    private TrainingRoadmap trainingRoadmap;
+    @JoinColumn(name = "trainer_id", nullable = false)
+    private User trainer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_trainer_id", nullable = false)
-    private User assignedTrainer;
+    @JoinColumn(name = "assignment_id", nullable = false)
+    private DogAssignment assignment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "specialty_id", nullable = false)
+    private TrainingSpecialty trainingSpecialty;
+
+    @Column(name = "template_version", nullable = false)
+    private Integer templateVersion;
 
     @Builder.Default
-    @Column(name = "current_phase", nullable = false)
-    private Integer currentPhase = 1;
+    @Column(name = "progress_percent", nullable = false, precision = 5, scale = 2)
+    private BigDecimal progressPercent = BigDecimal.ZERO;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -62,17 +70,17 @@ public class DogTrainingEnrollment {
     @Column(name = "enrolled_at", nullable = false, updatable = false)
     private LocalDateTime enrolledAt;
 
-    @Column(name = "completed_at", nullable = true)
+    @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
-    @Column(name = "notes", nullable = true)
+    @Column(name = "notes")
     private String notes;
 
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
 
-    @Column(name = "deleted_at", nullable = true)
+    @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -87,9 +95,11 @@ public class DogTrainingEnrollment {
         this.enrolledAt = this.enrolledAt == null ? now : this.enrolledAt;
         this.createdAt = now;
         this.updatedAt = now;
-
-        if (this.currentPhase == null || this.currentPhase <= 0) {
-            this.currentPhase = 1;
+        if (this.progressPercent == null) {
+            this.progressPercent = BigDecimal.ZERO;
+        }
+        if (this.templateVersion == null || this.templateVersion <= 0) {
+            this.templateVersion = 1;
         }
         if (this.status == null) {
             this.status = EnrollmentStatus.ENROLLED;

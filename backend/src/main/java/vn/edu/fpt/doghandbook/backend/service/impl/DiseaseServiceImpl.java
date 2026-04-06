@@ -10,15 +10,23 @@ import vn.edu.fpt.doghandbook.backend.dto.request.DiseaseRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.DiseaseResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.Disease;
+import vn.edu.fpt.doghandbook.backend.entity.DiseaseFirstAidMapping;
+import vn.edu.fpt.doghandbook.backend.entity.DiseaseMedicationMapping;
 import vn.edu.fpt.doghandbook.backend.entity.DiseaseSymptomMapping;
+import vn.edu.fpt.doghandbook.backend.entity.FirstAidGuide;
+import vn.edu.fpt.doghandbook.backend.entity.Medication;
 import vn.edu.fpt.doghandbook.backend.entity.Symptom;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SeverityLevel;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.repository.DiseaseFirstAidMappingRepository;
+import vn.edu.fpt.doghandbook.backend.repository.DiseaseMedicationMappingRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiseaseRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DiseaseSymptomMappingRepository;
+import vn.edu.fpt.doghandbook.backend.repository.FirstAidGuideRepository;
+import vn.edu.fpt.doghandbook.backend.repository.MedicationRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SymptomRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.DiseaseService;
@@ -35,7 +43,11 @@ public class DiseaseServiceImpl implements DiseaseService {
 
     private final DiseaseRepository diseaseRepository;
     private final DiseaseSymptomMappingRepository mappingRepository;
+    private final DiseaseMedicationMappingRepository medicationMappingRepository;
+    private final DiseaseFirstAidMappingRepository firstAidMappingRepository;
     private final SymptomRepository symptomRepository;
+    private final MedicationRepository medicationRepository;
+    private final FirstAidGuideRepository firstAidGuideRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -89,6 +101,8 @@ public class DiseaseServiceImpl implements DiseaseService {
 
         disease = diseaseRepository.save(disease);
         saveSymptomMappings(disease, request.getSymptomMappings());
+        saveMedicationMappings(disease, request.getMedicationMappings());
+        saveFirstAidMappings(disease, request.getFirstAidGuideMappings());
 
         return toDiseaseResponse(disease, true);
     }
@@ -120,6 +134,14 @@ public class DiseaseServiceImpl implements DiseaseService {
         if (request.getSymptomMappings() != null) {
             mappingRepository.deleteByDiseaseDiseaseId(id);
             saveSymptomMappings(disease, request.getSymptomMappings());
+        }
+        if (request.getMedicationMappings() != null) {
+            medicationMappingRepository.deleteByDiseaseDiseaseId(id);
+            saveMedicationMappings(disease, request.getMedicationMappings());
+        }
+        if (request.getFirstAidGuideMappings() != null) {
+            firstAidMappingRepository.deleteByDiseaseDiseaseId(id);
+            saveFirstAidMappings(disease, request.getFirstAidGuideMappings());
         }
 
         return toDiseaseResponse(disease, true);
@@ -163,16 +185,89 @@ public class DiseaseServiceImpl implements DiseaseService {
         }
     }
 
-    private DiseaseResponse toDiseaseResponse(Disease entity, boolean includeSymptoms) {
+    private void saveMedicationMappings(Disease disease, List<DiseaseRequest.MedicationMappingItem> items) {
+        if (items == null || items.isEmpty()) return;
+
+        List<Integer> medicationIds = items.stream().map(DiseaseRequest.MedicationMappingItem::getMedicationId).toList();
+        List<Medication> medications = medicationRepository.findAllById(medicationIds);
+
+        for (DiseaseRequest.MedicationMappingItem item : items) {
+            Medication medication = medications.stream()
+                    .filter(m -> m.getMedicationId().equals(item.getMedicationId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Thuốc", "id", item.getMedicationId()));
+
+            DiseaseMedicationMapping mapping = DiseaseMedicationMapping.builder()
+                    .disease(disease)
+                    .medication(medication)
+                    .priority(item.getPriority() != null ? item.getPriority() : 1)
+                    .notes(item.getNotes())
+                    .build();
+
+            medicationMappingRepository.save(mapping);
+        }
+    }
+
+    private void saveFirstAidMappings(Disease disease, List<DiseaseRequest.FirstAidGuideMappingItem> items) {
+        if (items == null || items.isEmpty()) return;
+
+        List<Integer> guideIds = items.stream().map(DiseaseRequest.FirstAidGuideMappingItem::getGuideId).toList();
+        List<FirstAidGuide> guides = firstAidGuideRepository.findAllById(guideIds);
+
+        for (DiseaseRequest.FirstAidGuideMappingItem item : items) {
+            FirstAidGuide guide = guides.stream()
+                    .filter(g -> g.getGuideId().equals(item.getGuideId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Hướng dẫn sơ cứu", "id", item.getGuideId()));
+
+            DiseaseFirstAidMapping mapping = DiseaseFirstAidMapping.builder()
+                    .disease(disease)
+                    .firstAidGuide(guide)
+                    .priority(item.getPriority() != null ? item.getPriority() : 1)
+                    .notes(item.getNotes())
+                    .build();
+
+            firstAidMappingRepository.save(mapping);
+        }
+    }
+
+    private DiseaseResponse toDiseaseResponse(Disease entity, boolean includeDetails) {
         List<DiseaseResponse.DiseaseSymptomItem> symptomItems = Collections.emptyList();
-        if (includeSymptoms) {
-            List<DiseaseSymptomMapping> mappings = mappingRepository.findByDisease(entity);
-            symptomItems = mappings.stream()
+        List<DiseaseResponse.DiseaseMedicationItem> medicationItems = Collections.emptyList();
+        List<DiseaseResponse.DiseaseFirstAidItem> firstAidItems = Collections.emptyList();
+
+        if (includeDetails) {
+            List<DiseaseSymptomMapping> symptomMappings = mappingRepository.findByDisease(entity);
+            symptomItems = symptomMappings.stream()
                     .map(m -> DiseaseResponse.DiseaseSymptomItem.builder()
                             .symptomId(m.getSymptom().getSymptomId())
                             .symptomName(m.getSymptom().getSymptomName())
                             .weight(m.getWeight() != null ? m.getWeight().doubleValue() : null)
                             .isPrimary(m.getIsPrimary())
+                            .build())
+                    .toList();
+
+            List<DiseaseMedicationMapping> medMappings = medicationMappingRepository.findByDisease(entity);
+            medicationItems = medMappings.stream()
+                    .map(m -> DiseaseResponse.DiseaseMedicationItem.builder()
+                            .medicationId(m.getMedication().getMedicationId())
+                            .medicationName(m.getMedication().getMedicationName())
+                            .dosageInstructions(m.getMedication().getDosageInstructions())
+                            .administrationMethod(m.getMedication().getAdministrationMethod())
+                            .priority(m.getPriority())
+                            .notes(m.getNotes())
+                            .build())
+                    .toList();
+
+            List<DiseaseFirstAidMapping> faMappings = firstAidMappingRepository.findByDisease(entity);
+            firstAidItems = faMappings.stream()
+                    .map(m -> DiseaseResponse.DiseaseFirstAidItem.builder()
+                            .guideId(m.getFirstAidGuide().getGuideId())
+                            .guideTitle(m.getFirstAidGuide().getGuideTitle())
+                            .emergencyType(m.getFirstAidGuide().getEmergencyType())
+                            .immediateSteps(m.getFirstAidGuide().getImmediateSteps())
+                            .priority(m.getPriority())
+                            .notes(m.getNotes())
                             .build())
                     .toList();
         }
@@ -192,6 +287,8 @@ public class DiseaseServiceImpl implements DiseaseService {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .symptoms(symptomItems)
+                .medications(medicationItems)
+                .firstAidGuides(firstAidItems)
                 .build();
     }
 

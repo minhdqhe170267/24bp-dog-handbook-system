@@ -15,11 +15,15 @@ public interface TrainingRoadmapRepository extends JpaRepository<TrainingRoadmap
 
     Page<TrainingRoadmap> findByIsDeletedFalse(Pageable pageable);
 
+    Page<TrainingRoadmap> findByTrainingSpecialtySpecialtyIdAndIsDeletedFalse(Integer specialtyId, Pageable pageable);
+
     Page<TrainingRoadmap> findByStatusAndIsDeletedFalse(ContentStatus status, Pageable pageable);
 
     Optional<TrainingRoadmap> findByRoadmapIdAndIsDeletedFalse(Integer roadmapId);
 
     Optional<TrainingRoadmap> findByRoadmapNameIgnoreCaseAndIsDeletedFalse(String roadmapName);
+
+    List<TrainingRoadmap> findByTrainingSpecialtySpecialtyIdAndIsDeletedFalseOrderByRoadmapOrderAsc(Integer specialtyId);
 
     @Query("SELECT tr FROM TrainingRoadmap tr WHERE tr.isDeleted = false "
             + "AND tr.dogBreed.breedId = :breedId")

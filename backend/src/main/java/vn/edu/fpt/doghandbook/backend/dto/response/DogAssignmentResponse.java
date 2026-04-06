@@ -23,6 +23,8 @@ public class DogAssignmentResponse {
     private Integer trainerId;
     private String trainerName;
     private String trainerUsername;
+    private Integer specialtyId;
+    private String specialtyName;
     private String assignmentType;
     private String assignmentScope;
     private Integer coveredAssignmentId;

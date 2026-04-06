@@ -224,6 +224,18 @@ public class SyncServiceImpl implements SyncService {
                 "re.roadmap_exercise_id",
                 this::toRoadmapExerciseItem
         ));
+        data.put("diseaseMedicationMappings", fetchJunctionItems(
+                "disease_medication_mapping",
+                "mapping_id AS mappingId, disease_id AS diseaseId, medication_id AS medicationId, priority, notes",
+                "mapping_id",
+                this::toDiseaseMedicationMappingItem
+        ));
+        data.put("diseaseFirstAidMappings", fetchJunctionItems(
+                "disease_first_aid_mapping",
+                "mapping_id AS mappingId, disease_id AS diseaseId, guide_id AS guideId, priority, notes",
+                "mapping_id",
+                this::toDiseaseFirstAidMappingItem
+        ));
 
         // --- dogAssignments: filtered by current user ---
         data.put("dogAssignments", fetchDogAssignments(syncWindow, userId));
@@ -1700,6 +1712,26 @@ public class SyncServiceImpl implements SyncService {
         item.put("symptomId", row.get("symptomId"));
         item.put("weight", row.get("weight"));
         item.put("isPrimary", toBoolean(row.get("isPrimary")));
+        item.put("notes", row.get("notes"));
+        return item;
+    }
+
+    private Map<String, Object> toDiseaseMedicationMappingItem(Map<String, Object> row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("mappingId", row.get("mappingId"));
+        item.put("diseaseId", row.get("diseaseId"));
+        item.put("medicationId", row.get("medicationId"));
+        item.put("priority", row.get("priority"));
+        item.put("notes", row.get("notes"));
+        return item;
+    }
+
+    private Map<String, Object> toDiseaseFirstAidMappingItem(Map<String, Object> row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("mappingId", row.get("mappingId"));
+        item.put("diseaseId", row.get("diseaseId"));
+        item.put("guideId", row.get("guideId"));
+        item.put("priority", row.get("priority"));
         item.put("notes", row.get("notes"));
         return item;
     }

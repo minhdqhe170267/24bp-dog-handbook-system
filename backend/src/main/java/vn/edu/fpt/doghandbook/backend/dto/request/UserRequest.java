@@ -40,4 +40,6 @@ public class UserRequest {
 
     @Size(max = 100, message = "Đơn vị tối đa 100 ký tự")
     private String unit;
+
+    private Integer specialtyId;
 }
