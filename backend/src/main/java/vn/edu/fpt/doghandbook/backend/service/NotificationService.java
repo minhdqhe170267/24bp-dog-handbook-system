@@ -26,4 +26,6 @@ public interface NotificationService {
     void markAllAsRead(Integer userId);
 
     List<NotificationResponse> getNotificationsSince(Integer userId, LocalDateTime since);
+
+    void deleteNotification(Long notificationId, Integer userId);
 }
