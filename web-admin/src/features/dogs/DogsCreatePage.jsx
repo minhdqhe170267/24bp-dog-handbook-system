@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import { FormField, FormInput, FormSelect, FormTextarea } from '../../components/ui/FormComponents';
@@ -25,7 +25,7 @@ const defaultForm = {
   dogName: '',
   breedId: '',
   gender: 'MALE',
-  ageMonths: '',
+  dateOfBirth: '',
   currentWeightKg: '',
   heightCm: '',
   color: '',
@@ -40,30 +40,39 @@ const toNullableNumber = (value) => {
   return Number.isNaN(number) ? null : number;
 };
 
-const toNullableInteger = (value) => {
-  if (value === '' || value == null) return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, Math.floor(parsed));
-};
-
-const formatLocalDate = (date) => {
+const formatDateInput = (date) => {
   const two = (num) => String(num).padStart(2, '0');
   return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
 };
 
-const ageMonthsToDateOfBirth = (ageMonths) => {
-  if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
-  const baseDate = new Date();
-  baseDate.setHours(0, 0, 0, 0);
-  baseDate.setMonth(baseDate.getMonth() - ageMonths);
-  return formatLocalDate(baseDate);
+const parseDateOnly = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const datePart = raw.includes('T') ? raw.split('T')[0] : raw;
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+};
+
+const normalizeDateInputValue = (value) => {
+  const parsed = parseDateOnly(value);
+  if (!parsed) return '';
+  return formatDateInput(parsed);
 };
 
 const dateOfBirthToAgeMonths = (value) => {
-  if (!value) return '';
-  const birthDate = new Date(value);
-  if (Number.isNaN(birthDate.getTime())) return '';
+  const birthDate = parseDateOnly(value);
+  if (!birthDate) return '';
 
   const now = new Date();
   let months =
@@ -93,6 +102,10 @@ const DogsCreatePage = () => {
   const [createdEntityId, setCreatedEntityId] = useState(null);
 
   const currentEntityId = entityIdFromRoute || createdEntityId;
+  const ageMonthsDisplay = useMemo(() => {
+    const months = dateOfBirthToAgeMonths(formData.dateOfBirth);
+    return months ? `${months} tháng` : '';
+  }, [formData.dateOfBirth]);
 
   useEffect(() => {
     const fetchBreeds = async () => {
@@ -122,10 +135,7 @@ const DogsCreatePage = () => {
           dogName: detail.dogName || '',
           breedId: detail.breedId ? String(detail.breedId) : '',
           gender: detail.gender || 'MALE',
-          ageMonths:
-            detail.ageMonths != null
-              ? String(detail.ageMonths)
-              : dateOfBirthToAgeMonths(detail.dateOfBirth),
+          dateOfBirth: normalizeDateInputValue(detail.dateOfBirth),
           currentWeightKg: detail.currentWeightKg ?? '',
           heightCm: detail.heightCm ?? '',
           color: detail.color || '',
@@ -150,7 +160,7 @@ const DogsCreatePage = () => {
     dogName: formData.dogName?.trim() || null,
     breedId: Number(formData.breedId),
     gender: formData.gender || null,
-    dateOfBirth: ageMonthsToDateOfBirth(toNullableInteger(formData.ageMonths)),
+    dateOfBirth: formData.dateOfBirth || null,
     currentWeightKg: toNullableNumber(formData.currentWeightKg),
     heightCm: toNullableNumber(formData.heightCm),
     color: formData.color?.trim() || null,
@@ -200,7 +210,7 @@ const DogsCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const errors = validateDogForm(formData, { requireAgeMonths: true });
+    const errors = validateDogForm(formData);
     if (errors.length > 0) {
       toast.error({
         title: 'Thông tin hồ sơ chó chưa hợp lệ',
@@ -251,19 +261,24 @@ const DogsCreatePage = () => {
           />
         </FormField>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <FormField label="Giới tính">
           <FormSelect value={formData.gender} onChange={(e) => updateField('gender', e.target.value)} options={genderOptions} />
         </FormField>
-        <FormField label="Tuổi (tháng)" required>
+        <FormField label="Ngày sinh">
           <FormInput
-            type="number"
-            min="0"
-            max="240"
-            step="1"
-            value={formData.ageMonths}
-            onChange={(e) => updateField('ageMonths', e.target.value)}
-            placeholder="Nhập số tháng tuổi"
+            type="date"
+            value={formData.dateOfBirth}
+            onChange={(e) => updateField('dateOfBirth', e.target.value)}
+          />
+        </FormField>
+        <FormField label="Tháng tuổi">
+          <FormInput
+            value={ageMonthsDisplay}
+            placeholder="Tự tính từ ngày sinh"
+            readOnly
+            disabled
+            className="bg-muted/50"
           />
         </FormField>
         <FormField label="Trạng thái">
@@ -287,7 +302,7 @@ const DogsCreatePage = () => {
         </FormField>
       </div>
       <FormField label="Ghi chú">
-        <FormTextarea maxLength={5000} rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
+        <FormTextarea maxLength={255} rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType="DOG_PROFILE"
@@ -300,3 +315,4 @@ const DogsCreatePage = () => {
 };
 
 export default DogsCreatePage;
+
