@@ -104,7 +104,7 @@ public class SecurityConfig {
                         ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers("/contents/*/approve", "/contents/*/reject")
-                                .hasAnyRole("ADMIN", "REVIEWER")
+                        .hasAnyRole("ADMIN", "REVIEWER")
 
                         .requestMatchers(HttpMethod.GET, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR", "TRAINER")
                         .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")

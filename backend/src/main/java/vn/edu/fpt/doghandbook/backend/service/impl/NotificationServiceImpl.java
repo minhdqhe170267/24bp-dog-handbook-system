@@ -65,8 +65,8 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void createAndDispatchNotification(User recipient, UserRole recipientRole, User sender,
-                                                NotificationType type, String title, String message,
-                                                String entityType, Integer entityId) {
+                                               NotificationType type, String title, String message,
+                                               String entityType, Integer entityId) {
         Notification notification = Notification.builder()
                 .recipient(recipient)
                 .recipientRole(recipientRole)
@@ -86,7 +86,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private void notifyAllAdmins(User sender, NotificationType type, String title, String message,
-                                  String entityType, Integer entityId, Set<Integer> deliveredUserIds) {
+                                 String entityType, Integer entityId, Set<Integer> deliveredUserIds) {
         Integer senderId = sender != null ? sender.getUserId() : null;
 
         List<User> admins = userRepository.findAll().stream()
@@ -144,6 +144,16 @@ public class NotificationServiceImpl implements NotificationService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    public void deleteNotification(Long notificationId, Integer userId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy thông báo"));
+        if (!notification.getRecipient().getUserId().equals(userId)) {
+            throw new IllegalArgumentException("Bạn không có quyền xóa thông báo này");
+        }
+        notificationRepository.delete(notification);
     }
 
     private NotificationResponse toResponse(Notification notification) {
