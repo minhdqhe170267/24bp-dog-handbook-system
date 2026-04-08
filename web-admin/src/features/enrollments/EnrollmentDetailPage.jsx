@@ -308,7 +308,7 @@ const EnrollmentDetailPage = () => {
                 <FormField label="Ghi chú cập nhật">
                   <FormTextarea
                     rows={4}
-                    maxLength={5000}
+                    maxLength={255}
                     value={statusForm.notes}
                     onChange={(event) => setStatusForm((prev) => ({ ...prev, notes: event.target.value }))}
                     placeholder="Nhập ghi chú khi cập nhật trạng thái (nếu có)"
@@ -437,7 +437,7 @@ const EnrollmentDetailPage = () => {
           <FormField label="Nhận xét của huấn luyện viên">
             <FormTextarea
               rows={4}
-              maxLength={5000}
+              maxLength={255}
               value={evaluateForm.trainerNotes}
               onChange={(event) => setEvaluateForm((prev) => ({ ...prev, trainerNotes: event.target.value }))}
               placeholder="Nhập nhận xét..."
@@ -460,4 +460,5 @@ const EnrollmentDetailPage = () => {
 };
 
 export default EnrollmentDetailPage;
+
 

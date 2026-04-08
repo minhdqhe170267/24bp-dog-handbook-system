@@ -548,7 +548,7 @@ const EnrollmentsPage = () => {
           <FormField label="Ghi chú">
             <FormTextarea
               rows={4}
-              maxLength={5000}
+              maxLength={255}
               value={enrollForm.notes}
               onChange={(event) => updateEnrollForm('notes', event.target.value)}
               placeholder="Ghi chú ban đầu cho quá trình huấn luyện"
@@ -571,3 +571,4 @@ const EnrollmentsPage = () => {
 };
 
 export default EnrollmentsPage;
+
