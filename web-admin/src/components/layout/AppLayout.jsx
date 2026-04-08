@@ -16,7 +16,7 @@ const ROLE_ROUTES = {
         '/export-data',
         '/breeds',
         '/diseases',
-        '/training/exercises', '/training/methods', '/training/roadmaps',
+        '/training/exercises', '/training/methods', '/training/specialties', '/training/roadmaps',
         '/nutrition',
         '/medications', '/medical',
         '/suggestions',
@@ -24,8 +24,6 @@ const ROLE_ROUTES = {
     REVIEWER: [
         '/dashboard', '/',
         '/notifications',
-        '/sync-conflicts',
-        '/admin/sync-conflicts',
         '/details',
         '/profile',
         '/content',

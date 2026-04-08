@@ -12,6 +12,9 @@ import MethodsPage from '../features/training/MethodsPage';
 import MethodsCreatePage from '../features/training/MethodsCreatePage';
 import RoadmapsPage from '../features/training/RoadmapsPage';
 import RoadmapsCreatePage from '../features/training/RoadmapsCreatePage';
+import SpecialtiesPage from '../features/training/SpecialtiesPage';
+import SpecialtiesCreatePage from '../features/training/SpecialtiesCreatePage';
+// import TrainingProgressPage from '../features/training/TrainingProgressPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
 import NutritionCreatePage from '../features/nutrition/NutritionCreatePage';
 import MedicationsPage from '../features/medications/MedicationsPage';
@@ -37,8 +40,6 @@ import NotificationsPage from '../features/notifications/NotificationsPage';
 import EntityDetailPage from '../features/details/EntityDetailPage';
 import ConflictListPage from '../features/sync-conflicts/ConflictListPage';
 import ConflictDetailPage from '../features/sync-conflicts/ConflictDetailPage';
-import EnrollmentsPage from '../features/enrollments/EnrollmentsPage';
-import EnrollmentDetailPage from '../features/enrollments/EnrollmentDetailPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -74,11 +75,13 @@ const router = createBrowserRouter([
       { path: 'training/methods', element: <MethodsPage /> },
       { path: 'training/methods/create', element: <MethodsCreatePage /> },
       { path: 'training/methods/:id/edit', element: <MethodsCreatePage /> },
+      { path: 'training/specialties', element: <SpecialtiesPage /> },
+      { path: 'training/specialties/create', element: <SpecialtiesCreatePage /> },
+      { path: 'training/specialties/:id/edit', element: <SpecialtiesCreatePage /> },
       { path: 'training/roadmaps', element: <RoadmapsPage /> },
       { path: 'training/roadmaps/create', element: <RoadmapsCreatePage /> },
       { path: 'training/roadmaps/:id/edit', element: <RoadmapsCreatePage /> },
-      { path: 'enrollments', element: <EnrollmentsPage /> },
-      { path: 'enrollments/:id', element: <EnrollmentDetailPage /> },
+      // { path: 'training/progress', element: <TrainingProgressPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'nutrition/create', element: <NutritionCreatePage /> },
       { path: 'nutrition/:id/edit', element: <NutritionCreatePage /> },
