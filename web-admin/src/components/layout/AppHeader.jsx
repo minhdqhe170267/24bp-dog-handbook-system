@@ -1,6 +1,6 @@
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Loader2, LogOut, Moon, Search, Sun, User } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, LogOut, Moon, MoreHorizontal, Search, Sun, Trash2, User } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../utils/utils';
@@ -41,6 +41,7 @@ const searchItems = [
     label: 'Xung đột đồng bộ',
     href: '/sync-conflicts',
     keywords: ['xung dot', 'xung đột', 'dong bo', 'đồng bộ', 'sync conflict'],
+    roles: ['ADMIN'],
   },
   { label: 'Import dữ liệu', href: '/import-data', keywords: ['import', 'nhap du lieu', 'nhập dữ liệu', 'excel', 'csv'] },
   { label: 'Export dữ liệu', href: '/export-data', keywords: ['export', 'xuat du lieu', 'xuất dữ liệu', 'bao cao', 'báo cáo'] },
@@ -63,6 +64,7 @@ const AppHeader = () => {
   const [notificationFilter, setNotificationFilter] = useState('all');
   const [markingAll, setMarkingAll] = useState(false);
   const [activeNotificationId, setActiveNotificationId] = useState(null);
+  const [openMenuNotificationId, setOpenMenuNotificationId] = useState(null);
   const [reviewFeedbackByKey, setReviewFeedbackByKey] = useState({});
 
   const searchRef = useRef(null);
@@ -77,19 +79,24 @@ const AppHeader = () => {
     refresh: refreshNotifications,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
   } = useNotifications({
     userId: user?.userId,
     pageSize: notificationPageSize,
     enabled: Boolean(user?.userId),
   });
 
+  const roleFilteredSearchItems = useMemo(() => {
+    return searchItems.filter((item) => !item.roles || item.roles.includes(user?.role));
+  }, [user?.role]);
+
   const filteredItems = useMemo(() => {
-    if (!searchValue.trim()) return searchItems.slice(0, 6);
+    if (!searchValue.trim()) return roleFilteredSearchItems.slice(0, 6);
     const q = searchValue.toLowerCase();
-    return searchItems.filter(
+    return roleFilteredSearchItems.filter(
       (item) => item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q))
     );
-  }, [searchValue]);
+  }, [roleFilteredSearchItems, searchValue]);
 
   useEffect(() => setSelectedIndex(0), [searchValue]);
 
@@ -99,6 +106,7 @@ const AppHeader = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setDropdownOpen(false);
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setNotificationOpen(false);
+        setOpenMenuNotificationId(null);
       }
     };
 
@@ -227,6 +235,7 @@ const AppHeader = () => {
     const next = !notificationOpen;
     setNotificationOpen(next);
     setDropdownOpen(false);
+    setOpenMenuNotificationId(null);
 
     if (!next) return;
 
@@ -267,55 +276,148 @@ const AppHeader = () => {
     }
   };
 
+  const handleDeleteNotification = async (notificationId) => {
+    if (!notificationId) return;
+    setActiveNotificationId(notificationId);
+    setOpenMenuNotificationId(null);
+    try {
+      await deleteNotification(notificationId);
+    } catch (error) {
+      toast.error(error, { title: 'Không thể xóa thông báo' });
+    } finally {
+      setActiveNotificationId(null);
+    }
+  };
+
+  const handleMarkSingleRead = async (notificationId) => {
+    if (!notificationId) return;
+    setActiveNotificationId(notificationId);
+    setOpenMenuNotificationId(null);
+    try {
+      await markAsRead(notificationId);
+    } catch (error) {
+      toast.error(error, { title: 'Không thể đánh dấu đã đọc' });
+    } finally {
+      setActiveNotificationId(null);
+    }
+  };
+
   const renderNotificationItems = (items) =>
     items.map((notification) => {
       const id = notification.notificationId || `${notification.type}-${notification.createdAt}`;
       const isActionLoading = activeNotificationId === notification.notificationId;
+      const isMenuOpen = openMenuNotificationId === notification.notificationId;
       const feedbackMeta = getNotificationFeedbackMeta(notification);
       const feedback = feedbackMeta ? reviewFeedbackByKey[feedbackMeta.key] : null;
       return (
-        <button
+        <div
           key={id}
           className={cn(
-            'w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted transition-colors',
+            'relative w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted transition-colors group overflow-visible',
+            isMenuOpen ? 'z-40' : 'z-0',
             notification?.isRead ? 'bg-card' : 'bg-accent/5'
           )}
-          onClick={() => handleNotificationSelect(notification)}
         >
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-foreground">
-              {notification?.title || 'Thông báo mới'}
-            </p>
-            <div className="flex items-center gap-1.5">
-              {!notification?.isRead && (
-                <span className="h-2 w-2 rounded-full bg-accent mt-1 shrink-0" />
-              )}
-              <span className="text-[11px] text-muted-foreground">
-                {formatNotificationTime(notification?.createdAt)}
-              </span>
+          {/* Main notification content */}
+          <button
+            className="w-full text-left"
+            onClick={() => handleNotificationSelect(notification)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold text-foreground pr-6">
+                {notification?.title || 'Thông báo mới'}
+              </p>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!notification?.isRead && (
+                  <span className="h-2 w-2 rounded-full bg-accent mt-1 shrink-0" />
+                )}
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                  {formatNotificationTime(notification?.createdAt)}
+                </span>
+              </div>
             </div>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-            {notification?.message || 'Không có nội dung thông báo'}
-          </p>
-          {feedback?.comments ? (
-            <p className="mt-1 text-xs text-foreground leading-relaxed line-clamp-2">
-              <span className="font-medium">
-                Phản hồi reviewer{feedback?.reviewerName ? ` (${feedback.reviewerName})` : ''}:
-              </span>{' '}
-              {feedback.comments}
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              {notification?.message || 'Không có nội dung thông báo'}
             </p>
-          ) : null}
-          <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium">
-            <span className="px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
-              {getNotificationTypeLabel(notification?.type)}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-              {getNotificationEntityLabel(notification?.entityType)}
-            </span>
-            {isActionLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+            {feedback?.comments ? (
+              <p className="mt-1 text-xs text-foreground leading-relaxed line-clamp-2">
+                <span className="font-medium">
+                  Phản hồi reviewer{feedback?.reviewerName ? ` (${feedback.reviewerName})` : ''}:
+                </span>{' '}
+                {feedback.comments}
+              </p>
+            ) : null}
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium">
+              <span className="px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+                {getNotificationTypeLabel(notification?.type)}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                {getNotificationEntityLabel(notification?.entityType)}
+              </span>
+              {isActionLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </div>
+          </button>
+
+          {/* 3-dot menu button — always visible, centered right */}
+          <div className="absolute top-1/2 -translate-y-1/2 right-2">
+            <button
+              className={cn(
+                'p-1.5 rounded-full transition-colors',
+                isMenuOpen
+                  ? 'bg-muted-foreground/20'
+                  : 'hover:bg-muted-foreground/20'
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenMenuNotificationId(isMenuOpen ? null : notification.notificationId);
+              }}
+              title="Tùy chọn"
+            >
+              <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+            </button>
+
+            {isMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-[60]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuNotificationId(null);
+                  }}
+                />
+                <div
+                  className={cn(
+                    'absolute right-0 top-full mt-1 z-[90] w-44 rounded-lg py-1 overflow-hidden isolate',
+                    'border border-border bg-card shadow-elevated'
+                  )}
+                >
+                  {!notification?.isRead && (
+                    <button
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-foreground hover:bg-muted/70 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkSingleRead(notification.notificationId);
+                      }}
+                    >
+                      <CheckCheck className="h-3.5 w-3.5 text-accent shrink-0" />
+                      <span>Đánh dấu đã đọc</span>
+                    </button>
+                  )}
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-left text-destructive hover:bg-destructive/10 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteNotification(notification.notificationId);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>Xóa thông báo này</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        </button>
+        </div>
       );
     });
 
