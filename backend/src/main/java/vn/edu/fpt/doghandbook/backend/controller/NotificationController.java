@@ -2,6 +2,7 @@ package vn.edu.fpt.doghandbook.backend.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -55,5 +56,15 @@ public class NotificationController {
         Integer userId = AuthenticationUtils.extractUserId(authentication);
         notificationService.markAllAsRead(userId);
         return ApiResponse.success(null, "Đã đánh dấu tất cả đã đọc");
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteNotification(
+            @PathVariable("id") Long notificationId,
+            Authentication authentication
+    ) {
+        Integer userId = AuthenticationUtils.extractUserId(authentication);
+        notificationService.deleteNotification(notificationId, userId);
+        return ApiResponse.success(null, "Đã xóa thông báo");
     }
 }
