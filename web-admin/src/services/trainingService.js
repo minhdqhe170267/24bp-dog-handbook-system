@@ -18,8 +18,15 @@ export const trainingService = {
   deleteExercise: (id) => api.delete(`/exercises/${id}`),
 
   // Training Roadmaps
-  getRoadmaps: (page = 0, size = 10) =>
-    api.get(`/roadmaps?page=${page}&size=${size}&sort=updatedAt,desc&sort=createdAt,desc`),
+  getRoadmaps: (page = 0, size = 10, specialtyId = null) => {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('size', String(size));
+    if (specialtyId) {
+      params.append('specialtyId', String(specialtyId));
+    }
+    return api.get(`/roadmaps?${params.toString()}`);
+  },
   getRoadmapById: (id) => api.get(`/roadmaps/${id}`),
   createRoadmap: (data) => api.post('/roadmaps', data),
   updateRoadmap: (id, data) => api.put(`/roadmaps/${id}`, data),

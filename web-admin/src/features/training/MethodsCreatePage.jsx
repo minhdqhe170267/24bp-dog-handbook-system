@@ -181,16 +181,16 @@ const MethodsCreatePage = () => {
         <FormInput maxLength={200} value={formData.methodName} onChange={(e) => updateField('methodName', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Hướng dẫn">
-        <FormTextarea maxLength={5000} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
       </FormField>
       <FormField label="Ưu điểm">
-        <FormTextarea maxLength={5000} rows={2} value={formData.advantages} onChange={(e) => updateField('advantages', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.advantages} onChange={(e) => updateField('advantages', e.target.value)} />
       </FormField>
       <FormField label="Nhược điểm">
-        <FormTextarea maxLength={5000} rows={2} value={formData.disadvantages} onChange={(e) => updateField('disadvantages', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.disadvantages} onChange={(e) => updateField('disadvantages', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.TRAINING_METHOD}
@@ -202,3 +202,4 @@ const MethodsCreatePage = () => {
 };
 
 export default MethodsCreatePage;
+
