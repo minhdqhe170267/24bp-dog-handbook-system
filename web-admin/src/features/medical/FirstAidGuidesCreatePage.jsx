@@ -194,19 +194,19 @@ const FirstAidGuidesCreatePage = () => {
         <FormInput maxLength={100} value={formData.emergencyType} onChange={(e) => updateField('emergencyType', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Các bước xử lý ngay" required>
-        <FormTextarea maxLength={5000} rows={4} value={formData.immediateSteps} onChange={(e) => updateField('immediateSteps', e.target.value)} />
+        <FormTextarea maxLength={255} rows={4} value={formData.immediateSteps} onChange={(e) => updateField('immediateSteps', e.target.value)} />
       </FormField>
       <FormField label="Vật tư cần thiết">
-        <FormTextarea maxLength={5000} rows={2} value={formData.requiredMaterials} onChange={(e) => updateField('requiredMaterials', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.requiredMaterials} onChange={(e) => updateField('requiredMaterials', e.target.value)} />
       </FormField>
       <FormField label="Không nên làm">
-        <FormTextarea maxLength={5000} rows={2} value={formData.doNotActions} onChange={(e) => updateField('doNotActions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.doNotActions} onChange={(e) => updateField('doNotActions', e.target.value)} />
       </FormField>
       <FormField label="Khi nào cần bác sĩ thú y">
-        <FormTextarea maxLength={5000} rows={2} value={formData.whenToSeekVet} onChange={(e) => updateField('whenToSeekVet', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.whenToSeekVet} onChange={(e) => updateField('whenToSeekVet', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.FIRST_AID_GUIDE}
@@ -218,3 +218,4 @@ const FirstAidGuidesCreatePage = () => {
 };
 
 export default FirstAidGuidesCreatePage;
+

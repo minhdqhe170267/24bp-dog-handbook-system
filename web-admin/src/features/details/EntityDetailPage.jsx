@@ -110,6 +110,7 @@ const REVIEW_APPROVAL_ENTITY_TYPES = new Set([
   'MEDICATION',
   'FIRST_AID_GUIDE',
 ]);
+const ACTION_COMMENT_MAX_LENGTH = 255;
 
 const ENTITY_CONFIG = {
   CONTENT: {
@@ -161,7 +162,8 @@ const ENTITY_CONFIG = {
       { key: 'dogName', label: 'Tên chó' },
       { key: 'breedName', label: 'Giống chó' },
       { key: 'gender', label: 'Giới tính', render: (value) => formatDetailEnumValue('gender', value) },
-      { key: 'ageMonths', label: 'Tuổi (tháng)', render: (value, row) => formatAgeMonthsValue(value, row) },
+      { key: 'dateOfBirth', label: 'Ngày sinh', render: (value) => formatDateValue(value) },
+      { key: 'ageMonths', label: 'Tháng tuổi', render: (value, row) => formatAgeMonthsValue(value, row) },
       { key: 'currentWeightKg', label: 'Cân nặng', render: (value) => (value == null ? '—' : `${value} kg`) },
       { key: 'heightCm', label: 'Chiều cao', render: (value) => (value == null ? '—' : `${value} cm`) },
       { key: 'color', label: 'Màu lông' },
@@ -283,6 +285,22 @@ const ENTITY_CONFIG = {
       { key: 'disadvantages', label: 'Nhược điểm', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
+      { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
+      { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
+    ],
+  },
+  TRAINING_SPECIALTY: {
+    label: 'Chuyên ngành huấn luyện',
+    endpoint: '/training-specialties',
+    listPath: '/training/specialties',
+    getEditPath: (entityId) => `/training/specialties/${entityId}/edit`,
+    idKey: 'specialtyId',
+    fields: [
+      { key: 'specialtyCode', label: 'Mã chuyên ngành' },
+      { key: 'specialtyName', label: 'Tên chuyên ngành' },
+      { key: 'description', label: 'Mô tả', textarea: true },
+      { key: 'version', label: 'Phiên bản' },
+      { key: 'isActive', label: 'Trạng thái', render: (value) => value === false ? 'Ngừng hoạt động' : 'Hoạt động' },
       { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
       { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
     ],
@@ -634,6 +652,10 @@ const EntityDetailPage = () => {
       toast.warning('Vui lòng nhập lý do từ chối');
       return;
     }
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Lý do từ chối tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
+      return;
+    }
     const success = await executeAction({
       action: 'REJECT',
       title: 'Không thể từ chối nội dung',
@@ -662,6 +684,10 @@ const EntityDetailPage = () => {
     const comment = suggestionResponse.trim();
     if (!comment) {
       toast.warning('Vui lòng nhập phản hồi trước khi gửi');
+      return;
+    }
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Phản hồi tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
       return;
     }
     if (resolvedEntityId === null || resolvedEntityId === undefined || resolvedEntityId === '') return;
@@ -771,28 +797,8 @@ const EntityDetailPage = () => {
       });
     }
 
-    if (entityType === 'DOG_PROFILE' && isAdmin && resolvedEntityId) {
-      const query = new URLSearchParams({ dogId: String(resolvedEntityId) }).toString();
-      const enrollQuery = new URLSearchParams({
-        dogId: String(resolvedEntityId),
-        action: 'enroll',
-      }).toString();
-      buttons.push(
-        {
-          key: 'dog-enrollments',
-          label: 'Xem ghi danh',
-          icon: ClipboardCheck,
-          variant: 'outline',
-          onClick: () => navigate(`/enrollments?${query}`),
-        },
-        {
-          key: 'dog-enroll',
-          label: 'Ghi danh mới',
-          icon: Plus,
-          onClick: () => navigate(`/enrollments?${enrollQuery}`),
-        }
-      );
-    }
+    // Enrollment buttons hidden
+    // if (entityType === 'DOG_PROFILE' && isAdmin && resolvedEntityId) { ... }
 
     return buttons;
   };
@@ -916,6 +922,7 @@ const EntityDetailPage = () => {
           </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={rejectComment}
             onChange={(event) => setRejectComment(event.target.value)}
             placeholder="Nhập lý do từ chối..."
@@ -959,6 +966,7 @@ const EntityDetailPage = () => {
           </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={suggestionResponse}
             onChange={(event) => setSuggestionResponse(event.target.value)}
             placeholder="Nhập phản hồi..."

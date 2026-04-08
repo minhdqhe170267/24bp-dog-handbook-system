@@ -25,6 +25,7 @@ const RESOLUTION_SOURCE_LABELS = {
   local: 'Trainer',
   server: 'Hệ thống',
 };
+const RESOLUTION_NOTE_MAX_LENGTH = 255;
 
 const normalizeEntityType = (value) =>
   String(value || '')
@@ -158,6 +159,10 @@ const ConflictDetailPage = () => {
     if (!detail?.id || resolving) return;
     if (resolutionType === 'MERGED' && !allConflictedFieldsSelected) {
       toast.warning('Vui lòng chọn đầy đủ giá trị cho các trường xung đột');
+      return;
+    }
+    if (note.trim().length > RESOLUTION_NOTE_MAX_LENGTH) {
+      toast.warning(`Ghi chú tối đa ${RESOLUTION_NOTE_MAX_LENGTH} ký tự`);
       return;
     }
 
@@ -307,6 +312,7 @@ const ConflictDetailPage = () => {
               <label className="block text-sm font-medium text-foreground mb-1.5">Ghi chú lý do (không bắt buộc)</label>
               <FormTextarea
                 rows={3}
+                maxLength={RESOLUTION_NOTE_MAX_LENGTH}
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 placeholder="Nhập ghi chú cho quyết định xử lý..."

@@ -44,6 +44,7 @@ const addEnumRequired = (errors, value, label) => {
 
 const VIETNAMESE_PHONE_REGEX = /^(\+84|0)[0-9]{9,10}$/;
 const BASIC_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SAFE_LONG_TEXT_MAX = 255;
 
 export const validateBreedForm = (form = {}) => {
   const errors = [];
@@ -51,8 +52,8 @@ export const validateBreedForm = (form = {}) => {
   addMaxLength(errors, form.breedName, 100, 'Tên giống');
   addMaxLength(errors, form.origin, 100, 'Nguồn gốc');
   addMaxLength(errors, form.lifespanYears, 20, 'Tuổi thọ');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.operationalCapabilities, 5000, 'Khả năng tác chiến');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.operationalCapabilities, SAFE_LONG_TEXT_MAX, 'Khả năng tác chiến');
   return errors;
 };
 
@@ -60,10 +61,10 @@ export const validateDiseaseForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.diseaseName, 'Tên bệnh');
   addMaxLength(errors, form.diseaseName, 200, 'Tên bệnh');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.commonSymptoms, 5000, 'Triệu chứng');
-  addMaxLength(errors, form.treatment, 5000, 'Điều trị');
-  addMaxLength(errors, form.preventionMethods, 5000, 'Phòng ngừa');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.commonSymptoms, SAFE_LONG_TEXT_MAX, 'Triệu chứng');
+  addMaxLength(errors, form.treatment, SAFE_LONG_TEXT_MAX, 'Điều trị');
+  addMaxLength(errors, form.preventionMethods, SAFE_LONG_TEXT_MAX, 'Phòng ngừa');
   return errors;
 };
 
@@ -71,12 +72,12 @@ export const validateMedicationForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.medicationName, 'Tên thuốc');
   addMaxLength(errors, form.medicationName, 200, 'Tên thuốc');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.dosageInstructions, 5000, 'Liều dùng');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.dosageInstructions, SAFE_LONG_TEXT_MAX, 'Liều dùng');
   addMaxLength(errors, form.administrationMethod, 200, 'Phương pháp dùng');
-  addMaxLength(errors, form.sideEffects, 5000, 'Tác dụng phụ');
-  addMaxLength(errors, form.contraindications, 5000, 'Chống chỉ định');
-  addMaxLength(errors, form.storageRequirements, 5000, 'Bảo quản');
+  addMaxLength(errors, form.sideEffects, SAFE_LONG_TEXT_MAX, 'Tác dụng phụ');
+  addMaxLength(errors, form.contraindications, SAFE_LONG_TEXT_MAX, 'Chống chỉ định');
+  addMaxLength(errors, form.storageRequirements, SAFE_LONG_TEXT_MAX, 'Bảo quản');
   return errors;
 };
 
@@ -87,8 +88,8 @@ export const validateNutritionForm = (form = {}) => {
   addEnumRequired(errors, form.activityLevel, 'mức hoạt động');
   addMaxLength(errors, form.rationCode, 50, 'Mã khẩu phần');
   addMaxLength(errors, form.rationName, 200, 'Tên khẩu phần');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.specialNotes, 5000, 'Ghi chú đặc biệt');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.specialNotes, SAFE_LONG_TEXT_MAX, 'Ghi chú đặc biệt');
   return errors;
 };
 
@@ -98,10 +99,10 @@ export const validateExerciseForm = (form = {}) => {
   addEnumRequired(errors, form.difficultyLevel, 'độ khó');
   addMaxLength(errors, form.exerciseName, 200, 'Tên bài tập');
   addNumericRange(errors, form.durationMinutes, 'Thời gian (phút)', { min: 1, max: 480, integer: true });
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.instructions, 5000, 'Hướng dẫn');
-  addMaxLength(errors, form.requiredEquipment, 500, 'Thiết bị cần thiết');
-  addMaxLength(errors, form.safetyPrecautions, 5000, 'Lưu ý an toàn');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.instructions, SAFE_LONG_TEXT_MAX, 'Hướng dẫn');
+  addMaxLength(errors, form.requiredEquipment, SAFE_LONG_TEXT_MAX, 'Thiết bị cần thiết');
+  addMaxLength(errors, form.safetyPrecautions, SAFE_LONG_TEXT_MAX, 'Lưu ý an toàn');
   return errors;
 };
 
@@ -109,74 +110,74 @@ export const validateMethodForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.methodName, 'Tên phương pháp');
   addMaxLength(errors, form.methodName, 200, 'Tên phương pháp');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.instructions, 5000, 'Hướng dẫn');
-  addMaxLength(errors, form.advantages, 5000, 'Ưu điểm');
-  addMaxLength(errors, form.disadvantages, 5000, 'Nhược điểm');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.instructions, SAFE_LONG_TEXT_MAX, 'Hướng dẫn');
+  addMaxLength(errors, form.advantages, SAFE_LONG_TEXT_MAX, 'Ưu điểm');
+  addMaxLength(errors, form.disadvantages, SAFE_LONG_TEXT_MAX, 'Nhược điểm');
+  return errors;
+};
+
+export const validateSpecialtyForm = (form = {}) => {
+  const errors = [];
+  addRequired(errors, form.specialtyCode, 'Mã chuyên ngành');
+  addRequired(errors, form.specialtyName, 'Tên chuyên ngành');
+  addMaxLength(errors, form.specialtyCode, 50, 'Mã chuyên ngành');
+  addMaxLength(errors, form.specialtyName, 150, 'Tên chuyên ngành');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
   return errors;
 };
 
 export const validateRoadmapForm = (form = {}) => {
   const errors = [];
+  const phases = Array.isArray(form.phases) ? form.phases : [];
+  const phaseOrderTracker = new Map();
+  const exercisePhaseTracker = new Map();
+
   addRequired(errors, form.roadmapName, 'Tên lộ trình');
+  addRequired(errors, form.specialtyId, 'Chuyên ngành');
+  addRequired(errors, form.roadmapOrder, 'Thứ tự lộ trình');
   addMaxLength(errors, form.roadmapName, 200, 'Tên lộ trình');
   addMaxLength(errors, form.targetRole, 100, 'Vai trò mục tiêu');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addNumericRange(errors, form.roadmapOrder, 'Thứ tự lộ trình', { min: 1, integer: true });
   addNumericRange(errors, form.totalDurationWeeks, 'Tổng thời gian (tuần)', { min: 1, max: 104, integer: true });
 
-  const phases = Array.isArray(form.phases) && form.phases.length > 0
-    ? form.phases
-    : [{
-        phaseName: form.phaseName,
-        phaseOrder: form.phaseOrder,
-        phaseDurationWeeks: form.phaseDurationWeeks,
-        phaseObjectives: form.phaseObjectives,
-        assessmentCriteria: form.assessmentCriteria,
-        exerciseIds: form.exerciseIds,
-      }];
-
-  if (!Array.isArray(phases) || phases.length === 0) {
-    errors.push('Lộ trình phải có ít nhất 1 giai đoạn');
-    return errors;
+  if (phases.length === 0) {
+    errors.push('Cần ít nhất 1 giai đoạn');
   }
 
-  const phaseOrderSet = new Set();
-  const exerciseIdSet = new Set();
+  phases.forEach((phase, index) => {
+    const phaseIndex = index + 1;
+    addRequired(errors, phase.phaseName, `Tên giai đoạn #${phaseIndex}`);
+    addRequired(errors, phase.phaseOrder, `Thứ tự giai đoạn #${phaseIndex}`);
+    addMaxLength(errors, phase.phaseName, 100, `Tên giai đoạn #${phaseIndex}`);
+    addNumericRange(errors, phase.phaseOrder, `Thứ tự giai đoạn #${phaseIndex}`, { min: 1, integer: true });
+    addNumericRange(errors, phase.phaseDurationWeeks, `Thời gian giai đoạn #${phaseIndex} (tuần)`, { min: 1, max: 52, integer: true });
+    addMaxLength(errors, phase.phaseObjectives, SAFE_LONG_TEXT_MAX, `Mục tiêu giai đoạn #${phaseIndex}`);
+    addMaxLength(errors, phase.assessmentCriteria, SAFE_LONG_TEXT_MAX, `Tiêu chí đánh giá #${phaseIndex}`);
 
-  phases.forEach((phase, phaseIndex) => {
-    const phasePrefix = `Giai đoạn ${phaseIndex + 1}`;
-    addRequired(errors, phase?.phaseName, `${phasePrefix} - Tên giai đoạn`);
-    addRequired(errors, phase?.phaseOrder, `${phasePrefix} - Thứ tự giai đoạn`);
-    addMaxLength(errors, phase?.phaseName, 100, `${phasePrefix} - Tên giai đoạn`);
-    addNumericRange(errors, phase?.phaseOrder, `${phasePrefix} - Thứ tự giai đoạn`, { min: 1, integer: true });
-    addNumericRange(errors, phase?.phaseDurationWeeks, `${phasePrefix} - Thời gian giai đoạn (tuần)`, { min: 1, max: 52, integer: true });
-    addMaxLength(errors, phase?.phaseObjectives, 5000, `${phasePrefix} - Mục tiêu giai đoạn`);
-    addMaxLength(errors, phase?.assessmentCriteria, 5000, `${phasePrefix} - Tiêu chí đánh giá`);
-
-    const phaseOrderNumber = Number(phase?.phaseOrder);
-    if (Number.isFinite(phaseOrderNumber) && phaseOrderNumber > 0) {
-      if (phaseOrderSet.has(phaseOrderNumber)) {
-        errors.push(`Thứ tự giai đoạn bị trùng: ${phaseOrderNumber}`);
+    const phaseOrder = parseNumber(phase.phaseOrder);
+    if (phaseOrder != null && !Number.isNaN(phaseOrder)) {
+      const existed = phaseOrderTracker.get(phaseOrder);
+      if (existed != null) {
+        errors.push(`Thứ tự giai đoạn bị trùng giữa giai đoạn #${existed} và #${phaseIndex}`);
       } else {
-        phaseOrderSet.add(phaseOrderNumber);
+        phaseOrderTracker.set(phaseOrder, phaseIndex);
       }
     }
 
-    const exerciseIds = Array.isArray(phase?.exerciseIds) ? phase.exerciseIds : [];
-    exerciseIds.forEach((exerciseId) => {
-      const normalizedExerciseId = Number(exerciseId);
-      if (!Number.isFinite(normalizedExerciseId) || normalizedExerciseId <= 0) {
-        errors.push(`${phasePrefix} - Bài tập không hợp lệ`);
-        return;
-      }
-      if (exerciseIdSet.has(normalizedExerciseId)) {
-        errors.push(`Mỗi bài tập chỉ được xuất hiện 1 lần trong toàn bộ lộ trình (ID: ${normalizedExerciseId})`);
+    const exerciseIds = Array.isArray(phase.exerciseIds) ? phase.exerciseIds : [];
+    exerciseIds.forEach((exerciseIdRaw) => {
+      const exerciseId = Number(exerciseIdRaw);
+      if (!Number.isFinite(exerciseId)) return;
+      const usedPhase = exercisePhaseTracker.get(exerciseId);
+      if (usedPhase != null && usedPhase !== phaseIndex) {
+        errors.push(`Một bài tập đang bị chọn trùng ở giai đoạn #${usedPhase} và #${phaseIndex}`);
       } else {
-        exerciseIdSet.add(normalizedExerciseId);
+        exercisePhaseTracker.set(exerciseId, phaseIndex);
       }
     });
   });
-
   return errors;
 };
 
@@ -187,32 +188,39 @@ export const validateFirstAidGuideForm = (form = {}) => {
   addRequired(errors, form.immediateSteps, 'Các bước xử lý ngay');
   addMaxLength(errors, form.guideTitle, 200, 'Tiêu đề');
   addMaxLength(errors, form.emergencyType, 100, 'Loại tình huống');
-  addMaxLength(errors, form.description, 5000, 'Mô tả');
-  addMaxLength(errors, form.immediateSteps, 5000, 'Các bước xử lý ngay');
-  addMaxLength(errors, form.requiredMaterials, 5000, 'Vật tư cần thiết');
-  addMaxLength(errors, form.doNotActions, 5000, 'Không nên làm');
-  addMaxLength(errors, form.whenToSeekVet, 5000, 'Khi nào cần bác sĩ thú y');
+  addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
+  addMaxLength(errors, form.immediateSteps, SAFE_LONG_TEXT_MAX, 'Các bước xử lý ngay');
+  addMaxLength(errors, form.requiredMaterials, SAFE_LONG_TEXT_MAX, 'Vật tư cần thiết');
+  addMaxLength(errors, form.doNotActions, SAFE_LONG_TEXT_MAX, 'Không nên làm');
+  addMaxLength(errors, form.whenToSeekVet, SAFE_LONG_TEXT_MAX, 'Khi nào cần bác sĩ thú y');
   return errors;
 };
 
-export const validateDogForm = (form = {}, options = {}) => {
+export const validateDogForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.dogName, 'Tên chó');
   addEnumRequired(errors, form.breedId, 'giống chó');
   addMaxLength(errors, form.dogName, 100, 'Tên chó');
 
-  const requireAgeMonths = options.requireAgeMonths !== false;
-  if (requireAgeMonths && (form.ageMonths === '' || form.ageMonths == null)) {
-    errors.push('Tuổi (tháng) không được để trống');
-  } else {
-    addNumericRange(errors, form.ageMonths, 'Tuổi (tháng)', { min: 0, max: 240, integer: true });
+  if (!isBlank(form.dateOfBirth)) {
+    const rawDate = String(form.dateOfBirth).trim();
+    const parsedDate = new Date(`${rawDate}T00:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) {
+      errors.push('Ngày sinh không hợp lệ');
+    } else {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (parsedDate > today) {
+        errors.push('Ngày sinh không được lớn hơn ngày hiện tại');
+      }
+    }
   }
 
   addNumericRange(errors, form.currentWeightKg, 'Cân nặng (kg)', { min: 0, max: 200 });
   addNumericRange(errors, form.heightCm, 'Chiều cao (cm)', { min: 0, max: 200 });
   addMaxLength(errors, form.color, 100, 'Màu lông');
   addMaxLength(errors, form.microchipId, 50, 'Microchip ID');
-  addMaxLength(errors, form.notes, 5000, 'Ghi chú');
+  addMaxLength(errors, form.notes, SAFE_LONG_TEXT_MAX, 'Ghi chú');
   return errors;
 };
 
@@ -221,7 +229,7 @@ export const validateDogAssignmentForm = (form = {}) => {
   addRequired(errors, form.dogId, 'Chó');
   addRequired(errors, form.trainerId, 'Huấn luyện viên');
   addRequired(errors, form.startDate, 'Ngày bắt đầu');
-  addMaxLength(errors, form.notes, 500, 'Ghi chú');
+  addMaxLength(errors, form.notes, SAFE_LONG_TEXT_MAX, 'Ghi chú');
 
   if (!isBlank(form.startDate) && !isBlank(form.endDate)) {
     const startDate = new Date(form.startDate);
@@ -268,6 +276,10 @@ export const validateUserForm = (form = {}, options = {}) => {
 
   if (!isBlank(form.phone) && !VIETNAMESE_PHONE_REGEX.test(String(form.phone).trim())) {
     errors.push('Số điện thoại phải theo định dạng Việt Nam (+84 hoặc 0...)');
+  }
+
+  if (String(form.role || '').toUpperCase() === 'TRAINER' && !form.specialtyId) {
+    errors.push('Huấn luyện viên phải được gán chuyên ngành');
   }
 
   return errors;

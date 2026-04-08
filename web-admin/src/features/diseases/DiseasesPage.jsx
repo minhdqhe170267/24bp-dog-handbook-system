@@ -269,10 +269,10 @@ const DiseasesPage = () => {
             <FormSelect value={formData.severityLevel || ''} onChange={(e) => updateField('severityLevel', e.target.value)} placeholder="Chọn mức độ"
               options={[{ value: 'LOW', label: 'Nhẹ' }, { value: 'MEDIUM', label: 'Trung bình' }, { value: 'HIGH', label: 'Nặng' }, { value: 'CRITICAL', label: 'Nguy kịch' }]} />
           </FormField>
-          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Triệu chứng"><FormTextarea maxLength={5000} rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>
-          <FormField label="Điều trị"><FormTextarea maxLength={5000} rows={2} value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} /></FormField>
-          <FormField label="Phòng ngừa"><FormTextarea maxLength={5000} rows={2} value={formData.preventionMethods || ''} onChange={(e) => updateField('preventionMethods', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Triệu chứng"><FormTextarea maxLength={255} rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>
+          <FormField label="Điều trị"><FormTextarea maxLength={255} rows={2} value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} /></FormField>
+          <FormField label="Phòng ngừa"><FormTextarea maxLength={255} rows={2} value={formData.preventionMethods || ''} onChange={(e) => updateField('preventionMethods', e.target.value)} /></FormField>
           <FormField label="Lây nhiễm"><FormSwitch checked={formData.isContagious || false} onChange={(v) => updateField('isContagious', v)} /></FormField>
         </form>
       </Modal>
@@ -290,5 +290,6 @@ const DiseasesPage = () => {
 };
 
 export default DiseasesPage;
+
 
 
