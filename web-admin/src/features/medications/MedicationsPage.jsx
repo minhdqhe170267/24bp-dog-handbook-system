@@ -234,10 +234,10 @@ const MedicationsPage = () => {
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
           <FormField label="Tên thuốc" required><FormInput maxLength={200} placeholder="VD: Amoxicillin" value={formData.medicationName || ''} onChange={(e) => updateField('medicationName', e.target.value)} /></FormField>
-          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Liều dùng"><FormTextarea maxLength={5000} rows={2} value={formData.dosageInstructions || ''} onChange={(e) => updateField('dosageInstructions', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Liều dùng"><FormTextarea maxLength={255} rows={2} value={formData.dosageInstructions || ''} onChange={(e) => updateField('dosageInstructions', e.target.value)} /></FormField>
           <FormField label="Phương pháp dùng"><FormInput maxLength={200} value={formData.administrationMethod || ''} onChange={(e) => updateField('administrationMethod', e.target.value)} /></FormField>
-          <FormField label="Tác dụng phụ"><FormTextarea maxLength={5000} rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
+          <FormField label="Tác dụng phụ"><FormTextarea maxLength={255} rows={2} value={formData.sideEffects || ''} onChange={(e) => updateField('sideEffects', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} title="Xóa thuốc" description="Bạn có chắc chắn muốn xóa thuốc này?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -254,5 +254,6 @@ const MedicationsPage = () => {
 };
 
 export default MedicationsPage;
+
 
 

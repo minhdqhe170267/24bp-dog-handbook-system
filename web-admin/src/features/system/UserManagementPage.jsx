@@ -47,6 +47,7 @@ const defaultForm = {
   role: '',
   militaryRank: '',
   unit: '',
+  specialtyId: '',
 };
 
 const getDateTimeParts = (value) => {
@@ -218,6 +219,12 @@ const UserManagementPage = () => {
     { key: 'email', header: 'Email', className: 'w-52', render: (row) => row.email || '—' },
     { key: 'phone', header: 'Số điện thoại', className: 'w-36', render: (row) => row.phone || '—' },
     { key: 'role', header: 'Vai trò', className: 'w-40', render: (row) => <RoleBadge role={row.role} /> },
+    {
+      key: 'specialtyName',
+      header: 'Chuyên ngành',
+      className: 'w-52',
+      render: (row) => row.specialtyName || '—',
+    },
     { key: 'isLocked', header: 'Trạng thái', className: 'w-36', render: (row) => <StatusBadge status={row.isLocked ? 'LOCKED' : 'ACTIVE'} /> },
     {
       key: 'lastLoginAt',

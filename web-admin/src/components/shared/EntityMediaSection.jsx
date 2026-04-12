@@ -175,7 +175,7 @@ const EntityMediaSection = ({
       <div className="mb-3">
         <p className="text-sm font-semibold text-foreground">Media</p>
         <p className="text-xs text-muted-foreground">
-          Hỗ trợ ảnh/video, tối đa {maxFiles} file. {entityId ? `Đã liên kết ID: ${entityId}` : 'Lưu nháp trước khi upload.'}
+          Hỗ trợ ảnh/video, tối đa {maxFiles} file. {entityId ? 'Đã liên kết với bản ghi hiện tại.' : 'Lưu nháp trước khi upload.'}
         </p>
       </div>
 

@@ -78,16 +78,24 @@ const FormField = ({ label, required, error, children }) => {
     );
 };
 
-const FormInput = ({ className = '', ...props }) => (
-    <input
-        className={cn('w-full h-10 px-3 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card', className)}
-        {...props}
-    />
-);
+const FormInput = ({ className = '', type = 'text', maxLength, ...props }) => {
+    const shouldApplyDefaultMaxLength = ['text', 'email', 'search', 'tel', 'password', 'url'].includes(type);
+    const resolvedMaxLength = maxLength ?? (shouldApplyDefaultMaxLength ? 255 : undefined);
 
-const FormTextarea = ({ className = '', rows = 3, ...props }) => (
+    return (
+        <input
+            type={type}
+            maxLength={resolvedMaxLength}
+            className={cn('w-full h-10 px-3 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card', className)}
+            {...props}
+        />
+    );
+};
+
+const FormTextarea = ({ className = '', rows = 3, maxLength = 255, ...props }) => (
     <textarea
         rows={rows}
+        maxLength={maxLength}
         className={cn('w-full px-3 py-2 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card resize-y', className)}
         {...props}
     />

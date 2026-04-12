@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Globe, Loader2, MessageSquare, Pencil, RotateCcw, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCheck,
+  Globe,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Plus,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import PageHeader from '../../components/shared/PageHeader';
 import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
@@ -99,6 +110,7 @@ const REVIEW_APPROVAL_ENTITY_TYPES = new Set([
   'MEDICATION',
   'FIRST_AID_GUIDE',
 ]);
+const ACTION_COMMENT_MAX_LENGTH = 255;
 
 const ENTITY_CONFIG = {
   CONTENT: {
@@ -150,7 +162,8 @@ const ENTITY_CONFIG = {
       { key: 'dogName', label: 'Tên chó' },
       { key: 'breedName', label: 'Giống chó' },
       { key: 'gender', label: 'Giới tính', render: (value) => formatDetailEnumValue('gender', value) },
-      { key: 'ageMonths', label: 'Tuổi (tháng)', render: (value, row) => formatAgeMonthsValue(value, row) },
+      { key: 'dateOfBirth', label: 'Ngày sinh', render: (value) => formatDateValue(value) },
+      { key: 'ageMonths', label: 'Tháng tuổi', render: (value, row) => formatAgeMonthsValue(value, row) },
       { key: 'currentWeightKg', label: 'Cân nặng', render: (value) => (value == null ? '—' : `${value} kg`) },
       { key: 'heightCm', label: 'Chiều cao', render: (value) => (value == null ? '—' : `${value} cm`) },
       { key: 'color', label: 'Màu lông' },
@@ -218,11 +231,38 @@ const ENTITY_CONFIG = {
       { key: 'breedName', label: 'Giống chó' },
       { key: 'targetRole', label: 'Vai trò mục tiêu', render: (value) => formatDetailEnumValue('targetRole', value) },
       { key: 'totalDurationWeeks', label: 'Tổng thời gian (tuần)' },
-      { key: 'phaseName', label: 'Tên giai đoạn' },
-      { key: 'phaseOrder', label: 'Thứ tự giai đoạn' },
-      { key: 'phaseDurationWeeks', label: 'Thời gian giai đoạn (tuần)' },
-      { key: 'phaseObjectives', label: 'Mục tiêu giai đoạn', textarea: true },
-      { key: 'assessmentCriteria', label: 'Tiêu chí đánh giá', textarea: true },
+      { key: 'totalPhases', label: 'Tổng số giai đoạn' },
+      {
+        key: 'phases',
+        label: 'Danh sách giai đoạn',
+        textarea: true,
+        render: (value, row) => {
+          const phases = Array.isArray(value) ? value : Array.isArray(row?.phases) ? row.phases : [];
+          if (phases.length > 0) {
+            const sortedPhases = [...phases].sort(
+              (left, right) => Number(left?.phaseOrder || 0) - Number(right?.phaseOrder || 0)
+            );
+            return sortedPhases
+              .map((phase) => {
+                const phaseOrder = phase?.phaseOrder ? `GĐ ${phase.phaseOrder}` : 'GĐ';
+                const phaseName = phase?.phaseName || 'Chưa đặt tên';
+                const phaseDuration = phase?.phaseDurationWeeks ? ` (${phase.phaseDurationWeeks} tuần)` : '';
+                const exerciseCount = Number(phase?.totalExercises || 0);
+                const exerciseSuffix = exerciseCount > 0 ? ` - ${exerciseCount} bài tập` : '';
+                return `${phaseOrder}: ${phaseName}${phaseDuration}${exerciseSuffix}`;
+              })
+              .join('\n');
+          }
+
+          if (row?.phaseName) {
+            const phaseOrder = row?.phaseOrder ? `GĐ ${row.phaseOrder}: ` : '';
+            const phaseDuration = row?.phaseDurationWeeks ? ` (${row.phaseDurationWeeks} tuần)` : '';
+            return `${phaseOrder}${row.phaseName}${phaseDuration}`;
+          }
+
+          return '—';
+        },
+      },
       { key: 'description', label: 'Mô tả', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
@@ -245,6 +285,22 @@ const ENTITY_CONFIG = {
       { key: 'disadvantages', label: 'Nhược điểm', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
+      { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
+      { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
+    ],
+  },
+  TRAINING_SPECIALTY: {
+    label: 'Chuyên ngành huấn luyện',
+    endpoint: '/training-specialties',
+    listPath: '/training/specialties',
+    getEditPath: (entityId) => `/training/specialties/${entityId}/edit`,
+    idKey: 'specialtyId',
+    fields: [
+      { key: 'specialtyCode', label: 'Mã chuyên ngành' },
+      { key: 'specialtyName', label: 'Tên chuyên ngành' },
+      { key: 'description', label: 'Mô tả', textarea: true },
+      { key: 'version', label: 'Phiên bản' },
+      { key: 'isActive', label: 'Trạng thái', render: (value) => value === false ? 'Ngừng hoạt động' : 'Hoạt động' },
       { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
       { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
     ],
@@ -470,7 +526,7 @@ const EntityDetailPage = () => {
         if (active) {
           setLatestReviewerFeedback(latest && String(latest?.comments || '').trim() ? latest : null);
         }
-      } catch (error) {
+      } catch {
         if (active) setLatestReviewerFeedback(null);
       } finally {
         if (active) setReviewerFeedbackLoading(false);
@@ -596,6 +652,10 @@ const EntityDetailPage = () => {
       toast.warning('Vui lòng nhập lý do từ chối');
       return;
     }
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Lý do từ chối tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
+      return;
+    }
     const success = await executeAction({
       action: 'REJECT',
       title: 'Không thể từ chối nội dung',
@@ -624,6 +684,10 @@ const EntityDetailPage = () => {
     const comment = suggestionResponse.trim();
     if (!comment) {
       toast.warning('Vui lòng nhập phản hồi trước khi gửi');
+      return;
+    }
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Phản hồi tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
       return;
     }
     if (resolvedEntityId === null || resolvedEntityId === undefined || resolvedEntityId === '') return;
@@ -732,6 +796,9 @@ const EntityDetailPage = () => {
         disabled: suggestionResponding,
       });
     }
+
+    // Enrollment buttons hidden
+    // if (entityType === 'DOG_PROFILE' && isAdmin && resolvedEntityId) { ... }
 
     return buttons;
   };
@@ -855,6 +922,7 @@ const EntityDetailPage = () => {
           </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={rejectComment}
             onChange={(event) => setRejectComment(event.target.value)}
             placeholder="Nhập lý do từ chối..."
@@ -898,6 +966,7 @@ const EntityDetailPage = () => {
           </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={suggestionResponse}
             onChange={(event) => setSuggestionResponse(event.target.value)}
             placeholder="Nhập phản hồi..."

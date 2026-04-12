@@ -29,10 +29,11 @@ const allNavItems = [
         ]
     },
     {
-        label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
-            { label: 'Bài tập', href: '/training/exercises', icon: BookOpen },
-            { label: 'Phương pháp', href: '/training/methods', icon: Dumbbell },
-            { label: 'Lộ trình', href: '/training/roadmaps', icon: Route },
+        label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR', 'TRAINER'], children: [
+            { label: 'Bài tập', href: '/training/exercises', icon: BookOpen, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Phương pháp', href: '/training/methods', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Chuyên ngành', href: '/training/specialties', icon: BookOpen, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Lộ trình', href: '/training/roadmaps', icon: Route, roles: ['ADMIN', 'CONTENT_EDITOR'] },
         ]
     },
     {
@@ -43,13 +44,13 @@ const allNavItems = [
             { label: 'Sơ cứu', href: '/medical', icon: Stethoscope },
         ]
     },
-    { label: 'Import dữ liệu', icon: Upload, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
-    { label: 'Export dữ liệu', icon: Download, href: '/export-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Import dữ liệu', icon: Download, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Export dữ liệu', icon: Upload, href: '/export-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
     {
         label: 'Xung đột đồng bộ',
         icon: AlertTriangle,
         href: '/sync-conflicts',
-        roles: ['ADMIN', 'REVIEWER'],
+        roles: ['ADMIN'],
         badgeKey: 'syncConflictPending',
     },
     {
@@ -80,7 +81,7 @@ const AppSidebar = () => {
     const location = useLocation();
     const { user } = useAuth();
     const navItems = useMemo(() => filterByRole(allNavItems, user?.role), [user?.role]);
-    const canSeeConflictMenu = user?.role === 'ADMIN' || user?.role === 'REVIEWER';
+    const canSeeConflictMenu = user?.role === 'ADMIN';
     const visibleSyncConflictPendingCount = canSeeConflictMenu ? syncConflictPendingCount : 0;
 
     useEffect(() => {
@@ -297,4 +298,3 @@ const AppSidebar = () => {
 };
 
 export default AppSidebar;
-

@@ -39,6 +39,7 @@ const statusOptions = [
     { value: 'ACCEPTED', label: getSuggestionStatusLabel('ACCEPTED') },
     { value: 'REJECTED', label: getSuggestionStatusLabel('REJECTED') },
 ];
+const ADMIN_RESPONSE_MAX_LENGTH = 255;
 
 const SuggestionsPage = () => {
     const navigate = useNavigate();
@@ -99,6 +100,10 @@ const SuggestionsPage = () => {
         if (!id) return;
         if (!adminResponse) {
             toast.warning('Vui lòng nhập phản hồi trước khi gửi');
+            return;
+        }
+        if (adminResponse.length > ADMIN_RESPONSE_MAX_LENGTH) {
+            toast.warning(`Phản hồi tối đa ${ADMIN_RESPONSE_MAX_LENGTH} ký tự`);
             return;
         }
 
@@ -205,6 +210,7 @@ const SuggestionsPage = () => {
                         </label>
                         <FormTextarea
                             rows={4}
+                            maxLength={ADMIN_RESPONSE_MAX_LENGTH}
                             value={responseText}
                             onChange={(event) => setResponseText(event.target.value)}
                             placeholder="Nhập nội dung phản hồi..."

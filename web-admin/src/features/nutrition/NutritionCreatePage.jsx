@@ -199,10 +199,10 @@ const NutritionCreatePage = () => {
         />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Ghi chú đặc biệt">
-        <FormTextarea maxLength={5000} rows={3} value={formData.specialNotes} onChange={(e) => updateField('specialNotes', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.specialNotes} onChange={(e) => updateField('specialNotes', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD}
@@ -214,3 +214,4 @@ const NutritionCreatePage = () => {
 };
 
 export default NutritionCreatePage;
+

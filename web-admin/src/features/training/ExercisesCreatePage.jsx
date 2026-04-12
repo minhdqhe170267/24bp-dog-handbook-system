@@ -204,16 +204,16 @@ const ExercisesCreatePage = () => {
         </FormField>
       </div>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Hướng dẫn">
-        <FormTextarea maxLength={5000} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
       </FormField>
       <FormField label="Thiết bị cần thiết">
-        <FormInput maxLength={500} value={formData.requiredEquipment} onChange={(e) => updateField('requiredEquipment', e.target.value)} />
+        <FormInput maxLength={255} value={formData.requiredEquipment} onChange={(e) => updateField('requiredEquipment', e.target.value)} />
       </FormField>
       <FormField label="Lưu ý an toàn">
-        <FormTextarea maxLength={5000} rows={3} value={formData.safetyPrecautions} onChange={(e) => updateField('safetyPrecautions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.safetyPrecautions} onChange={(e) => updateField('safetyPrecautions', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.TRAINING_EXERCISE}
@@ -225,3 +225,4 @@ const ExercisesCreatePage = () => {
 };
 
 export default ExercisesCreatePage;
+
