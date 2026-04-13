@@ -141,16 +141,21 @@ class DogProfileServiceImplTest {
         request.setGender("MALE");
         request.setDateOfBirth(LocalDate.of(2023, 1, 10));
         request.setCurrentWeightKg(new BigDecimal("28.0"));
+        request.setAssignmentDate(LocalDate.of(2024, 2, 1));
+        request.setIsSterilized(Boolean.TRUE);
+        request.setStatus("RETIRED");
 
         when(dogBreedRepository.findByBreedIdAndIsDeletedFalse(1)).thenReturn(Optional.of(breed));
 
         // first save returns dog with id=7
         DogProfile savedWithId = DogProfile.builder()
                 .dogId(7).dogCode("TEMP").dogName("Bruno").dogBreed(breed)
-                .gender(DogGender.MALE).status(DogStatus.ACTIVE)
+                .gender(DogGender.MALE).status(DogStatus.RETIRED)
                 .birthDate(LocalDate.of(2023, 1, 10))
                 .currentWeightKg(new BigDecimal("28.0"))
                 .build();
+        savedWithId.setAssignmentDate(LocalDate.of(2024, 2, 1));
+        savedWithId.setIsSterilized(true);
         savedWithId.setCreatedAt(LocalDateTime.now());
         savedWithId.setUpdatedAt(LocalDateTime.now());
         savedWithId.setIsDeleted(false);
@@ -158,10 +163,12 @@ class DogProfileServiceImplTest {
         // second save returns dog with dogCode set
         DogProfile savedWithCode = DogProfile.builder()
                 .dogId(7).dogCode("DK007").dogName("Bruno").dogBreed(breed)
-                .gender(DogGender.MALE).status(DogStatus.ACTIVE)
+                .gender(DogGender.MALE).status(DogStatus.RETIRED)
                 .birthDate(LocalDate.of(2023, 1, 10))
                 .currentWeightKg(new BigDecimal("28.0"))
                 .build();
+        savedWithCode.setAssignmentDate(LocalDate.of(2024, 2, 1));
+        savedWithCode.setIsSterilized(true);
         savedWithCode.setCreatedAt(LocalDateTime.now());
         savedWithCode.setUpdatedAt(LocalDateTime.now());
         savedWithCode.setIsDeleted(false);
@@ -170,10 +177,13 @@ class DogProfileServiceImplTest {
                 .thenReturn(savedWithId)
                 .thenReturn(savedWithCode);
 
-        DogProfileResponse result = service.create(request);
+        DogProfileResponse result = service.create(request, null);
 
         assertThat(result.getDogCode()).isEqualTo("DK007");
         assertThat(result.getDogName()).isEqualTo("Bruno");
+        assertThat(result.getStatus()).isEqualTo("RETIRED");
+        assertThat(result.getAssignmentDate()).isEqualTo(LocalDate.of(2024, 2, 1));
+        assertThat(result.getIsSterilized()).isTrue();
         verify(dogProfileRepository, times(2)).save(any(DogProfile.class));
     }
 
@@ -184,7 +194,7 @@ class DogProfileServiceImplTest {
 
         when(dogBreedRepository.findByBreedIdAndIsDeletedFalse(99)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.create(request))
+        assertThatThrownBy(() -> service.create(request, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
 
@@ -198,14 +208,18 @@ class DogProfileServiceImplTest {
         DogProfileRequest request = new DogProfileRequest();
         request.setDogName("Rex Updated");
         request.setStatus("INACTIVE");
+        request.setAssignmentDate(LocalDate.of(2025, 1, 15));
+        request.setIsSterilized(Boolean.FALSE);
 
         when(dogProfileRepository.findByDogIdAndIsDeletedFalse(1)).thenReturn(Optional.of(dog));
         when(dogProfileRepository.save(any())).thenReturn(dog);
 
-        service.update(1, request);
+        service.update(1, request, null);
 
         assertThat(dog.getDogName()).isEqualTo("Rex Updated");
         assertThat(dog.getStatus()).isEqualTo(DogStatus.INACTIVE);
+        assertThat(dog.getAssignmentDate()).isEqualTo(LocalDate.of(2025, 1, 15));
+        assertThat(dog.getIsSterilized()).isFalse();
         verify(dogProfileRepository).save(dog);
     }
 
@@ -213,7 +227,7 @@ class DogProfileServiceImplTest {
     void update_notFound_throwsResourceNotFoundException() {
         when(dogProfileRepository.findByDogIdAndIsDeletedFalse(99)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update(99, new DogProfileRequest()))
+        assertThatThrownBy(() -> service.update(99, new DogProfileRequest(), null))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -227,7 +241,7 @@ class DogProfileServiceImplTest {
         when(dogBreedRepository.findByBreedIdAndIsDeletedFalse(2)).thenReturn(Optional.of(newBreed));
         when(dogProfileRepository.save(any())).thenReturn(dog);
 
-        service.update(1, request);
+        service.update(1, request, null);
 
         assertThat(dog.getDogBreed().getBreedId()).isEqualTo(2);
     }
