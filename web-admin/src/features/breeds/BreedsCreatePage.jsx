@@ -245,10 +245,10 @@ const BreedsCreatePage = () => {
         <FormInput maxLength={20} value={formData.lifespanYears} onChange={(e) => updateField('lifespanYears', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Khả năng tác chiến">
-        <FormTextarea maxLength={5000} rows={3} value={formData.operationalCapabilities} onChange={(e) => updateField('operationalCapabilities', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.operationalCapabilities} onChange={(e) => updateField('operationalCapabilities', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.DOG_BREED}
@@ -260,3 +260,4 @@ const BreedsCreatePage = () => {
 };
 
 export default BreedsCreatePage;
+

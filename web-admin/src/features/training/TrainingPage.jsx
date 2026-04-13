@@ -94,10 +94,10 @@ const MethodsTab = () => {
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
           <FormField label="Tên" required><FormInput maxLength={200} value={formData.methodName || ''} onChange={(e) => updateField('methodName', e.target.value)} /></FormField>
-          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Ưu điểm"><FormTextarea maxLength={5000} rows={2} value={formData.advantages || ''} onChange={(e) => updateField('advantages', e.target.value)} /></FormField>
-          <FormField label="Nhược điểm"><FormTextarea maxLength={5000} rows={2} value={formData.disadvantages || ''} onChange={(e) => updateField('disadvantages', e.target.value)} /></FormField>
-          <FormField label="Hướng dẫn"><FormTextarea maxLength={5000} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Ưu điểm"><FormTextarea maxLength={255} rows={2} value={formData.advantages || ''} onChange={(e) => updateField('advantages', e.target.value)} /></FormField>
+          <FormField label="Nhược điểm"><FormTextarea maxLength={255} rows={2} value={formData.disadvantages || ''} onChange={(e) => updateField('disadvantages', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea maxLength={255} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -178,8 +178,8 @@ const ExercisesTab = () => {
             </FormField>
             <FormField label="Thời gian (phút)"><FormNumberInput value={formData.durationMinutes || ''} onChange={(e) => updateField('durationMinutes', e.target.value)} min={1} max={480} /></FormField>
           </div>
-          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Hướng dẫn"><FormTextarea maxLength={5000} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea maxLength={255} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -258,7 +258,7 @@ const RoadmapsTab = () => {
             <FormField label="Vai trò mục tiêu"><FormInput maxLength={100} value={formData.targetRole || ''} onChange={(e) => updateField('targetRole', e.target.value)} /></FormField>
             <FormField label="Tổng tuần"><FormNumberInput value={formData.totalDurationWeeks || ''} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} min={1} max={104} /></FormField>
           </div>
-          <FormField label="Mô tả"><FormTextarea maxLength={5000} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -267,3 +267,4 @@ const RoadmapsTab = () => {
 };
 
 export default TrainingPage;
+

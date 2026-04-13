@@ -6,7 +6,7 @@ import { cn } from '../../utils/utils';
 const PageSizeSelect = ({ value, onChange }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
-    const sizes = [10, 20, 50];
+    const sizes = [5, 10, 20, 50];
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -96,6 +96,8 @@ const DataTable = ({
             row?.methodId,
             row?.exerciseId,
             row?.roadmapId,
+            row?.enrollmentId,
+            row?.progressId,
             row?.symptomId,
         ];
         const firstValid = candidates.find((value) => value !== undefined && value !== null && value !== '');
@@ -111,7 +113,8 @@ const DataTable = ({
                             {columns.map((col) => (
                                 <th key={col.key} className={cn(
                                     'text-left text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-foreground/85 px-4 py-3',
-                                    col.className
+                                    col.className,
+                                    col.headerClassName
                                 )}>
                                     {col.header}
                                 </th>

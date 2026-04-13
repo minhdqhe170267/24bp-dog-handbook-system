@@ -370,7 +370,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Mô tả">
             <FormTextarea
-              maxLength={5000}
+              maxLength={255}
               rows={3}
               value={formData.description}
               onChange={(e) => updateField('description', e.target.value)}
@@ -379,7 +379,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Các bước xử lý ngay" required>
             <FormTextarea
-              maxLength={5000}
+              maxLength={255}
               rows={4}
               value={formData.immediateSteps}
               onChange={(e) => updateField('immediateSteps', e.target.value)}
@@ -388,7 +388,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Vật tư cần thiết">
             <FormTextarea
-              maxLength={5000}
+              maxLength={255}
               rows={2}
               value={formData.requiredMaterials}
               onChange={(e) => updateField('requiredMaterials', e.target.value)}
@@ -397,7 +397,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Không nên làm">
             <FormTextarea
-              maxLength={5000}
+              maxLength={255}
               rows={2}
               value={formData.doNotActions}
               onChange={(e) => updateField('doNotActions', e.target.value)}
@@ -406,7 +406,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Khi nào cần bác sĩ thú y">
             <FormTextarea
-              maxLength={5000}
+              maxLength={255}
               rows={2}
               value={formData.whenToSeekVet}
               onChange={(e) => updateField('whenToSeekVet', e.target.value)}
@@ -437,5 +437,6 @@ const FirstAidGuidesPage = () => {
 };
 
 export default FirstAidGuidesPage;
+
 
 

@@ -84,6 +84,8 @@ const activityLimitOptions = [
   { value: 20, label: '20 dòng' },
 ];
 
+const ADMIN_AUDIT_LIMIT = 5;
+
 const adminAuditActionOptions = [
   { value: 'all', label: 'Tất cả thao tác' },
   { value: 'LOGIN', label: 'Đăng nhập' },
@@ -670,14 +672,14 @@ const DashboardPage = () => {
     const fetchAdminAuditLogs = async () => {
       setAdminAuditLoading(true);
       try {
-        const res = await auditLogService.getAll({ page: 0, size: 10 });
+        const res = await auditLogService.getAll({ page: 0, size: 20 });
         if (!alive) return;
 
         const payload = res?.data || {};
         const rows = Array.isArray(payload.content) ? payload.content : [];
         const sortedRows = sortAuditLogsCreateFirst(rows);
         setAdminAuditRows(
-          sortedRows.slice(0, 10).map((row) => ({ ...row, id: row.logId || row.id }))
+          sortedRows.slice(0, ADMIN_AUDIT_LIMIT).map((row) => ({ ...row, id: row.logId || row.id }))
         );
       } catch {
         if (!alive) return;
@@ -1027,43 +1029,99 @@ const DashboardPage = () => {
       </div>
 
       {role === 'ADMIN' && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25, duration: 0.4 }}
-            className="xl:col-span-2"
-          >
-            <div className="bg-card rounded-xl border border-border/60 h-full">
-              <div className="px-6 pt-5 pb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">Nhật ký kiểm tra gần đây</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Hiển thị 10 bản ghi mới nhất</p>
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
+          <div className="xl:col-span-8 space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25, duration: 0.4 }}
+            >
+              <div className="bg-card rounded-xl border border-border/60">
+                <div className="px-6 pt-5 pb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">Nhật ký kiểm tra gần đây</h3>
+                    <p className="text-xs text-muted-foreground mt-1">Hiển thị 5 bản ghi mới nhất</p>
+                  </div>
+                  <Link to="/system/audit-logs" className="text-xs font-medium text-accent hover:underline">
+                    Xem đầy đủ
+                  </Link>
                 </div>
-                <Link to="/system/audit-logs" className="text-xs font-medium text-accent hover:underline">
-                  Xem đầy đủ
-                </Link>
+                <div className="px-6 pb-5">
+                  <DataTable
+                    columns={adminAuditColumns}
+                    data={adminAuditRows}
+                    loading={adminAuditLoading}
+                    emptyMessage="Chưa có dữ liệu nhật ký phù hợp"
+                  />
+                </div>
               </div>
-              <div className="px-6 pb-5">
-                <DataTable
-                  columns={adminAuditColumns}
-                  data={adminAuditRows}
-                  loading={adminAuditLoading}
-                  emptyMessage="Chưa có dữ liệu nhật ký phù hợp"
-                />
-              </div>
-            </div>
-          </motion.div>
-
-          <div className="space-y-4">
-            {renderQuickActionsCard(0.28)}
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.4 }}
             >
-              <div className="bg-card rounded-xl border border-border/60 h-full">
+              <div className="bg-card rounded-xl border border-border/60">
+                <div className="px-6 pt-5 pb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-foreground">Tình trạng cấu hình hệ thống</h3>
+                  <Link to="/system/settings" className="text-xs font-medium text-accent hover:underline">
+                    Mở cài đặt
+                  </Link>
+                </div>
+                <div className="px-6 pb-5 space-y-3">
+                  {adminSettingLoading ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 2 }).map((_, index) => (
+                        <div key={index} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
+                      ))}
+                    </div>
+                  ) : adminCriticalSettings.length > 0 ? (
+                    <div className="space-y-2">
+                      {adminCriticalSettings.slice(0, 2).map((item, index) => {
+                        const toneConfig = adminSettingToneConfig[item.statusTone] || adminSettingToneConfig.info;
+                        const Icon = toneConfig.icon;
+                        return (
+                          <div key={`${item.key}-${index}`} className="rounded-lg border border-border/50 bg-background p-3">
+                            <div className="flex items-start gap-2">
+                              <Icon className={`h-4 w-4 mt-0.5 ${toneConfig.iconClass}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm font-medium text-foreground break-words">{item.label}</p>
+                                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${toneConfig.badgeClass}`}>
+                                    {item.statusLabel}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{item.statusDetail}</p>
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                  Cập nhật: {formatDateTimeInline(item.updatedAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-border/40 bg-background py-8 text-center text-sm text-muted-foreground">
+                      Không tải được trạng thái cấu hình
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="xl:col-span-4 space-y-4">
+            {renderQuickActionsCard(0.28)}
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.4 }}
+            >
+              <div className="bg-card rounded-xl border border-border/60">
                 <div className="px-6 pt-5 pb-3">
                   <h3 className="text-base font-semibold text-foreground">Cảnh báo bảo mật mới nhất</h3>
                 </div>
@@ -1101,60 +1159,6 @@ const DashboardPage = () => {
                   ) : (
                     <div className="rounded-lg border border-border/40 bg-background py-8 text-center text-sm text-muted-foreground">
                       Chưa có cảnh báo bảo mật mới
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35, duration: 0.4 }}
-            >
-              <div className="bg-card rounded-xl border border-border/60 h-full">
-                <div className="px-6 pt-5 pb-3 flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-foreground">Tình trạng cấu hình hệ thống</h3>
-                  <Link to="/system/settings" className="text-xs font-medium text-accent hover:underline">
-                    Mở cài đặt
-                  </Link>
-                </div>
-                <div className="px-6 pb-5">
-                  {adminSettingLoading ? (
-                    <div className="space-y-2">
-                      {Array.from({ length: 2 }).map((_, index) => (
-                        <div key={index} className="h-14 rounded-lg bg-muted/30 animate-pulse" />
-                      ))}
-                    </div>
-                  ) : adminCriticalSettings.length > 0 ? (
-                    <div className="space-y-2">
-                      {adminCriticalSettings.slice(0, 2).map((item, index) => {
-                        const toneConfig = adminSettingToneConfig[item.statusTone] || adminSettingToneConfig.info;
-                        const Icon = toneConfig.icon;
-                        return (
-                          <div key={`${item.key}-${index}`} className="rounded-lg border border-border/50 bg-background p-3">
-                            <div className="flex items-start gap-2">
-                              <Icon className={`h-4 w-4 mt-0.5 ${toneConfig.iconClass}`} />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm font-medium text-foreground break-words">{item.label}</p>
-                                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${toneConfig.badgeClass}`}>
-                                    {item.statusLabel}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">{item.statusDetail}</p>
-                                <p className="text-[11px] text-muted-foreground mt-1">
-                                  Cập nhật: {formatDateTimeInline(item.updatedAt)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-border/40 bg-background py-8 text-center text-sm text-muted-foreground">
-                      Không tải được trạng thái cấu hình
                     </div>
                   )}
                 </div>

@@ -21,7 +21,7 @@ const styles = {
 
 const defaultTitles = {
     success: 'Thành công',
-    error: 'Có lỗi xảy ra',
+    error: 'Thao tác chưa thành công',
     warning: 'Lưu ý',
     info: 'Thông tin',
 };

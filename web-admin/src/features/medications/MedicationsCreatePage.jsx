@@ -192,22 +192,22 @@ const MedicationsCreatePage = () => {
         <FormInput maxLength={200} value={formData.medicationName} onChange={(e) => updateField('medicationName', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Liều dùng">
-        <FormTextarea maxLength={5000} rows={2} value={formData.dosageInstructions} onChange={(e) => updateField('dosageInstructions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.dosageInstructions} onChange={(e) => updateField('dosageInstructions', e.target.value)} />
       </FormField>
       <FormField label="Phương pháp dùng">
         <FormInput maxLength={200} value={formData.administrationMethod} onChange={(e) => updateField('administrationMethod', e.target.value)} />
       </FormField>
       <FormField label="Tác dụng phụ">
-        <FormTextarea maxLength={5000} rows={2} value={formData.sideEffects} onChange={(e) => updateField('sideEffects', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.sideEffects} onChange={(e) => updateField('sideEffects', e.target.value)} />
       </FormField>
       <FormField label="Chống chỉ định">
-        <FormTextarea maxLength={5000} rows={2} value={formData.contraindications} onChange={(e) => updateField('contraindications', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.contraindications} onChange={(e) => updateField('contraindications', e.target.value)} />
       </FormField>
       <FormField label="Bảo quản">
-        <FormTextarea maxLength={5000} rows={2} value={formData.storageRequirements} onChange={(e) => updateField('storageRequirements', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.storageRequirements} onChange={(e) => updateField('storageRequirements', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.MEDICATION}
@@ -219,3 +219,4 @@ const MedicationsCreatePage = () => {
 };
 
 export default MedicationsCreatePage;
+

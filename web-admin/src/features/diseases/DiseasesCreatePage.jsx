@@ -200,16 +200,16 @@ const DiseasesCreatePage = () => {
         />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea maxLength={5000} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Triệu chứng">
-        <FormTextarea maxLength={5000} rows={3} value={formData.commonSymptoms} onChange={(e) => updateField('commonSymptoms', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.commonSymptoms} onChange={(e) => updateField('commonSymptoms', e.target.value)} />
       </FormField>
       <FormField label="Điều trị">
-        <FormTextarea maxLength={5000} rows={3} value={formData.treatment} onChange={(e) => updateField('treatment', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.treatment} onChange={(e) => updateField('treatment', e.target.value)} />
       </FormField>
       <FormField label="Phòng ngừa">
-        <FormTextarea maxLength={5000} rows={3} value={formData.preventionMethods} onChange={(e) => updateField('preventionMethods', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.preventionMethods} onChange={(e) => updateField('preventionMethods', e.target.value)} />
       </FormField>
       <FormField label="Lây nhiễm">
         <FormSwitch checked={formData.isContagious} onChange={(value) => updateField('isContagious', value)} />
@@ -224,3 +224,4 @@ const DiseasesCreatePage = () => {
 };
 
 export default DiseasesCreatePage;
+

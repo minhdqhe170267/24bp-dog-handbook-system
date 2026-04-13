@@ -1,17 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+    Globe,
+    History,
+    Pencil,
+    Plus,
+    Search,
+    Send,
+    Trash2,
+    Undo2,
+    Eye,
+} from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
 import FilterSelect from '../../components/shared/FilterSelect';
-import DetailModal, { EditForm } from '../../components/shared/DetailModal';
 import ApprovalHistoryModal from '../../components/shared/ApprovalHistoryModal';
-import { Plus, Eye, Pencil, Trash2, Search, Send, Globe, Undo2, History } from 'lucide-react';
-import api from '../../services/api';
-import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import { Button, ConfirmDialog } from '../../components/ui/FormComponents';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast';
-import { ConfirmDialog } from '../../components/ui/FormComponents';
+import api from '../../services/api';
+import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
+import trainingSpecialtyService from '../../services/trainingSpecialtyService';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
@@ -24,52 +34,84 @@ const statusOptions = [
     { value: 'REJECTED', label: 'Từ chối' },
 ];
 
-const createFields = [
-    { key: 'roadmapName', label: 'Tên lộ trình', required: true },
-    { key: 'targetRole', label: 'Vai trò mục tiêu' },
-    { key: 'totalDurationWeeks', label: 'Tổng thời gian (tuần)', type: 'number' },
-    { key: 'description', label: 'Mô tả', type: 'textarea' },
-    { key: 'phaseName', label: 'Tên giai đoạn' },
-    { key: 'phaseOrder', label: 'Thứ tự giai đoạn', type: 'number' },
-    { key: 'phaseDurationWeeks', label: 'Thời gian giai đoạn (tuần)', type: 'number' },
-    { key: 'phaseObjectives', label: 'Mục tiêu giai đoạn', type: 'textarea' },
-    { key: 'assessmentCriteria', label: 'Tiêu chí đánh giá', type: 'textarea' },
-];
+const getDateTimeParts = (value) => {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
+    const twoDigits = (num) => String(num).padStart(2, '0');
+    return {
+        time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
+        date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
+    };
+};
+
+const renderDateTimeCell = (value) => {
+    const parts = getDateTimeParts(value);
+    if (!parts) return '—';
+    return (
+        <div className="leading-tight">
+            <div className="text-sm font-medium text-foreground">{parts.time}</div>
+            <div className="text-xs text-muted-foreground">{parts.date}</div>
+        </div>
+    );
+};
 
 const RoadmapsPage = () => {
     const navigate = useNavigate();
-    const [page, setPage] = useState(0);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [items, setItems] = useState([]);
-    const [totalItems, setTotalItems] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [createOpen, setCreateOpen] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [historyOpen, setHistoryOpen] = useState(false);
-    const [historyLoading, setHistoryLoading] = useState(false);
-    const [historyRecords, setHistoryRecords] = useState([]);
-    const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
-    const [deleteId, setDeleteId] = useState(null);
-    const [deleting, setDeleting] = useState(false);
     const toast = useToast();
     const { user } = useAuth();
     const canEdit = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
-    const toRoadmapPayload = (formData) => ({
-        roadmapName: formData.roadmapName?.trim() || '',
-        targetRole: formData.targetRole?.trim() || '',
-        totalDurationWeeks: formData.totalDurationWeeks ? Number(formData.totalDurationWeeks) : null,
-        description: formData.description?.trim() || '',
-        phaseName: formData.phaseName?.trim() || '',
-        phaseOrder: formData.phaseOrder ? Number(formData.phaseOrder) : null,
-        phaseDurationWeeks: formData.phaseDurationWeeks ? Number(formData.phaseDurationWeeks) : null,
-        phaseObjectives: formData.phaseObjectives?.trim() || '',
-        assessmentCriteria: formData.assessmentCriteria?.trim() || '',
-    });
+    const [page, setPage] = useState(0);
+    const [pageSize, setPageSize] = useState(10);
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [specialtyFilter, setSpecialtyFilter] = useState('');
+    const [items, setItems] = useState([]);
+    const [totalItems, setTotalItems] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [specialties, setSpecialties] = useState([]);
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyRecords, setHistoryRecords] = useState([]);
+    const [historyTarget, setHistoryTarget] = useState({ title: '', typeLabel: '' });
+    const [deleteId, setDeleteId] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadSpecialties = async () => {
+            try {
+                const rows = await fetchAllPages((pageIndex, batchSize) =>
+                    trainingSpecialtyService.getAll(pageIndex, batchSize, '')
+                );
+                if (active) {
+                    setSpecialties(Array.isArray(rows) ? rows : []);
+                }
+            } catch (error) {
+                toast.error(error, { title: 'Không tải được danh mục chuyên ngành' });
+            }
+        };
+
+        loadSpecialties();
+        return () => {
+            active = false;
+        };
+    }, [toast]);
+
+    const specialtyOptions = useMemo(
+        () => [
+            { value: '', label: 'Tất cả chuyên ngành' },
+            ...specialties.map((specialty) => ({
+                value: String(specialty.specialtyId),
+                label: `${specialty.specialtyCode} - ${specialty.specialtyName}`,
+            })),
+        ],
+        [specialties]
+    );
 
     const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
@@ -78,27 +120,49 @@ const RoadmapsPage = () => {
                 const params = new URLSearchParams();
                 params.append('page', String(pageIndex));
                 params.append('size', String(batchSize));
-                params.append('sort', 'updatedAt,desc');
-                params.append('sort', 'createdAt,desc');
+                if (specialtyFilter) {
+                    params.append('specialtyId', specialtyFilter);
+                }
                 return api.get(`/roadmaps?${params.toString()}`);
             });
 
             const normalizedSearch = search.trim().toLowerCase();
             const filteredRows = allRows.filter((item) => {
-                const matchName = !normalizedSearch || (item.roadmapName || '').toLowerCase().includes(normalizedSearch);
+                const matchName =
+                    !normalizedSearch ||
+                    String(item?.roadmapName || '').toLowerCase().includes(normalizedSearch) ||
+                    String(item?.specialtyName || '').toLowerCase().includes(normalizedSearch);
                 const matchStatus = statusFilter === 'all' || item.status === statusFilter;
                 return matchName && matchStatus;
             });
             const sortedRows = sortByNewest(filteredRows, { idKeys: ['roadmapId', 'id'] });
-            const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
+            const { pageRows, totalItems: nextTotalItems, effectivePage } = paginateRows(
+                sortedRows,
+                nextPage,
+                nextPageSize
+            );
+
             setItems(pageRows);
-            setTotalItems(totalItems);
-            if (effectivePage !== nextPage) setPage(effectivePage);
-        } catch (err) { console.error('Fetch roadmaps error:', err); setItems([]); }
-        finally { setLoading(false); }
+            setTotalItems(nextTotalItems);
+            if (effectivePage !== nextPage) {
+                setPage(effectivePage);
+            }
+        } catch (error) {
+            toast.error(error, { title: 'Không tải được danh sách lộ trình' });
+            setItems([]);
+            setTotalItems(0);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    useEffect(() => { fetchData(page, pageSize); }, [page, pageSize, search, statusFilter]);
+    useEffect(() => {
+        fetchData(page, pageSize);
+    }, [page, pageSize, search, statusFilter, specialtyFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const getRoadmapId = (row) => row.roadmapId || row.id;
+    const getStatus = (row) => String(row.status || '').toUpperCase();
+    const canShowEdit = (row) => canEdit && !['PENDING', 'APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
     const handleDelete = async () => {
         if (!deleteId) return;
@@ -107,29 +171,23 @@ const RoadmapsPage = () => {
             await api.delete(`/roadmaps/${deleteId}`);
             toast.success('Đã xóa lộ trình');
             setDeleteId(null);
-            fetchData();
-        } catch (err) {
-            console.error('Delete error:', err);
-            toast.error(err, { title: 'Không thể xóa lộ trình' });
+            await fetchData(0, pageSize);
+            setPage(0);
+        } catch (error) {
+            toast.error(error, { title: 'Không thể xóa lộ trình' });
         } finally {
             setDeleting(false);
         }
     };
-
-    const getRoadmapId = (row) => row.roadmapId || row.id;
-    const getStatus = (row) => String(row.status || '').toUpperCase();
-    const canShowEdit = (row) => canEdit && !['PENDING', 'APPROVED', 'PUBLISHED'].includes(getStatus(row));
 
     const handleSubmitForReview = async (row) => {
         const id = getRoadmapId(row);
         if (!id) return;
         try {
             await approvalService.submit(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            setPage(0);
-            await fetchData(0, pageSize);
-        } catch (err) {
-            console.error('Submit roadmap for review error:', err);
-            toast.error(err, { title: 'Không thể gửi duyệt lộ trình' });
+            await fetchData(page, pageSize);
+        } catch (error) {
+            toast.error(error, { title: 'Không thể gửi duyệt lộ trình' });
         }
     };
 
@@ -138,11 +196,9 @@ const RoadmapsPage = () => {
         if (!id) return;
         try {
             await approvalService.publish(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            setPage(0);
-            await fetchData(0, pageSize);
-        } catch (err) {
-            console.error('Publish roadmap error:', err);
-            toast.error(err, { title: 'Không thể xuất bản lộ trình' });
+            await fetchData(page, pageSize);
+        } catch (error) {
+            toast.error(error, { title: 'Không thể xuất bản lộ trình' });
         }
     };
 
@@ -151,11 +207,9 @@ const RoadmapsPage = () => {
         if (!id) return;
         try {
             await approvalService.unpublish(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            setPage(0);
-            await fetchData(0, pageSize);
-        } catch (err) {
-            console.error('Unpublish roadmap error:', err);
-            toast.error(err, { title: 'Không thể gỡ xuất bản lộ trình' });
+            await fetchData(page, pageSize);
+        } catch (error) {
+            toast.error(error, { title: 'Không thể gỡ xuất bản lộ trình' });
         }
     };
 
@@ -168,116 +222,196 @@ const RoadmapsPage = () => {
         setHistoryLoading(true);
         setHistoryRecords([]);
         try {
-            const res = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
-            const payload = res?.data || res || [];
+            const response = await approvalService.getHistory(APPROVAL_ENTITY_TYPES.TRAINING_ROADMAP, id);
+            const payload = response?.data ?? response ?? [];
             setHistoryRecords(Array.isArray(payload) ? payload : payload.content || []);
-        } catch (err) {
-            console.error('Fetch training roadmap approval history error:', err);
+        } catch (error) {
+            toast.error(error, { title: 'Không tải được lịch sử duyệt' });
             setHistoryRecords([]);
         } finally {
             setHistoryLoading(false);
         }
     };
 
-    const handleCreate = async (formData) => {
-        setSaving(true);
-        try {
-            await api.post('/roadmaps', toRoadmapPayload(formData));
-            setCreateOpen(false);
-            setPage(0);
-            await fetchData(0, pageSize);
-        }
-        catch (err) { console.error('Create error:', err); toast.error(err, { title: 'Không thể tạo lộ trình mới' }); }
-        finally { setSaving(false); }
-    };
-
-    const getDateTimeParts = (value) => {
-        if (!value) return null;
-        const dt = new Date(value);
-        if (Number.isNaN(dt.getTime())) return { time: value, date: '' };
-        const twoDigits = (num) => String(num).padStart(2, '0');
-        return {
-            time: `${twoDigits(dt.getHours())}:${twoDigits(dt.getMinutes())}:${twoDigits(dt.getSeconds())}`,
-            date: `${twoDigits(dt.getDate())}/${twoDigits(dt.getMonth() + 1)}/${dt.getFullYear()}`,
-        };
-    };
-
-    const renderDateTimeCell = (value) => {
-        const parts = getDateTimeParts(value);
-        if (!parts) return '—';
-        return (
-            <div className="leading-tight">
-                <div className="text-sm font-medium text-foreground">{parts.time}</div>
-                <div className="text-xs text-muted-foreground">{parts.date}</div>
-            </div>
-        );
-    };
-
     const columns = [
-        { key: 'roadmapName', header: 'Tên lộ trình', render: (r) => <span className="font-medium">{r.roadmapName || '-'}</span> },
-        { key: 'breedName', header: 'Giống chó', render: (r) => r.breedName || '-' },
-        { key: 'targetRole', header: 'Vai trò mục tiêu', render: (r) => r.targetRole || '-' },
+        {
+            key: 'roadmapName',
+            header: 'Tên lộ trình',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => <span className="font-medium">{row.roadmapName || '-'}</span>,
+        },
+        {
+            key: 'specialtyName',
+            header: 'Chuyên ngành',
+            className: 'w-36',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => <span className="whitespace-nowrap">{row.specialtyName || '—'}</span>,
+        },
+        {
+            key: 'breedName',
+            header: 'Giống chó',
+            className: 'w-36',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => <span className="whitespace-nowrap">{row.breedName || 'Tất cả giống'}</span>,
+        },
+        {
+            key: 'roadmapOrder',
+            header: 'Thứ tự',
+            className: 'w-16 text-center',
+            headerClassName: 'whitespace-nowrap text-center',
+            render: (row) => row.roadmapOrder ?? 1,
+        },
+        {
+            key: 'totalPhases',
+            header: 'Giai đoạn',
+            className: 'w-20 text-center',
+            headerClassName: 'whitespace-nowrap text-center',
+            render: (row) => row.totalPhases ?? 0,
+        },
         {
             key: 'totalDurationWeeks',
             header: 'Thời gian',
-            className: 'w-28 whitespace-nowrap',
-            render: (r) => r.totalDurationWeeks ? `${r.totalDurationWeeks} tuần` : '-',
+            className: 'w-24',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => <span className="whitespace-nowrap">{row.totalDurationWeeks ? `${row.totalDurationWeeks} tuần` : '—'}</span>,
         },
-        { key: 'phaseName', header: 'Giai đoạn', render: (r) => r.phaseName || '-' },
-        { key: 'status', header: 'Trạng thái', render: (r) => <StatusBadge status={r.status} /> },
-        { key: 'updatedAt', header: 'Cập nhật', className: 'w-44', render: (r) => renderDateTimeCell(r.updatedAt || r.createdAt) },
         {
-            key: 'actions', header: 'Thao tác', render: (r) => (
-                <div className="flex items-center gap-1">
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xem chi tiết" onClick={() => navigate(`/details/TRAINING_ROADMAP/${getRoadmapId(r)}`)}><Eye className="h-4 w-4" /></button>
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></button>
-                    {canShowEdit(r) && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Sửa" onClick={() => navigate(`/training/roadmaps/${getRoadmapId(r)}/edit`)}><Pencil className="h-4 w-4" /></button>}
-                    {canDelete && getStatus(r) === 'DRAFT' && <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xóa" onClick={() => setDeleteId(getRoadmapId(r))}><Trash2 className="h-4 w-4 text-destructive" /></button>}
-                    {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}>
+            key: 'status',
+            header: 'Trạng thái',
+            className: 'w-28',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => <StatusBadge status={row.status} />,
+        },
+        {
+            key: 'updatedAt',
+            header: 'Cập nhật',
+            className: 'w-32',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => renderDateTimeCell(row.updatedAt || row.createdAt),
+        },
+        {
+            key: 'actions',
+            header: 'Thao tác',
+            className: 'w-auto',
+            headerClassName: 'whitespace-nowrap',
+            render: (row) => (
+                <div className="flex items-center gap-0">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/details/TRAINING_ROADMAP/${getRoadmapId(row)}`)}
+                        title="Xem chi tiết"
+                    >
+                        <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openHistory(row)} title="Lịch sử duyệt">
+                        <History className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    {canShowEdit(row) ? (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/training/roadmaps/${getRoadmapId(row)}/edit`)}
+                            title="Sửa"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    ) : null}
+                    {canDelete && getStatus(row) === 'DRAFT' ? (
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteId(getRoadmapId(row))} title="Xóa">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    ) : null}
+                    {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(row)) ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleSubmitForReview(row)} title="Gửi duyệt">
                             <Send className="h-4 w-4 text-amber-600 dark:text-amber-300" />
-                        </button>
-                    )}
-                    {canPublish && getStatus(r) === 'APPROVED' && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Xuất bản" onClick={() => handlePublish(r)}>
+                        </Button>
+                    ) : null}
+                    {canPublish && getStatus(row) === 'APPROVED' ? (
+                        <Button variant="ghost" size="sm" onClick={() => handlePublish(row)} title="Xuất bản">
                             <Globe className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                        </button>
-                    )}
-                    {canPublish && getStatus(r) === 'PUBLISHED' && (
-                        <button className="p-1.5 rounded-md hover:bg-muted transition-colors" title="Gỡ xuất bản" onClick={() => handleUnpublish(r)}>
+                        </Button>
+                    ) : null}
+                    {canPublish && getStatus(row) === 'PUBLISHED' ? (
+                        <Button variant="ghost" size="sm" onClick={() => handleUnpublish(row)} title="Gỡ xuất bản">
                             <Undo2 className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                    )}
+                        </Button>
+                    ) : null}
                 </div>
-            )
+            ),
         },
     ];
 
     return (
         <div className="animate-fade-in">
-            <PageHeader title="Lộ trình huấn luyện" description="Quản lý các lộ trình huấn luyện chó nghiệp vụ"
-                breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Huấn luyện' }, { label: 'Lộ trình' }]}
-                actions={canEdit ? <button onClick={() => navigate('/training/roadmaps/create')} className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors cursor-pointer"><Plus className="h-4 w-4" />Tạo lộ trình</button> : null} />
+            <PageHeader
+                title="Lộ trình huấn luyện"
+                description="Quản lý lộ trình theo chuyên ngành, gồm nhiều giai đoạn và bài tập"
+                breadcrumbs={[
+                    { label: 'Dashboard', href: '/dashboard' },
+                    { label: 'Huấn luyện' },
+                    { label: 'Lộ trình' },
+                ]}
+                actions={
+                    canEdit ? (
+                        <Button
+                            onClick={() => navigate('/training/roadmaps/create')}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-none"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Tạo lộ trình
+                        </Button>
+                    ) : null
+                }
+            />
+
             <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <div className="relative w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
                         type="text"
                         value={search}
-                        onChange={(event) => { setSearch(event.target.value); setPage(0); }}
-                        placeholder="Tìm theo tên lộ trình..."
+                        onChange={(event) => {
+                            setSearch(event.target.value);
+                            setPage(0);
+                        }}
+                        placeholder="Tìm theo tên lộ trình hoặc chuyên ngành..."
                         className="h-9 w-full pl-9 pr-3 border border-border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
                     />
                 </div>
-                <FilterSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(0); }} options={statusOptions} placeholder="Tất cả trạng thái" />
+                <FilterSelect
+                    value={specialtyFilter}
+                    onChange={(value) => {
+                        setSpecialtyFilter(value);
+                        setPage(0);
+                    }}
+                    options={specialtyOptions}
+                />
+                <FilterSelect
+                    value={statusFilter}
+                    onChange={(value) => {
+                        setStatusFilter(value);
+                        setPage(0);
+                    }}
+                    options={statusOptions}
+                />
             </div>
-            {loading ? <div className="h-64 bg-card rounded-xl border border-border/60 animate-pulse" /> : (
-                <DataTable columns={columns} data={items} page={page} pageSize={pageSize} totalItems={totalItems}
-                    onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(0); }} emptyMessage="Chưa có lộ trình nào" />
-            )}
-            <DetailModal open={createOpen} onClose={() => setCreateOpen(false)} title="Thêm lộ trình" size="lg">
-                <EditForm fields={createFields} data={{}} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} loading={saving} />
-            </DetailModal>
+
+            <DataTable
+                columns={columns}
+                data={items}
+                loading={loading}
+                page={page}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setPage}
+                onPageSizeChange={(nextSize) => {
+                    setPage(0);
+                    setPageSize(nextSize);
+                }}
+                emptyMessage="Chưa có lộ trình nào"
+            />
+
             <ApprovalHistoryModal
                 open={historyOpen}
                 onClose={() => setHistoryOpen(false)}
@@ -286,8 +420,9 @@ const RoadmapsPage = () => {
                 entityTitle={historyTarget.title}
                 entityTypeLabel={historyTarget.typeLabel}
             />
+
             <ConfirmDialog
-                open={!!deleteId}
+                open={Boolean(deleteId)}
                 onClose={() => setDeleteId(null)}
                 title="Xóa lộ trình"
                 description="Bạn có chắc chắn muốn xóa lộ trình này?"
@@ -300,5 +435,3 @@ const RoadmapsPage = () => {
 };
 
 export default RoadmapsPage;
-
-

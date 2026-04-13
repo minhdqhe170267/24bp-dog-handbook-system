@@ -149,6 +149,32 @@ export const useNotifications = ({ userId, pageSize = 10, enabled = true } = {})
     }
   }, [enabled, items, unreadCount, userId]);
 
+  const deleteNotification = useCallback(
+    async (notificationId) => {
+      if (!notificationId) return;
+
+      const target = items.find((item) => item.notificationId === notificationId);
+      const wasUnread = Boolean(target && !target.isRead);
+
+      // Optimistic remove
+      setItems((prev) => prev.filter((item) => item.notificationId !== notificationId));
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+
+      try {
+        await notificationService.deleteNotification(notificationId);
+        setLastError(null);
+      } catch (error) {
+        // Rollback on failure
+        await Promise.allSettled([fetchNotifications(), refreshUnreadCount()]);
+        setLastError(error);
+        throw error;
+      }
+    },
+    [fetchNotifications, items, refreshUnreadCount]
+  );
+
   useEffect(() => {
     if (!enabled || !userId) {
       setItems([]);
@@ -268,8 +294,10 @@ export const useNotifications = ({ userId, pageSize = 10, enabled = true } = {})
       fetchNotifications,
       markAsRead,
       markAllAsRead,
+      deleteNotification,
     }),
     [
+      deleteNotification,
       fetchNotifications,
       items,
       lastError,

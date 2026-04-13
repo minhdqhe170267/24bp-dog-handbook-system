@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Eye, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, Eye, Loader2, MoreHorizontal, Trash2, X } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import FilterSelect from '../../components/shared/FilterSelect';
@@ -73,6 +73,7 @@ const NotificationsPage = () => {
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [rowActionLoadingId, setRowActionLoadingId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [readFilter, setReadFilter] = useState('all');
   const [reviewFeedbackByKey, setReviewFeedbackByKey] = useState({});
   const [pagination, setPagination] = useState({
@@ -142,6 +143,26 @@ const NotificationsPage = () => {
       toast.error(error, { title: 'Không thể đánh dấu tất cả đã đọc' });
     } finally {
       setMarkingAll(false);
+    }
+  };
+
+  const handleDelete = async (notificationId) => {
+    if (!notificationId) return;
+    setRowActionLoadingId(notificationId);
+    setOpenMenuId(null);
+    try {
+      await notificationService.deleteNotification(notificationId);
+      setRows((prev) => prev.filter((item) => item.notificationId !== notificationId));
+      setPagination((prev) => ({
+        ...prev,
+        totalItems: Math.max(0, prev.totalItems - 1),
+      }));
+      toast.success('Đã xóa thông báo');
+      dispatchNotificationRefresh();
+    } catch (error) {
+      toast.error(error, { title: 'Không thể xóa thông báo' });
+    } finally {
+      setRowActionLoadingId(null);
     }
   };
 
@@ -300,9 +321,10 @@ const NotificationsPage = () => {
       render: (row) => {
         const route = resolveNotificationRoute(row, { role: user?.role });
         const isRowLoading = rowActionLoadingId === row?.notificationId;
+        const isMenuOpen = openMenuId === row?.notificationId;
 
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               className="p-1.5 rounded-md hover:bg-muted transition-colors"
               onClick={() => navigate(route)}
@@ -310,20 +332,63 @@ const NotificationsPage = () => {
             >
               <Eye className="h-4 w-4" />
             </button>
-            {!row?.isRead && (
+
+            {/* 3-dot menu */}
+            <div className="relative">
               <button
-                className="p-1.5 rounded-md hover:bg-muted transition-colors text-accent"
-                onClick={() => handleMarkAsRead(row?.notificationId)}
-                title="Đánh dấu đã đọc"
-                disabled={isRowLoading}
+                className={[
+                  'p-1.5 rounded-md transition-colors',
+                  isMenuOpen ? 'bg-muted' : 'hover:bg-muted',
+                ].join(' ')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenMenuId(isMenuOpen ? null : row?.notificationId);
+                }}
+                title="Tùy chọn"
               >
                 {isRowLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <CheckCheck className="h-4 w-4" />
+                  <MoreHorizontal className="h-4 w-4" />
                 )}
               </button>
-            )}
+
+              {isMenuOpen && (
+                <>
+                  {/* Backdrop to close menu */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setOpenMenuId(null)}
+                  />
+                  {/* Dropdown menu */}
+                  <div className="absolute right-0 top-full mt-1 z-50 w-56 bg-card border border-border rounded-lg shadow-elevated py-1 animate-fade-in">
+                    {!row?.isRead && (
+                      <button
+                        className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          handleMarkAsRead(row?.notificationId);
+                        }}
+                      >
+                        <CheckCheck className="h-4 w-4 text-accent" />
+                        <span>Đánh dấu là đã đọc</span>
+                      </button>
+                    )}
+                    <button
+                      className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(row?.notificationId);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Xóa thông báo này</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         );
       },

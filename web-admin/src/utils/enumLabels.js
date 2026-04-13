@@ -18,6 +18,13 @@ const STATUS_LABELS = {
   IMPLEMENTING: 'Đang xử lý',
   REVIEWED: 'Đã xem',
   NEW: 'Mới',
+  ENROLLED: 'Đã khởi tạo',
+  IN_PROGRESS: 'Đang thực hiện',
+  COMPLETED: 'Hoàn thành',
+  SUSPENDED: 'Tạm dừng',
+  WITHDRAWN: 'Ngừng theo học',
+  NOT_STARTED: 'Chưa bắt đầu',
+  SKIPPED: 'Bỏ qua',
 };
 
 const CONTENT_TYPE_LABELS = {
@@ -28,6 +35,7 @@ const CONTENT_TYPE_LABELS = {
   TRAINING_EXERCISE: 'Bài tập huấn luyện',
   TRAINING_ROADMAP: 'Lộ trình huấn luyện',
   TRAINING_METHOD: 'Phương pháp huấn luyện',
+  TRAINING_SPECIALTY: 'Chuyên ngành huấn luyện',
   DEVELOPMENT_STAGE: 'Giai đoạn phát triển',
   DISEASE: 'Bệnh',
   MEDICATION: 'Thuốc',
