@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import { FormField, FormInput, FormSelect, FormTextarea } from '../../components/ui/FormComponents';
@@ -6,6 +6,7 @@ import { useToast } from '../../components/ui/Toast';
 import EntityMediaSection from '../../components/shared/EntityMediaSection';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
+import { validateDogForm } from '../../utils/formValidation';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -39,14 +40,50 @@ const toNullableNumber = (value) => {
   return Number.isNaN(number) ? null : number;
 };
 
-const toDateInput = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
-  }
+const formatDateInput = (date) => {
   const two = (num) => String(num).padStart(2, '0');
   return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+};
+
+const parseDateOnly = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const datePart = raw.includes('T') ? raw.split('T')[0] : raw;
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+};
+
+const normalizeDateInputValue = (value) => {
+  const parsed = parseDateOnly(value);
+  if (!parsed) return '';
+  return formatDateInput(parsed);
+};
+
+const dateOfBirthToAgeMonths = (value) => {
+  const birthDate = parseDateOnly(value);
+  if (!birthDate) return '';
+
+  const now = new Date();
+  let months =
+    (now.getFullYear() - birthDate.getFullYear()) * 12 +
+    (now.getMonth() - birthDate.getMonth());
+
+  if (now.getDate() < birthDate.getDate()) {
+    months -= 1;
+  }
+
+  return String(Math.max(0, months));
 };
 
 const DogsCreatePage = () => {
@@ -65,6 +102,10 @@ const DogsCreatePage = () => {
   const [createdEntityId, setCreatedEntityId] = useState(null);
 
   const currentEntityId = entityIdFromRoute || createdEntityId;
+  const ageMonthsDisplay = useMemo(() => {
+    const months = dateOfBirthToAgeMonths(formData.dateOfBirth);
+    return months ? `${months} tháng` : '';
+  }, [formData.dateOfBirth]);
 
   useEffect(() => {
     const fetchBreeds = async () => {
@@ -94,7 +135,7 @@ const DogsCreatePage = () => {
           dogName: detail.dogName || '',
           breedId: detail.breedId ? String(detail.breedId) : '',
           gender: detail.gender || 'MALE',
-          dateOfBirth: toDateInput(detail.dateOfBirth),
+          dateOfBirth: normalizeDateInputValue(detail.dateOfBirth),
           currentWeightKg: detail.currentWeightKg ?? '',
           heightCm: detail.heightCm ?? '',
           color: detail.color || '',
@@ -169,12 +210,12 @@ const DogsCreatePage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.dogName?.trim()) {
-      toast.error('Vui lòng nhập tên chó');
-      return;
-    }
-    if (!formData.breedId) {
-      toast.error('Vui lòng chọn giống chó');
+    const errors = validateDogForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hồ sơ chó chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 
@@ -208,8 +249,8 @@ const DogsCreatePage = () => {
       saveLabel={isEditMode ? 'Cập nhật hồ sơ chó' : 'Tạo hồ sơ chó'}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <FormField label="Tên chó">
-          <FormInput value={formData.dogName} onChange={(e) => updateField('dogName', e.target.value)} />
+        <FormField label="Tên chó" required>
+          <FormInput maxLength={100} value={formData.dogName} onChange={(e) => updateField('dogName', e.target.value)} />
         </FormField>
         <FormField label="Giống chó" required>
           <FormSelect
@@ -220,12 +261,25 @@ const DogsCreatePage = () => {
           />
         </FormField>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <FormField label="Giới tính">
           <FormSelect value={formData.gender} onChange={(e) => updateField('gender', e.target.value)} options={genderOptions} />
         </FormField>
         <FormField label="Ngày sinh">
-          <FormInput type="date" value={formData.dateOfBirth} onChange={(e) => updateField('dateOfBirth', e.target.value)} />
+          <FormInput
+            type="date"
+            value={formData.dateOfBirth}
+            onChange={(e) => updateField('dateOfBirth', e.target.value)}
+          />
+        </FormField>
+        <FormField label="Tháng tuổi">
+          <FormInput
+            value={ageMonthsDisplay}
+            placeholder="Tự tính từ ngày sinh"
+            readOnly
+            disabled
+            className="bg-muted/50"
+          />
         </FormField>
         <FormField label="Trạng thái">
           <FormSelect value={formData.status} onChange={(e) => updateField('status', e.target.value)} options={statusOptions} />
@@ -233,22 +287,22 @@ const DogsCreatePage = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Cân nặng (kg)">
-          <FormInput type="number" min="0" step="0.01" value={formData.currentWeightKg} onChange={(e) => updateField('currentWeightKg', e.target.value)} />
+          <FormInput type="number" min="0" max="200" step="0.01" value={formData.currentWeightKg} onChange={(e) => updateField('currentWeightKg', e.target.value)} />
         </FormField>
         <FormField label="Chiều cao (cm)">
-          <FormInput type="number" min="0" step="0.01" value={formData.heightCm} onChange={(e) => updateField('heightCm', e.target.value)} />
+          <FormInput type="number" min="0" max="200" step="0.01" value={formData.heightCm} onChange={(e) => updateField('heightCm', e.target.value)} />
         </FormField>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Màu lông">
-          <FormInput value={formData.color} onChange={(e) => updateField('color', e.target.value)} />
+          <FormInput maxLength={100} value={formData.color} onChange={(e) => updateField('color', e.target.value)} />
         </FormField>
         <FormField label="Microchip ID">
-          <FormInput value={formData.microchipId} onChange={(e) => updateField('microchipId', e.target.value)} />
+          <FormInput maxLength={50} value={formData.microchipId} onChange={(e) => updateField('microchipId', e.target.value)} />
         </FormField>
       </div>
       <FormField label="Ghi chú">
-        <FormTextarea rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
+        <FormTextarea maxLength={255} rows={4} value={formData.notes} onChange={(e) => updateField('notes', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType="DOG_PROFILE"
@@ -261,3 +315,4 @@ const DogsCreatePage = () => {
 };
 
 export default DogsCreatePage;
+

@@ -11,6 +11,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.DifficultyLevel;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface TrainingExerciseRepository extends JpaRepository<TrainingExercise, Integer> {
 
@@ -23,6 +24,8 @@ public interface TrainingExerciseRepository extends JpaRepository<TrainingExerci
     Page<TrainingExercise> findByExerciseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
 
     List<TrainingExercise> findByExerciseNameContainingIgnoreCaseAndIsDeletedFalse(String keyword);
+
+    Optional<TrainingExercise> findByExerciseNameIgnoreCaseAndIsDeletedFalse(String exerciseName);
 
     @Query("SELECT te FROM TrainingExercise te WHERE te.isDeleted = false "
             + "AND te.trainingMethod.methodId = :methodId")

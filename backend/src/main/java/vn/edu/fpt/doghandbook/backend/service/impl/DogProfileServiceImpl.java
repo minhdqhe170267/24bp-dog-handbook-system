@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.DogProfileRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.DogProfileResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -16,6 +17,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.DogStatus;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService;
 import vn.edu.fpt.doghandbook.backend.service.DogProfileService;
 
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ public class DogProfileServiceImpl implements DogProfileService {
 
     private final DogProfileRepository dogProfileRepository;
     private final DogBreedRepository dogBreedRepository;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     public PageResponse<DogProfileResponse> getAll(int page, int size, String search) {
@@ -62,9 +65,11 @@ public class DogProfileServiceImpl implements DogProfileService {
 
     @Override
     @Transactional
-    public DogProfileResponse create(DogProfileRequest request) {
+    public DogProfileResponse create(DogProfileRequest request, MultipartFile image) {
         DogBreed breed = dogBreedRepository.findByBreedIdAndIsDeletedFalse(request.getBreedId())
                 .orElseThrow(() -> new ResourceNotFoundException("Breed not found with id: " + request.getBreedId()));
+
+        String imageUrl = resolveImageUrl(image);
 
         DogProfile dog = DogProfile.builder()
                 .dogCode("TEMP")
@@ -76,8 +81,10 @@ public class DogProfileServiceImpl implements DogProfileService {
                 .heightCm(request.getHeightCm())
                 .color(request.getColor())
                 .microchipId(request.getMicrochipId())
-                .status(DogStatus.ACTIVE)
-                .imageUrl(request.getImageUrl())
+                .status(request.getStatus() != null ? DogStatus.valueOf(request.getStatus()) : DogStatus.ACTIVE)
+                .assignmentDate(request.getAssignmentDate())
+                .isSterilized(request.getIsSterilized())
+                .imageUrl(imageUrl)
                 .notes(request.getNotes())
                 .build();
 
@@ -91,7 +98,7 @@ public class DogProfileServiceImpl implements DogProfileService {
 
     @Override
     @Transactional
-    public DogProfileResponse update(Integer id, DogProfileRequest request) {
+    public DogProfileResponse update(Integer id, DogProfileRequest request, MultipartFile image) {
         DogProfile dog = dogProfileRepository.findByDogIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dog not found with id: " + id));
 
@@ -109,10 +116,20 @@ public class DogProfileServiceImpl implements DogProfileService {
         if (request.getColor() != null) dog.setColor(request.getColor());
         if (request.getMicrochipId() != null) dog.setMicrochipId(request.getMicrochipId());
         if (request.getStatus() != null) dog.setStatus(DogStatus.valueOf(request.getStatus()));
-        if (request.getImageUrl() != null) dog.setImageUrl(request.getImageUrl());
+        if (request.getAssignmentDate() != null) dog.setAssignmentDate(request.getAssignmentDate());
+        if (request.getIsSterilized() != null) dog.setIsSterilized(request.getIsSterilized());
+        String imageUrl = resolveImageUrl(image);
+        if (imageUrl != null) dog.setImageUrl(imageUrl);
         if (request.getNotes() != null) dog.setNotes(request.getNotes());
 
         return toResponse(dogProfileRepository.save(dog));
+    }
+
+    private String resolveImageUrl(MultipartFile image) {
+        if (image != null && !image.isEmpty()) {
+            return cloudinaryService.upload(image, "image").secureUrl();
+        }
+        return null;
     }
 
     @Override
@@ -146,6 +163,8 @@ public class DogProfileServiceImpl implements DogProfileService {
                 .color(entity.getColor())
                 .microchipId(entity.getMicrochipId())
                 .status(entity.getStatus() != null ? entity.getStatus().name() : null)
+                .assignmentDate(entity.getAssignmentDate())
+                .isSterilized(entity.getIsSterilized())
                 .imageUrl(entity.getImageUrl())
                 .notes(entity.getNotes())
                 .createdAt(entity.getCreatedAt())

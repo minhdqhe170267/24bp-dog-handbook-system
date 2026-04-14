@@ -12,6 +12,9 @@ import MethodsPage from '../features/training/MethodsPage';
 import MethodsCreatePage from '../features/training/MethodsCreatePage';
 import RoadmapsPage from '../features/training/RoadmapsPage';
 import RoadmapsCreatePage from '../features/training/RoadmapsCreatePage';
+import SpecialtiesPage from '../features/training/SpecialtiesPage';
+import SpecialtiesCreatePage from '../features/training/SpecialtiesCreatePage';
+// import TrainingProgressPage from '../features/training/TrainingProgressPage';
 import NutritionPage from '../features/nutrition/NutritionPage';
 import NutritionCreatePage from '../features/nutrition/NutritionCreatePage';
 import MedicationsPage from '../features/medications/MedicationsPage';
@@ -35,6 +38,8 @@ import ImportDataPage from '../features/import/ImportDataPage';
 import ExportDataPage from '../features/export/ExportDataPage';
 import NotificationsPage from '../features/notifications/NotificationsPage';
 import EntityDetailPage from '../features/details/EntityDetailPage';
+import ConflictListPage from '../features/sync-conflicts/ConflictListPage';
+import ConflictDetailPage from '../features/sync-conflicts/ConflictDetailPage';
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -45,6 +50,10 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'sync-conflicts', element: <ConflictListPage /> },
+      { path: 'sync-conflicts/:id', element: <ConflictDetailPage /> },
+      { path: 'admin/sync-conflicts', element: <ConflictListPage /> },
+      { path: 'admin/sync-conflicts/:id', element: <ConflictDetailPage /> },
       { path: 'details/:entityType/:id', element: <EntityDetailPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'content', element: <ContentListPage /> },
@@ -66,9 +75,13 @@ const router = createBrowserRouter([
       { path: 'training/methods', element: <MethodsPage /> },
       { path: 'training/methods/create', element: <MethodsCreatePage /> },
       { path: 'training/methods/:id/edit', element: <MethodsCreatePage /> },
+      { path: 'training/specialties', element: <SpecialtiesPage /> },
+      { path: 'training/specialties/create', element: <SpecialtiesCreatePage /> },
+      { path: 'training/specialties/:id/edit', element: <SpecialtiesCreatePage /> },
       { path: 'training/roadmaps', element: <RoadmapsPage /> },
       { path: 'training/roadmaps/create', element: <RoadmapsCreatePage /> },
       { path: 'training/roadmaps/:id/edit', element: <RoadmapsCreatePage /> },
+      // { path: 'training/progress', element: <TrainingProgressPage /> },
       { path: 'nutrition', element: <NutritionPage /> },
       { path: 'nutrition/create', element: <NutritionCreatePage /> },
       { path: 'nutrition/:id/edit', element: <NutritionCreatePage /> },

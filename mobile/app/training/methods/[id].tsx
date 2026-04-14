@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { trainingMethodService } from '../../../src/services/trainingMethodService';
 import { TrainingMethod } from '../../../src/types/training';
 import { normalizeStatus, pickTrainingImage, splitToBullets, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { buildTrainingInstructionSteps, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 const STEP_PREFIX_PATTERN = /^(?:b|b(?:uoc|ước)|step)\s*\d+\s*(?:[:.)-]\s*)?/i;
 
@@ -43,6 +44,7 @@ export default function MethodDetailScreen() {
     const [method, setMethod] = useState<TrainingMethod | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { animatedStyle } = useTrainingEntrance();
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -93,14 +95,13 @@ export default function MethodDetailScreen() {
 
     const advantages = splitToBullets(method.advantages);
     const disadvantages = splitToBullets(method.disadvantages);
-    const instructions = splitToBullets(method.instructions);
-    const guideSteps = instructions
-        .map((item, idx) => parseGuideStep(item, idx))
+    const guideSteps = buildTrainingInstructionSteps(method.instructions)
+        .map((item, idx) => parseGuideStep(`${item.title}: ${item.detail}`, idx))
         .filter((item) => item.detail.length > 0);
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView style={animatedStyle} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
@@ -152,6 +153,21 @@ export default function MethodDetailScreen() {
                         {method.description || 'Chưa có phần giới thiệu cho phương pháp này.'}
                     </Text>
                 </SectionCard>
+
+                <View style={styles.metricRow}>
+                    <View style={[styles.metricCard, { backgroundColor: isDark ? colors.surface : '#EDF5F0', borderColor: isDark ? colors.border : trainingUi.border }]}>
+                        <Text style={[styles.metricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{advantages.length}</Text>
+                        <Text style={[styles.metricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Ưu điểm</Text>
+                    </View>
+                    <View style={[styles.metricCard, { backgroundColor: isDark ? colors.surface : '#EDF5F0', borderColor: isDark ? colors.border : trainingUi.border }]}>
+                        <Text style={[styles.metricValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{guideSteps.length}</Text>
+                        <Text style={[styles.metricLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Bước hướng dẫn</Text>
+                    </View>
+                    <View style={[styles.metricCard, { backgroundColor: isDark ? colors.surface : '#FFF3E4', borderColor: isDark ? colors.border : '#F0D8A8' }]}>
+                        <Text style={[styles.metricValue, { color: isDark ? colors.text : '#7A5008' }]}>{disadvantages.length}</Text>
+                        <Text style={[styles.metricLabel, { color: isDark ? colors.textSecondary : '#805814' }]}>Lưu ý</Text>
+                    </View>
+                </View>
 
                 <SectionCard title="Ưu điểm" icon="checkmark-circle" colors={colors} isDark={isDark}>
                     {advantages.length > 0 ? (
@@ -222,7 +238,7 @@ export default function MethodDetailScreen() {
                         </Text>
                     )}
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
@@ -396,6 +412,27 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         padding: spacing.md,
         marginBottom: spacing.md,
+    },
+    metricRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    metricCard: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: borderRadius.xl,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+    },
+    metricValue: {
+        fontSize: 20,
+        fontWeight: '800',
+    },
+    metricLabel: {
+        marginTop: 3,
+        fontSize: 12,
+        fontWeight: '600',
     },
     sectionHeader: {
         flexDirection: 'row',

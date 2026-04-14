@@ -67,7 +67,8 @@ public class ContentSuggestionController {
                 suggestionId,
                 request.getAdminResponse(),
                 request.getStatus(),
-                reviewerId
+                reviewerId,
+                request.getLocalUpdatedAt()
         ));
     }
 
@@ -114,5 +115,6 @@ public class ContentSuggestionController {
     public static class SuggestionRespondRequest {
         private String adminResponse;
         private String status;
+        private java.time.LocalDateTime localUpdatedAt;
     }
 }

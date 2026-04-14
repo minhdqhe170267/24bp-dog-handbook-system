@@ -23,6 +23,8 @@ public class UserResponse {
     private String role;
     private String militaryRank;
     private String unit;
+    private Integer specialtyId;
+    private String specialtyName;
     private Boolean isActive;
     private Boolean isLocked;
     private Integer failedLoginCount;

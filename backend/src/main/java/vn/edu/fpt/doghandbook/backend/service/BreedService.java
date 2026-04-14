@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service;
 
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.response.BreedCompareResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.BreedResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.DevelopmentStageResponse;
@@ -14,9 +15,9 @@ public interface BreedService {
 
     BreedResponse getById(Integer id);
 
-    BreedResponse create(BreedRequest request, Integer createdByUserId);
+    BreedResponse create(BreedRequest request, Integer createdByUserId, MultipartFile image);
 
-    BreedResponse update(Integer id, BreedRequest request);
+    BreedResponse update(Integer id, BreedRequest request, MultipartFile image);
 
     void delete(Integer id);
 

@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import vn.edu.fpt.doghandbook.backend.entity.TrainingMethod;
 
+import java.util.Optional;
+
 public interface TrainingMethodRepository extends JpaRepository<TrainingMethod, Integer> {
 
     Page<TrainingMethod> findByIsDeletedFalse(Pageable pageable);
@@ -12,4 +14,8 @@ public interface TrainingMethodRepository extends JpaRepository<TrainingMethod, 
     Page<TrainingMethod> findByStatusAndIsDeletedFalse(vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus status, Pageable pageable);
 
     Page<TrainingMethod> findByMethodNameContainingIgnoreCaseAndIsDeletedFalse(String keyword, Pageable pageable);
+
+    Optional<TrainingMethod> findByMethodIdAndIsDeletedFalse(Integer methodId);
+
+    Optional<TrainingMethod> findByMethodNameIgnoreCaseAndIsDeletedFalse(String methodName);
 }

@@ -16,12 +16,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "diagnosis_record")
+@SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -67,11 +69,21 @@ public class DiagnosisRecord {
     @Column(name = "updated_at", nullable = true)
     private LocalDateTime updatedAt;
 
+    @Builder.Default
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    @Column(name = "deleted_at", nullable = true)
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (this.diagnosedAt == null) {
             this.diagnosedAt = now;
+        }
+        if (this.isDeleted == null) {
+            this.isDeleted = false;
         }
         this.updatedAt = now;
     }

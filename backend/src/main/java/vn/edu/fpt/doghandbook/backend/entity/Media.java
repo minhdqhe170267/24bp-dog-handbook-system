@@ -56,6 +56,9 @@ public class Media {
     @Column(name = "file_url", nullable = false)
     private String fileUrl;
 
+    @Column(name = "cloudinary_public_id", nullable = true, length = 500)
+    private String cloudinaryPublicId;
+
     @Column(name = "file_size_bytes", nullable = true)
     private Long fileSizeBytes;
 

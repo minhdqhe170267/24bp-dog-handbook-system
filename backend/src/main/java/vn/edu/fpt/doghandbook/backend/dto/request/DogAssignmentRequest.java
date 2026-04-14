@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentScope;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentType;
 import vn.edu.fpt.doghandbook.backend.validation.ValidEnum;
 
@@ -21,6 +22,11 @@ public class DogAssignmentRequest {
 
     @ValidEnum(enumClass = AssignmentType.class, message = "Loại phân công không hợp lệ")
     private String assignmentType;
+
+    @ValidEnum(enumClass = AssignmentScope.class, message = "Phạm vi phân công không hợp lệ")
+    private String assignmentScope;
+
+    private Integer coveredAssignmentId;
 
     @NotNull(message = "Ngày bắt đầu không được để trống")
     private LocalDate startDate;

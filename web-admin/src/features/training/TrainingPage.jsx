@@ -51,7 +51,7 @@ const MethodsTab = () => {
   const fetchData = async (page = 0, size = 10) => {
     setLoading(true);
     try { const res = await trainingService.getMethods(page, size); setData(res.data.content || []); setPagination((prev) => ({ ...prev, total: res.data.totalElements, page })); }
-    catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
+    catch (err) { toast.error(err, { title: 'Không thể tải dữ liệu phương pháp huấn luyện' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -61,12 +61,12 @@ const MethodsTab = () => {
       if (editing) { await trainingService.updateMethod(editing.methodId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createMethod(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể lưu phương pháp huấn luyện' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
     try { await trainingService.deleteMethod(deleteItem.methodId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
+    catch (err) { toast.error(err, { title: 'Không thể xóa phương pháp huấn luyện' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -93,11 +93,11 @@ const MethodsTab = () => {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa phương pháp' : 'Thêm phương pháp'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Tên" required><FormInput value={formData.methodName || ''} onChange={(e) => updateField('methodName', e.target.value)} /></FormField>
-          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Ưu điểm"><FormTextarea rows={2} value={formData.advantages || ''} onChange={(e) => updateField('advantages', e.target.value)} /></FormField>
-          <FormField label="Nhược điểm"><FormTextarea rows={2} value={formData.disadvantages || ''} onChange={(e) => updateField('disadvantages', e.target.value)} /></FormField>
-          <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+          <FormField label="Tên" required><FormInput maxLength={200} value={formData.methodName || ''} onChange={(e) => updateField('methodName', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Ưu điểm"><FormTextarea maxLength={255} rows={2} value={formData.advantages || ''} onChange={(e) => updateField('advantages', e.target.value)} /></FormField>
+          <FormField label="Nhược điểm"><FormTextarea maxLength={255} rows={2} value={formData.disadvantages || ''} onChange={(e) => updateField('disadvantages', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea maxLength={255} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -123,7 +123,7 @@ const ExercisesTab = () => {
       const [exRes, methRes] = await Promise.all([trainingService.getExercises(page, size), trainingService.getMethods(0, 100)]);
       setData(exRes.data.content || []); setMethods(methRes.data.content || []);
       setPagination((prev) => ({ ...prev, total: exRes.data.totalElements, page }));
-    } catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
+    } catch (err) { toast.error(err, { title: 'Không thể tải dữ liệu bài tập huấn luyện' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -133,12 +133,12 @@ const ExercisesTab = () => {
       if (editing) { await trainingService.updateExercise(editing.exerciseId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createExercise(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể lưu bài tập huấn luyện' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
     try { await trainingService.deleteExercise(deleteItem.exerciseId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
+    catch (err) { toast.error(err, { title: 'Không thể xóa bài tập huấn luyện' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -166,9 +166,9 @@ const ExercisesTab = () => {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bài tập' : 'Thêm bài tập'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Tên bài tập" required><FormInput value={formData.exerciseName || ''} onChange={(e) => updateField('exerciseName', e.target.value)} /></FormField>
+          <FormField label="Tên bài tập" required><FormInput maxLength={200} value={formData.exerciseName || ''} onChange={(e) => updateField('exerciseName', e.target.value)} /></FormField>
           <div className="grid grid-cols-3 gap-4">
-            <FormField label="Độ khó">
+            <FormField label="Độ khó" required>
               <FormSelect value={formData.difficultyLevel || ''} onChange={(e) => updateField('difficultyLevel', e.target.value)} placeholder="Chọn"
                 options={[{ value: 'BASIC', label: 'Cơ bản' }, { value: 'INTERMEDIATE', label: 'TB' }, { value: 'ADVANCED', label: 'Nâng cao' }]} />
             </FormField>
@@ -176,10 +176,10 @@ const ExercisesTab = () => {
               <FormSelect value={formData.methodId || ''} onChange={(e) => updateField('methodId', e.target.value)} placeholder="Chọn"
                 options={methods.map((m) => ({ value: m.methodId || m.id, label: m.methodName }))} />
             </FormField>
-            <FormField label="Thời gian (phút)"><FormNumberInput value={formData.durationMinutes || ''} onChange={(e) => updateField('durationMinutes', e.target.value)} min={1} /></FormField>
+            <FormField label="Thời gian (phút)"><FormNumberInput value={formData.durationMinutes || ''} onChange={(e) => updateField('durationMinutes', e.target.value)} min={1} max={480} /></FormField>
           </div>
-          <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Hướng dẫn"><FormTextarea rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Hướng dẫn"><FormTextarea maxLength={255} rows={3} value={formData.instructions || ''} onChange={(e) => updateField('instructions', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -205,7 +205,7 @@ const RoadmapsTab = () => {
       const [rmRes, brRes] = await Promise.all([trainingService.getRoadmaps(page, size), breedService.getAll(0, 100)]);
       setData(rmRes.data.content || []); setBreeds(brRes.data?.content || []);
       setPagination((prev) => ({ ...prev, total: rmRes.data.totalElements, page }));
-    } catch (err) { toast.error(err, { title: 'Lỗi tải dữ liệu' }); } finally { setLoading(false); }
+    } catch (err) { toast.error(err, { title: 'Không thể tải dữ liệu lộ trình huấn luyện' }); } finally { setLoading(false); }
   };
   useEffect(() => { fetchData(0, pagination.pageSize); }, []); // eslint-disable-line
 
@@ -215,12 +215,12 @@ const RoadmapsTab = () => {
       if (editing) { await trainingService.updateRoadmap(editing.roadmapId || editing.id, formData); toast.success('Cập nhật thành công'); }
       else { await trainingService.createRoadmap(formData); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null); fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể lưu lộ trình huấn luyện' }); }
   };
   const handleDelete = async () => {
     if (!deleteItem) return;
     try { await trainingService.deleteRoadmap(deleteItem.roadmapId || deleteItem.id); toast.success('Xóa thành công'); setDeleteItem(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error(err, { title: 'Lỗi khi xóa' }); }
+    catch (err) { toast.error(err, { title: 'Không thể xóa lộ trình huấn luyện' }); }
   };
   const openEdit = (r) => { setEditing(r); setFormData({ ...r }); setModalOpen(true); };
   const openCreate = () => { setEditing(null); setFormData({}); setModalOpen(true); };
@@ -249,16 +249,16 @@ const RoadmapsTab = () => {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa lộ trình' : 'Thêm lộ trình'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Tên lộ trình" required><FormInput value={formData.roadmapName || ''} onChange={(e) => updateField('roadmapName', e.target.value)} /></FormField>
+          <FormField label="Tên lộ trình" required><FormInput maxLength={200} value={formData.roadmapName || ''} onChange={(e) => updateField('roadmapName', e.target.value)} /></FormField>
           <div className="grid grid-cols-3 gap-4">
             <FormField label="Giống chó">
               <FormSelect value={formData.breedId || ''} onChange={(e) => updateField('breedId', e.target.value)} placeholder="Chọn"
                 options={breeds.map((b) => ({ value: b.breedId, label: b.breedName }))} />
             </FormField>
-            <FormField label="Vai trò mục tiêu"><FormInput value={formData.targetRole || ''} onChange={(e) => updateField('targetRole', e.target.value)} /></FormField>
-            <FormField label="Tổng tuần"><FormNumberInput value={formData.totalDurationWeeks || ''} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} min={1} /></FormField>
+            <FormField label="Vai trò mục tiêu"><FormInput maxLength={100} value={formData.targetRole || ''} onChange={(e) => updateField('targetRole', e.target.value)} /></FormField>
+            <FormField label="Tổng tuần"><FormNumberInput value={formData.totalDurationWeeks || ''} onChange={(e) => updateField('totalDurationWeeks', e.target.value)} min={1} max={104} /></FormField>
           </div>
-          <FormField label="Mô tả"><FormTextarea rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={2} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
         </form>
       </Modal>
       <ConfirmDialog open={!!deleteItem} onClose={() => setDeleteItem(null)} title="Xóa" description="Bạn có chắc chắn?" onConfirm={handleDelete} confirmLabel="Xóa" />
@@ -267,3 +267,4 @@ const RoadmapsTab = () => {
 };
 
 export default TrainingPage;
+

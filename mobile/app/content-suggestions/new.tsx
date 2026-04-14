@@ -17,6 +17,7 @@ import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { contentSuggestionService } from '../../src/services/contentSuggestionService';
 import { exerciseService } from '../../src/services/exerciseService';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { getCharacterCountLabel, validateTextField } from '../../src/utils/formValidation';
 import type { SuggestionType } from '../../src/database/types';
 import type { TrainingExercise } from '../../src/types/training';
 
@@ -75,7 +76,19 @@ export default function NewContentSuggestionScreen() {
       .slice(0, 8);
   }, [exerciseOptions, exerciseQuery]);
 
-  const canSubmit = title.trim().length >= 4 && description.trim().length >= 16 && !submitting;
+  const titleError = validateTextField(title, {
+    label: 'Tiêu đề',
+    required: true,
+    minLength: 4,
+    maxLength: 200,
+  });
+  const descriptionError = validateTextField(description, {
+    label: 'Nội dung chi tiết',
+    required: true,
+    minLength: 16,
+    maxLength: 5000,
+  });
+  const canSubmit = !titleError && !descriptionError && !submitting;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
@@ -235,7 +248,14 @@ export default function NewContentSuggestionScreen() {
               placeholder="Ví dụ: Cần làm rõ bước chuyển trạng thái khi chó mất tập trung"
               placeholderTextColor={colors.textLight}
               style={[styles.fieldInput, { color: colors.text }]}
+              maxLength={200}
             />
+            <View style={styles.metaRow}>
+              <Text style={[styles.counterText, { color: colors.textLight }]}>
+                {getCharacterCountLabel(title, 200)}
+              </Text>
+            </View>
+            {titleError ? <Text style={[styles.errorText, { color: colors.error }]}>{titleError}</Text> : null}
           </View>
 
           <View style={[styles.textArea, { borderColor: colors.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F7FAF8' }]}>
@@ -248,7 +268,14 @@ export default function NewContentSuggestionScreen() {
               style={[styles.areaInput, { color: colors.text }]}
               multiline
               textAlignVertical="top"
+              maxLength={5000}
             />
+            <View style={styles.metaRow}>
+              <Text style={[styles.counterText, { color: colors.textLight }]}>
+                {getCharacterCountLabel(description, 5000)}
+              </Text>
+            </View>
+            {descriptionError ? <Text style={[styles.errorText, { color: colors.error }]}>{descriptionError}</Text> : null}
           </View>
 
           <TouchableOpacity
@@ -429,6 +456,19 @@ const styles = StyleSheet.create({
   fieldInput: {
     fontSize: fontSize.md,
     fontWeight: '600',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  counterText: {
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+  },
+  errorText: {
+    fontSize: fontSize.xs,
+    lineHeight: 16,
+    fontWeight: '700',
   },
   areaInput: {
     minHeight: 128,

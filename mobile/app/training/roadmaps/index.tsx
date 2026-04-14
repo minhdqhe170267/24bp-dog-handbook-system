@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Animated,
     FlatList,
     RefreshControl,
     ScrollView,
@@ -19,6 +20,7 @@ import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { TrainingRoadmap } from '../../../src/types/training';
 import { roadmapService } from '../../../src/services/roadmapService';
 import { normalizeStatus, pickTrainingImage, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { useTrainingEntrance } from '../../../src/features/training/presentation';
 
 const ALL_BREEDS = 'ALL_BREEDS';
 const ALL_ROLES = 'ALL_ROLES';
@@ -42,6 +44,7 @@ export default function RoadmapListScreen() {
     const [roleFilter, setRoleFilter] = useState<string>(ALL_ROLES);
     const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUS);
     const [activeDropdown, setActiveDropdown] = useState<FilterDropdownKey>(null);
+    const { animatedStyle } = useTrainingEntrance();
 
     const fetchData = useCallback(async (targetPage: number, reset: boolean) => {
         if (reset) {
@@ -337,7 +340,8 @@ export default function RoadmapListScreen() {
         const phaseLabel = item.phaseName || 'Chưa xác định giai đoạn';
 
         return (
-            <TouchableOpacity
+            <View>
+                <TouchableOpacity
                 activeOpacity={0.88}
                 style={[
                     styles.card,
@@ -381,7 +385,8 @@ export default function RoadmapListScreen() {
                     </View>
                     <Text style={[styles.viewAction, { color: colors.primary }]}>Xem chi tiết</Text>
                 </View>
-            </TouchableOpacity>
+                </TouchableOpacity>
+            </View>
         );
     };
 
@@ -416,54 +421,77 @@ export default function RoadmapListScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
                 ListHeaderComponent={
-                    <View style={styles.filterWrap}>
-                        <View style={styles.filterRow}>
-                            {renderFilterChip('breed')}
-                            {renderFilterChip('role')}
-                            {renderFilterChip('status')}
+                    <Animated.View style={animatedStyle}>
+                        <View
+                            style={[
+                                styles.heroCard,
+                                {
+                                    backgroundColor: isDark ? colors.surface : '#EEF4F0',
+                                    borderColor: isDark ? colors.border : '#DCE7E0',
+                                },
+                            ]}
+                        >
+                            <View style={styles.heroTextWrap}>
+                                <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>LỘ TRÌNH</Text>
+                                <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn đúng lộ trình theo giống và vai trò</Text>
+                                <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                                    Dùng bộ lọc nhanh để nhìn rõ tiến trình theo giai đoạn, không làm rối danh sách hiện tại.
+                                </Text>
+                            </View>
+                            <View style={[styles.heroCountCard, { backgroundColor: colors.primary }]}>
+                                <Text style={styles.heroCountValue}>{filteredItems.length}</Text>
+                                <Text style={styles.heroCountLabel}>lộ trình</Text>
+                            </View>
                         </View>
-                        {renderDropdownPanel()}
-                        <View style={styles.quickFilterRow}>
-                            {breedOptions.slice(1, 4).map((option) => (
-                                <TouchableOpacity
-                                    key={`quick-${option}`}
-                                    onPress={() => setBreedFilter(option)}
-                                    style={[
-                                        styles.quickChip,
-                                        {
-                                            backgroundColor:
-                                                breedFilter === option
-                                                    ? isDark
-                                                        ? colors.primaryLight
-                                                        : trainingUi.brandSoft
-                                                    : isDark
-                                                      ? colors.surface
-                                                      : '#EEF4F0',
-                                            borderColor:
-                                                breedFilter === option
-                                                    ? isDark
-                                                        ? colors.primary
-                                                        : trainingUi.brand
-                                                    : isDark
-                                                      ? colors.border
-                                                      : '#DCE7E1',
-                                        },
-                                    ]}
-                                    activeOpacity={0.86}
-                                >
-                                    <Text
+                        <View style={styles.filterWrap}>
+                            <View style={styles.filterRow}>
+                                {renderFilterChip('breed')}
+                                {renderFilterChip('role')}
+                                {renderFilterChip('status')}
+                            </View>
+                            {renderDropdownPanel()}
+                            <View style={styles.quickFilterRow}>
+                                {breedOptions.slice(1, 4).map((option) => (
+                                    <TouchableOpacity
+                                        key={`quick-${option}`}
+                                        onPress={() => setBreedFilter(option)}
                                         style={[
-                                            styles.quickChipText,
-                                            { color: isDark ? colors.textSecondary : trainingUi.textNormal },
+                                            styles.quickChip,
+                                            {
+                                                backgroundColor:
+                                                    breedFilter === option
+                                                        ? isDark
+                                                            ? colors.primaryLight
+                                                            : trainingUi.brandSoft
+                                                        : isDark
+                                                          ? colors.surface
+                                                          : '#EEF4F0',
+                                                borderColor:
+                                                    breedFilter === option
+                                                        ? isDark
+                                                            ? colors.primary
+                                                            : trainingUi.brand
+                                                        : isDark
+                                                          ? colors.border
+                                                          : '#DCE7E1',
+                                            },
                                         ]}
-                                        numberOfLines={1}
+                                        activeOpacity={0.86}
                                     >
-                                        {option}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                                        <Text
+                                            style={[
+                                                styles.quickChipText,
+                                                { color: isDark ? colors.textSecondary : trainingUi.textNormal },
+                                            ]}
+                                            numberOfLines={1}
+                                        >
+                                            {option}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </View>
-                    </View>
+                    </Animated.View>
                 }
                 ListEmptyComponent={
                     loading ? (
@@ -504,6 +532,56 @@ const styles = StyleSheet.create({
     },
     filterWrap: {
         marginBottom: spacing.md,
+    },
+    heroCard: {
+        borderRadius: borderRadius.xl + 4,
+        borderWidth: 1,
+        borderColor: '#DCE7E0',
+        backgroundColor: '#EEF4F0',
+        padding: spacing.md,
+        marginBottom: spacing.md,
+        flexDirection: 'row',
+        gap: spacing.md,
+        alignItems: 'flex-start',
+    },
+    heroTextWrap: {
+        flex: 1,
+    },
+    heroEyebrow: {
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 1.1,
+        marginBottom: 6,
+    },
+    heroTitle: {
+        fontSize: 22,
+        lineHeight: 28,
+        fontWeight: '800',
+    },
+    heroSubtitle: {
+        marginTop: spacing.xs,
+        fontSize: 13,
+        lineHeight: 19,
+        fontWeight: '500',
+    },
+    heroCountCard: {
+        minWidth: 82,
+        borderRadius: 22,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    heroCountValue: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    heroCountLabel: {
+        marginTop: 2,
+        color: '#E6F1EA',
+        fontSize: 11,
+        fontWeight: '700',
     },
     filterRow: {
         flexDirection: 'row',

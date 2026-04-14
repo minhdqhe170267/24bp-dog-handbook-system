@@ -20,4 +20,7 @@ public class ImportTemplateResponse {
     private List<String> requiredColumns;
     private List<String> optionalColumns;
     private List<String> supportedFileTypes;
+    private String downloadUrl;
+    private List<String> instructions;
+    private List<ImportColumnSpecResponse> columns;
 }

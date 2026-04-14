@@ -113,7 +113,7 @@ public class DogWeightRecordServiceImpl implements DogWeightRecordService {
                     + " - " + request.getRecordedWeightKg() + "kg (lệch " + deviationPercent + "%)";
 
             // Trainer-only: notify trainers assigned to this dog
-            for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+            for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dog.getDogId(), java.time.LocalDate.now())) {
                 notificationService.notifyUser(
                         a.getTrainer(), assessor,
                         NotificationType.WEIGHT_ABNORMAL,

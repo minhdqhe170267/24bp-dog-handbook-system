@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../utils/utils';
@@ -49,27 +49,53 @@ const Modal = ({ open, onClose, title, children, footer, width = 600 }) => {
     );
 };
 
-const FormField = ({ label, required, error, children }) => (
-    <div className="mb-4">
-        <label className="block text-sm font-medium mb-1.5 text-foreground">
-            {label}
-            {required && <span className="text-destructive ml-0.5">*</span>}
-        </label>
-        {children}
-        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-    </div>
-);
+const FormField = ({ label, required, error, children }) => {
+    const isStringLabel = typeof label === 'string';
+    const hasTrailingAsterisk = isStringLabel && /\*\s*$/.test(label.trim());
+    const normalizedLabel = hasTrailingAsterisk ? label.replace(/\s*\*\s*$/, '') : label;
+    const showRequired = Boolean(required || hasTrailingAsterisk);
+    const firstChildWithProps = Children.toArray(children).find((child) => isValidElement(child));
+    const rawMaxLength = firstChildWithProps && isValidElement(firstChildWithProps) ? firstChildWithProps.props?.maxLength : null;
+    const maxLengthHint =
+        Number.isFinite(Number(rawMaxLength)) && Number(rawMaxLength) > 0
+            ? Number(rawMaxLength)
+            : null;
 
-const FormInput = ({ className = '', ...props }) => (
-    <input
-        className={cn('w-full h-10 px-3 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card', className)}
-        {...props}
-    />
-);
+    return (
+        <div className="mb-4">
+            <label className="block text-sm font-medium mb-1.5 text-foreground">
+                <span>{normalizedLabel}</span>
+                {showRequired && <span className="text-destructive ml-0.5">*</span>}
+                {maxLengthHint ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        (tối đa {maxLengthHint} ký tự)
+                    </span>
+                ) : null}
+            </label>
+            {children}
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+        </div>
+    );
+};
 
-const FormTextarea = ({ className = '', rows = 3, ...props }) => (
+const FormInput = ({ className = '', type = 'text', maxLength, ...props }) => {
+    const shouldApplyDefaultMaxLength = ['text', 'email', 'search', 'tel', 'password', 'url'].includes(type);
+    const resolvedMaxLength = maxLength ?? (shouldApplyDefaultMaxLength ? 255 : undefined);
+
+    return (
+        <input
+            type={type}
+            maxLength={resolvedMaxLength}
+            className={cn('w-full h-10 px-3 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card', className)}
+            {...props}
+        />
+    );
+};
+
+const FormTextarea = ({ className = '', rows = 3, maxLength = 255, ...props }) => (
     <textarea
         rows={rows}
+        maxLength={maxLength}
         className={cn('w-full px-3 py-2 border border-input rounded-lg text-sm outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all bg-card resize-y', className)}
         {...props}
     />

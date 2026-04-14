@@ -89,13 +89,13 @@ export const EditForm = ({ fields, data, onSubmit, onCancel, loading }) => {
                             {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                     ) : f.type === 'textarea' ? (
-                        <textarea name={f.key} defaultValue={data?.[f.key] || ''} rows={3} required={f.required}
+                        <textarea name={f.key} defaultValue={data?.[f.key] || ''} rows={3} required={f.required} maxLength={f.maxLength || 255}
                             className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none" />
                     ) : f.type === 'number' ? (
                         <input type="number" name={f.key} defaultValue={data?.[f.key] || ''} required={f.required}
                             className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
                     ) : (
-                        <input type="text" name={f.key} defaultValue={data?.[f.key] || ''} required={f.required} placeholder={f.placeholder || ''}
+                        <input type="text" name={f.key} defaultValue={data?.[f.key] || ''} required={f.required} maxLength={f.maxLength || 255} placeholder={f.placeholder || ''}
                             className="w-full h-9 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
                     )}
                 </div>

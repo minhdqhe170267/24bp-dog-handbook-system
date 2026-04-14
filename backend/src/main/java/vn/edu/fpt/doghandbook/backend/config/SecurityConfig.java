@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/error", "/uploads/**").permitAll()
+                        .requestMatchers("/auth/login", "/error").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/*/file").permitAll()
 
@@ -55,6 +55,12 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.DELETE, "/media/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+
+                        .requestMatchers(HttpMethod.GET, "/training-progress/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.POST, "/training-progress/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.PUT, "/training-progress/**").hasAnyRole("ADMIN", "TRAINER")
+
+                        .requestMatchers("/training-specialties/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
@@ -98,10 +104,12 @@ public class SecurityConfig {
                         ).hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers("/contents/*/approve", "/contents/*/reject")
-                                .hasAnyRole("ADMIN", "REVIEWER")
+                        .hasAnyRole("ADMIN", "REVIEWER")
 
-                        .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
-                        .requestMatchers(HttpMethod.PUT, "/assignments/**").hasAnyRole("ADMIN", "TRAINER")
+                        .requestMatchers(HttpMethod.GET, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR", "TRAINER")
+                        .requestMatchers(HttpMethod.POST, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+                        .requestMatchers(HttpMethod.PUT, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+                        .requestMatchers(HttpMethod.DELETE, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.POST, "/health-records").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.PUT, "/health-records/**").hasAnyRole("ADMIN", "TRAINER")

@@ -17,6 +17,7 @@ import type {
 } from '../types/contentSuggestion';
 
 const CACHE_KEY = 'content_suggestions_my_v1';
+const HIDDEN_SERVER_IDS_KEY = 'content_suggestions_hidden_server_ids_v1';
 
 interface ContentSuggestionResponse {
   suggestionId: number;
@@ -39,7 +40,15 @@ const isServerRoute = (routeId: string) => routeId.startsWith('server:');
 
 const toServerRoute = (id: number) => `server:${id}`;
 
-const mapRowToSuggestion = (row: ContentSuggestionRow, trainerName: string | null): ContentSuggestionItem => ({
+const parseServerRouteId = (routeId: string): number | null => {
+  const serverId = Number(routeId.replace('server:', ''));
+  return Number.isFinite(serverId) ? serverId : null;
+};
+
+const mapRowToSuggestion = (
+  row: ContentSuggestionRow,
+  trainerName: string | null,
+): ContentSuggestionItem => ({
   routeId: row.local_id,
   localId: row.local_id,
   serverId: row.server_id ?? null,
@@ -60,7 +69,9 @@ const mapRowToSuggestion = (row: ContentSuggestionRow, trainerName: string | nul
   source: 'LOCAL',
 });
 
-const mapResponseToSuggestion = (item: ContentSuggestionResponse): ContentSuggestionItem => ({
+const mapResponseToSuggestion = (
+  item: ContentSuggestionResponse,
+): ContentSuggestionItem => ({
   routeId: toServerRoute(item.suggestionId),
   localId: null,
   serverId: item.suggestionId,
@@ -81,6 +92,51 @@ const mapResponseToSuggestion = (item: ContentSuggestionResponse): ContentSugges
   source: 'REMOTE',
 });
 
+const mapSuggestionToCacheEntry = (
+  item: ContentSuggestionItem,
+): ContentSuggestionResponse => ({
+  suggestionId: item.serverId ?? 0,
+  trainerId: item.trainerId,
+  trainerName: item.trainerName,
+  suggestionType: item.suggestionType,
+  relatedExerciseId: item.relatedExerciseId,
+  relatedExerciseName: item.relatedExerciseName,
+  title: item.title,
+  description: item.description,
+  status: item.status,
+  adminResponse: item.adminResponse,
+  reviewedById: item.reviewedById,
+  reviewedByName: item.reviewedByName,
+  reviewedAt: item.reviewedAt,
+  submittedAt: item.submittedAt,
+});
+
+const getHiddenServerIds = async (): Promise<number[]> => {
+  const cached = await offlineCacheDBService.get(HIDDEN_SERVER_IDS_KEY);
+  if (!cached) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(cached) as number[];
+    return parsed.filter((value) => Number.isFinite(value));
+  } catch {
+    return [];
+  }
+};
+
+const saveHiddenServerIds = async (ids: number[]): Promise<void> => {
+  const uniqueIds = Array.from(new Set(ids)).filter((value) => Number.isFinite(value));
+  await offlineCacheDBService.set(HIDDEN_SERVER_IDS_KEY, JSON.stringify(uniqueIds));
+};
+
+const hideServerSuggestion = async (serverId: number): Promise<void> => {
+  const hiddenIds = await getHiddenServerIds();
+  if (!hiddenIds.includes(serverId)) {
+    await saveHiddenServerIds([...hiddenIds, serverId]);
+  }
+};
+
 const getCachedRemoteSuggestions = async (): Promise<ContentSuggestionItem[]> => {
   const cached = await offlineCacheDBService.get(CACHE_KEY);
   if (!cached) {
@@ -95,31 +151,31 @@ const getCachedRemoteSuggestions = async (): Promise<ContentSuggestionItem[]> =>
   }
 };
 
-const saveCachedRemoteSuggestions = async (items: ContentSuggestionResponse[]): Promise<void> => {
-  await offlineCacheDBService.set(CACHE_KEY, JSON.stringify(items));
+const saveCachedRemoteSuggestions = async (
+  items: ContentSuggestionResponse[],
+): Promise<void> => {
+  const hiddenIds = await getHiddenServerIds();
+  const visibleItems = items.filter((item) => !hiddenIds.includes(item.suggestionId));
+  await offlineCacheDBService.set(CACHE_KEY, JSON.stringify(visibleItems));
 };
 
-const upsertCachedRemoteSuggestion = async (item: ContentSuggestionResponse): Promise<void> => {
+const removeCachedRemoteSuggestion = async (serverId: number): Promise<void> => {
+  const cached = await getCachedRemoteSuggestions();
+  const nextItems = cached
+    .filter((item) => item.serverId !== serverId)
+    .map(mapSuggestionToCacheEntry);
+
+  await saveCachedRemoteSuggestions(nextItems);
+};
+
+const upsertCachedRemoteSuggestion = async (
+  item: ContentSuggestionResponse,
+): Promise<void> => {
   const cached = await getCachedRemoteSuggestions();
   const nextItems = [
     item,
     ...cached
-      .map((entry) => ({
-        suggestionId: entry.serverId ?? 0,
-        trainerId: entry.trainerId,
-        trainerName: entry.trainerName,
-        suggestionType: entry.suggestionType,
-        relatedExerciseId: entry.relatedExerciseId,
-        relatedExerciseName: entry.relatedExerciseName,
-        title: entry.title,
-        description: entry.description,
-        status: entry.status,
-        adminResponse: entry.adminResponse,
-        reviewedById: entry.reviewedById,
-        reviewedByName: entry.reviewedByName,
-        reviewedAt: entry.reviewedAt,
-        submittedAt: entry.submittedAt,
-      }))
+      .map(mapSuggestionToCacheEntry)
       .filter((entry) => entry.suggestionId !== item.suggestionId),
   ];
 
@@ -157,15 +213,21 @@ const mergeSuggestions = (
   });
 
   return Array.from(merged.values()).sort(
-    (left, right) => new Date(right.submittedAt).getTime() - new Date(left.submittedAt).getTime(),
+    (left, right) =>
+      new Date(right.submittedAt).getTime() -
+      new Date(left.submittedAt).getTime(),
   );
 };
 
 const getRemoteMySuggestions = async (): Promise<ContentSuggestionItem[]> => {
-  const response = (await api.get('/suggestions/my')) as ApiResponse<ContentSuggestionResponse[]>;
+  const response = (await api.get(
+    '/suggestions/my',
+  )) as ApiResponse<ContentSuggestionResponse[]>;
   const data = unwrapApiData(response);
-  await saveCachedRemoteSuggestions(data);
-  return data.map(mapResponseToSuggestion);
+  const hiddenIds = await getHiddenServerIds();
+  const visibleItems = data.filter((item) => !hiddenIds.includes(item.suggestionId));
+  await saveCachedRemoteSuggestions(visibleItems);
+  return visibleItems.map(mapResponseToSuggestion);
 };
 
 const getLocalSuggestions = async (): Promise<ContentSuggestionItem[]> => {
@@ -190,7 +252,10 @@ const syncLocalSuggestionToServer = async (localId: string): Promise<void> => {
     throw new Error('Không tìm thấy góp ý nội dung trong bộ nhớ cục bộ');
   }
 
-  const response = (await api.post('/suggestions', buildSubmitPayload(localRow))) as ApiResponse<ContentSuggestionResponse>;
+  const response = (await api.post(
+    '/suggestions',
+    buildSubmitPayload(localRow),
+  )) as ApiResponse<ContentSuggestionResponse>;
   const submitted = unwrapApiData(response);
 
   await contentSuggestionDBService.applyServerSnapshot(localId, {
@@ -206,11 +271,18 @@ const syncLocalSuggestionToServer = async (localId: string): Promise<void> => {
     submitted_at: submitted.submittedAt,
   });
 
-  const queueItems = await syncQueueDBService.getByEntity('content_suggestion', localId);
-  const createItems = queueItems.filter((item) => item.action === 'CREATE' && item.status !== 'SYNCED');
+  const queueItems = await syncQueueDBService.getByEntity(
+    'content_suggestion',
+    localId,
+  );
+  const createItems = queueItems.filter(
+    (item) => item.action === 'CREATE' && item.status !== 'SYNCED',
+  );
+
   for (const queueItem of createItems) {
     await syncQueueDBService.markSynced(queueItem.id);
   }
+
   if (createItems.length > 0) {
     await syncQueueDBService.deleteSynced();
   }
@@ -264,13 +336,20 @@ export const contentSuggestionService = {
       const localRow = await contentSuggestionDBService.getById(routeId);
       if (localRow) {
         const localItem = await inflateRelatedExerciseName(
-          mapRowToSuggestion(localRow, useAuthStore.getState().user?.fullName ?? null),
+          mapRowToSuggestion(
+            localRow,
+            useAuthStore.getState().user?.fullName ?? null,
+          ),
         );
 
         if (localRow.server_id != null && isOnline()) {
           try {
-            const response = (await api.get(`/suggestions/${localRow.server_id}`)) as ApiResponse<ContentSuggestionResponse>;
-            const remoteItem = await inflateRelatedExerciseName(mapResponseToSuggestion(unwrapApiData(response)));
+            const response = (await api.get(
+              `/suggestions/${localRow.server_id}`,
+            )) as ApiResponse<ContentSuggestionResponse>;
+            const remoteItem = await inflateRelatedExerciseName(
+              mapResponseToSuggestion(unwrapApiData(response)),
+            );
             return {
               ...remoteItem,
               routeId: localRow.local_id,
@@ -287,13 +366,20 @@ export const contentSuggestionService = {
       }
     }
 
-    const serverId = Number(routeId.replace('server:', ''));
-    if (!Number.isFinite(serverId)) {
+    const serverId = parseServerRouteId(routeId);
+    if (serverId == null) {
       throw new Error('Không tìm thấy góp ý nội dung');
     }
 
+    const hiddenIds = await getHiddenServerIds();
+    if (hiddenIds.includes(serverId)) {
+      throw new Error('Góp ý này đã được ẩn khỏi thiết bị');
+    }
+
     if (isOnline()) {
-      const response = (await api.get(`/suggestions/${serverId}`)) as ApiResponse<ContentSuggestionResponse>;
+      const response = (await api.get(
+        `/suggestions/${serverId}`,
+      )) as ApiResponse<ContentSuggestionResponse>;
       return inflateRelatedExerciseName(mapResponseToSuggestion(unwrapApiData(response)));
     }
 
@@ -327,14 +413,58 @@ export const contentSuggestionService = {
       try {
         await syncLocalSuggestionToServer(localId);
       } catch (error) {
-        console.warn('[CONTENT_SUGGESTION] Không thể gửi ngay, đã lưu cục bộ để đồng bộ sau:', error);
+        console.warn(
+          '[CONTENT_SUGGESTION] Không thể gửi ngay, đã lưu cục bộ để đồng bộ sau:',
+          error,
+        );
       }
     }
 
     return contentSuggestionService.getByRouteId(localId);
   },
 
-  getSummary: (items: ContentSuggestionItem[]): ContentSuggestionStatusSummary => ({
+  delete: async (
+    routeId: string,
+  ): Promise<'LOCAL_DELETED' | 'DEVICE_HIDDEN'> => {
+    if (!isServerRoute(routeId)) {
+      const localRow = await contentSuggestionDBService.getById(routeId);
+      if (!localRow) {
+        throw new Error('Không tìm thấy góp ý nội dung để xóa');
+      }
+
+      await syncQueueDBService.deleteByEntity('content_suggestion', localRow.local_id);
+
+      if (localRow.server_id == null || localRow.sync_status !== 'SYNCED') {
+        await contentSuggestionDBService.deleteById(localRow.local_id);
+        return 'LOCAL_DELETED';
+      }
+
+      await hideServerSuggestion(localRow.server_id);
+      await removeCachedRemoteSuggestion(localRow.server_id);
+      await contentSuggestionDBService.deleteById(localRow.local_id);
+      return 'DEVICE_HIDDEN';
+    }
+
+    const serverId = parseServerRouteId(routeId);
+    if (serverId == null) {
+      throw new Error('Không tìm thấy góp ý nội dung để xóa');
+    }
+
+    await hideServerSuggestion(serverId);
+    await removeCachedRemoteSuggestion(serverId);
+
+    const localRow = await contentSuggestionDBService.getByServerId(serverId);
+    if (localRow) {
+      await syncQueueDBService.deleteByEntity('content_suggestion', localRow.local_id);
+      await contentSuggestionDBService.deleteById(localRow.local_id);
+    }
+
+    return 'DEVICE_HIDDEN';
+  },
+
+  getSummary: (
+    items: ContentSuggestionItem[],
+  ): ContentSuggestionStatusSummary => ({
     total: items.length,
     unreadFeedback: items.filter(
       (item) =>

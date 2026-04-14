@@ -7,32 +7,37 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthSessionRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.SessionFollowUpRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.FollowUpItemResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthSessionResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DiagnosisRecord;
+import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
 import vn.edu.fpt.doghandbook.backend.entity.HealthSession;
 import vn.edu.fpt.doghandbook.backend.entity.SessionFollowUp;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FollowUpStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionSeverity;
 import vn.edu.fpt.doghandbook.backend.entity.enums.SessionStatus;
-import vn.edu.fpt.doghandbook.backend.entity.enums.NotificationType;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
-import vn.edu.fpt.doghandbook.backend.entity.DogAssignment;
+import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DiagnosisRecordRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogAssignmentRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.HealthSessionRepository;
 import vn.edu.fpt.doghandbook.backend.repository.SessionFollowUpRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
-import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.service.HealthSessionService;
 import vn.edu.fpt.doghandbook.backend.service.NotificationService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -48,6 +53,8 @@ public class HealthSessionServiceImpl implements HealthSessionService {
     private final DiagnosisRecordRepository diagnosisRecordRepository;
     private final DogAssignmentRepository dogAssignmentRepository;
     private final NotificationService notificationService;
+    private final SyncConflictLogRepository syncConflictLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -86,7 +93,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         String title = "Phiên sức khỏe mới: " + dog.getDogName();
         String message = trainer.getFullName() + " tạo phiên theo dõi sức khỏe cho " + dog.getDogName()
                 + " (" + dog.getDogCode() + ") - " + request.getIssueSummary();
-        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+        for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dog.getDogId(), LocalDate.now())) {
             if (!a.getTrainer().getUserId().equals(trainerId)) {
                 notificationService.notifyUser(
                         a.getTrainer(), trainer,
@@ -132,6 +139,35 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         HealthSession session = healthSessionRepository.findBySessionId(request.getSessionId())
                 .orElseThrow(() -> new RuntimeException("Session not found: " + request.getSessionId()));
 
+        // Conflict detection
+        if (request.getLocalUpdatedAt() != null
+                && session.getUpdatedAt() != null
+                && session.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
+            log.warn("[SYNC:CONFLICT] health_session id={} serverTime={} > localTime={}",
+                    request.getSessionId(), session.getUpdatedAt(), request.getLocalUpdatedAt());
+
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("health_session")
+                        .entityId(session.getSessionId())
+                        .localId(session.getLocalId())
+                        .localData(objectMapper.writeValueAsString(request))
+                        .serverData(objectMapper.writeValueAsString(toResponse(session)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(trainerId)
+                        .trainerName(session.getTrainer().getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: health_session id={}", session.getSessionId());
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: health_session id={}, error={}",
+                        session.getSessionId(), ex.getMessage());
+            }
+
+            throw new SyncConflictException("Record modified on server", toResponse(session));
+        }
+
         FollowUpStatus statusUpdate = FollowUpStatus.valueOf(request.getStatusUpdate());
 
         SessionFollowUp followUp = SessionFollowUp.builder()
@@ -162,9 +198,40 @@ public class HealthSessionServiceImpl implements HealthSessionService {
 
     @Override
     @Transactional
-    public HealthSessionResponse resolve(Integer sessionId, String resolutionNotes, Integer trainerId) {
+    public HealthSessionResponse resolve(Integer sessionId, String resolutionNotes, Integer trainerId,
+                                          LocalDateTime localUpdatedAt) {
         HealthSession session = healthSessionRepository.findBySessionId(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found: " + sessionId));
+
+        // Conflict detection
+        if (localUpdatedAt != null
+                && session.getUpdatedAt() != null
+                && session.getUpdatedAt().isAfter(localUpdatedAt)) {
+            log.warn("[SYNC:CONFLICT] health_session id={} serverTime={} > localTime={}",
+                    sessionId, session.getUpdatedAt(), localUpdatedAt);
+
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("health_session")
+                        .entityId(sessionId)
+                        .localId(session.getLocalId())
+                        .localData(objectMapper.writeValueAsString(java.util.Map.of(
+                                "resolutionNotes", resolutionNotes != null ? resolutionNotes : "")))
+                        .serverData(objectMapper.writeValueAsString(toResponse(session)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(trainerId)
+                        .trainerName(session.getTrainer().getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: health_session id={}", sessionId);
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: health_session id={}, error={}",
+                        sessionId, ex.getMessage());
+            }
+
+            throw new SyncConflictException("Record modified on server", toResponse(session));
+        }
 
         session.setStatus(SessionStatus.RESOLVED);
         session.setResolvedAt(LocalDateTime.now());
@@ -178,7 +245,7 @@ public class HealthSessionServiceImpl implements HealthSessionService {
         String resolveMessage = "Phiên theo dõi sức khỏe của " + dog.getDogName() + " (" + dog.getDogCode()
                 + ") đã được xử lý xong";
         // Trainer-only: notify other trainers assigned to this dog
-        for (DogAssignment a : dogAssignmentRepository.findByDogProfileDogIdAndIsActiveTrue(dog.getDogId())) {
+        for (DogAssignment a : dogAssignmentRepository.findEffectiveByDogProfileDogId(dog.getDogId(), LocalDate.now())) {
             if (!a.getTrainer().getUserId().equals(trainerId)) {
                 notificationService.notifyUser(
                         a.getTrainer(), trainer,

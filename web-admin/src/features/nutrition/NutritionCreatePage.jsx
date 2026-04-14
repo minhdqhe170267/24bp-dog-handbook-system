@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateNutritionForm } from '../../utils/formValidation';
 
 const defaultForm = {
   rationCode: '',
@@ -45,8 +46,12 @@ const NutritionCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.rationCode.trim() || !formData.rationName.trim()) {
-      toast.error('Vui lòng nhập mã khẩu phần và tên khẩu phần');
+    const errors = validateNutritionForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin khẩu phần chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -176,12 +181,12 @@ const NutritionCreatePage = () => {
       ]}
     >
       <FormField label="Mã khẩu phần" required>
-        <FormInput value={formData.rationCode} onChange={(e) => updateField('rationCode', e.target.value)} />
+        <FormInput maxLength={50} value={formData.rationCode} onChange={(e) => updateField('rationCode', e.target.value)} />
       </FormField>
       <FormField label="Tên khẩu phần" required>
-        <FormInput value={formData.rationName} onChange={(e) => updateField('rationName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.rationName} onChange={(e) => updateField('rationName', e.target.value)} />
       </FormField>
-      <FormField label="Mức hoạt động">
+      <FormField label="Mức hoạt động" required>
         <FormSelect
           value={formData.activityLevel}
           onChange={(e) => updateField('activityLevel', e.target.value)}
@@ -194,10 +199,10 @@ const NutritionCreatePage = () => {
         />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Ghi chú đặc biệt">
-        <FormTextarea rows={3} value={formData.specialNotes} onChange={(e) => updateField('specialNotes', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.specialNotes} onChange={(e) => updateField('specialNotes', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.NUTRITION_STANDARD}
@@ -209,3 +214,4 @@ const NutritionCreatePage = () => {
 };
 
 export default NutritionCreatePage;
+

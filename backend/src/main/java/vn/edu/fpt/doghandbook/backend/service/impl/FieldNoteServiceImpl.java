@@ -7,17 +7,21 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 import vn.edu.fpt.doghandbook.backend.dto.request.FieldNoteRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.FieldNoteResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.entity.DogProfile;
 import vn.edu.fpt.doghandbook.backend.entity.FieldNote;
+import vn.edu.fpt.doghandbook.backend.entity.SyncConflictLog;
 import vn.edu.fpt.doghandbook.backend.entity.User;
+import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
 import vn.edu.fpt.doghandbook.backend.repository.DogProfileRepository;
 import vn.edu.fpt.doghandbook.backend.repository.FieldNoteRepository;
+import vn.edu.fpt.doghandbook.backend.repository.SyncConflictLogRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.FieldNoteService;
 
@@ -32,6 +36,8 @@ public class FieldNoteServiceImpl implements FieldNoteService {
     private final FieldNoteRepository fieldNoteRepository;
     private final UserRepository userRepository;
     private final DogProfileRepository dogProfileRepository;
+    private final SyncConflictLogRepository syncConflictLogRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResponse<FieldNoteResponse> getAll(int page, int size, String search) {
@@ -151,6 +157,28 @@ public class FieldNoteServiceImpl implements FieldNoteService {
                 && note.getUpdatedAt().isAfter(request.getLocalUpdatedAt())) {
             log.warn("[SYNC:CONFLICT] field_note id={} serverTime={} > localTime={}",
                     noteId, note.getUpdatedAt(), request.getLocalUpdatedAt());
+
+            // Save conflict details before throwing
+            try {
+                SyncConflictLog conflictLog = SyncConflictLog.builder()
+                        .entityType("field_note")
+                        .entityId(noteId)
+                        .localId(request.getLocalId())
+                        .localData(objectMapper.writeValueAsString(request))
+                        .serverData(objectMapper.writeValueAsString(toResponse(note)))
+                        .status(ConflictStatus.PENDING)
+                        .trainerId(trainerId)
+                        .trainerName(note.getTrainer().getFullName())
+                        .conflictDetectedAt(LocalDateTime.now())
+                        .build();
+                syncConflictLogRepository.save(conflictLog);
+                log.info("[SYNC:CONFLICT] Saved conflict log: field_note id={}, localId={}",
+                        noteId, request.getLocalId());
+            } catch (Exception ex) {
+                log.error("[SYNC:CONFLICT] Failed to save conflict log: field_note id={}, error={}",
+                        noteId, ex.getMessage());
+            }
+
             throw new SyncConflictException("Record modified on server", toResponse(note));
         }
 

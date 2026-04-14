@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Globe, Loader2, MessageSquare, Pencil, RotateCcw, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCheck,
+  Globe,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Plus,
+  RotateCcw,
+  XCircle,
+} from 'lucide-react';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import PageHeader from '../../components/shared/PageHeader';
 import EntityMediaPreview from '../../components/shared/EntityMediaPreview';
@@ -12,8 +23,10 @@ import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalS
 import {
   formatDetailEnumValue,
   getAssignmentTypeLabel,
+  getAssignmentScopeLabel,
   getContentTypeLabel,
   getRoleLabel,
+  getSuggestionTypeLabel,
   getStatusLabel,
 } from '../../utils/enumLabels';
 
@@ -31,6 +44,27 @@ const formatDateTimeValue = (value) => {
   return date.toLocaleString('vi-VN');
 };
 
+const formatAgeMonthsValue = (value, data) => {
+  if (value != null && value !== '') return `${value} tháng`;
+
+  const rawBirthDate = data?.dateOfBirth;
+  if (!rawBirthDate) return '—';
+
+  const birthDate = new Date(rawBirthDate);
+  if (Number.isNaN(birthDate.getTime())) return '—';
+
+  const now = new Date();
+  let months =
+    (now.getFullYear() - birthDate.getFullYear()) * 12 +
+    (now.getMonth() - birthDate.getMonth());
+
+  if (now.getDate() < birthDate.getDate()) {
+    months -= 1;
+  }
+
+  return `${Math.max(0, months)} tháng`;
+};
+
 const APPROVAL_DECISION_LABELS = {
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
@@ -40,6 +74,13 @@ const APPROVAL_DECISION_LABELS = {
 
 const getApprovalDecisionLabel = (decision) =>
   APPROVAL_DECISION_LABELS[String(decision || '').trim().toUpperCase()] || toText(decision);
+
+const getApprovalDecisionColorClass = (decision) => {
+  const normalized = String(decision || '').trim().toUpperCase();
+  if (normalized === 'APPROVED') return 'text-emerald-600 dark:text-emerald-300';
+  if (normalized === 'REJECTED') return 'text-red-600 dark:text-red-300';
+  return 'text-muted-foreground';
+};
 
 const toText = (value) => {
   if (value === null || value === undefined || value === '') return '—';
@@ -69,6 +110,7 @@ const REVIEW_APPROVAL_ENTITY_TYPES = new Set([
   'MEDICATION',
   'FIRST_AID_GUIDE',
 ]);
+const ACTION_COMMENT_MAX_LENGTH = 255;
 
 const ENTITY_CONFIG = {
   CONTENT: {
@@ -121,6 +163,7 @@ const ENTITY_CONFIG = {
       { key: 'breedName', label: 'Giống chó' },
       { key: 'gender', label: 'Giới tính', render: (value) => formatDetailEnumValue('gender', value) },
       { key: 'dateOfBirth', label: 'Ngày sinh', render: (value) => formatDateValue(value) },
+      { key: 'ageMonths', label: 'Tháng tuổi', render: (value, row) => formatAgeMonthsValue(value, row) },
       { key: 'currentWeightKg', label: 'Cân nặng', render: (value) => (value == null ? '—' : `${value} kg`) },
       { key: 'heightCm', label: 'Chiều cao', render: (value) => (value == null ? '—' : `${value} cm`) },
       { key: 'color', label: 'Màu lông' },
@@ -188,11 +231,38 @@ const ENTITY_CONFIG = {
       { key: 'breedName', label: 'Giống chó' },
       { key: 'targetRole', label: 'Vai trò mục tiêu', render: (value) => formatDetailEnumValue('targetRole', value) },
       { key: 'totalDurationWeeks', label: 'Tổng thời gian (tuần)' },
-      { key: 'phaseName', label: 'Tên giai đoạn' },
-      { key: 'phaseOrder', label: 'Thứ tự giai đoạn' },
-      { key: 'phaseDurationWeeks', label: 'Thời gian giai đoạn (tuần)' },
-      { key: 'phaseObjectives', label: 'Mục tiêu giai đoạn', textarea: true },
-      { key: 'assessmentCriteria', label: 'Tiêu chí đánh giá', textarea: true },
+      { key: 'totalPhases', label: 'Tổng số giai đoạn' },
+      {
+        key: 'phases',
+        label: 'Danh sách giai đoạn',
+        textarea: true,
+        render: (value, row) => {
+          const phases = Array.isArray(value) ? value : Array.isArray(row?.phases) ? row.phases : [];
+          if (phases.length > 0) {
+            const sortedPhases = [...phases].sort(
+              (left, right) => Number(left?.phaseOrder || 0) - Number(right?.phaseOrder || 0)
+            );
+            return sortedPhases
+              .map((phase) => {
+                const phaseOrder = phase?.phaseOrder ? `GĐ ${phase.phaseOrder}` : 'GĐ';
+                const phaseName = phase?.phaseName || 'Chưa đặt tên';
+                const phaseDuration = phase?.phaseDurationWeeks ? ` (${phase.phaseDurationWeeks} tuần)` : '';
+                const exerciseCount = Number(phase?.totalExercises || 0);
+                const exerciseSuffix = exerciseCount > 0 ? ` - ${exerciseCount} bài tập` : '';
+                return `${phaseOrder}: ${phaseName}${phaseDuration}${exerciseSuffix}`;
+              })
+              .join('\n');
+          }
+
+          if (row?.phaseName) {
+            const phaseOrder = row?.phaseOrder ? `GĐ ${row.phaseOrder}: ` : '';
+            const phaseDuration = row?.phaseDurationWeeks ? ` (${row.phaseDurationWeeks} tuần)` : '';
+            return `${phaseOrder}${row.phaseName}${phaseDuration}`;
+          }
+
+          return '—';
+        },
+      },
       { key: 'description', label: 'Mô tả', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
@@ -215,6 +285,22 @@ const ENTITY_CONFIG = {
       { key: 'disadvantages', label: 'Nhược điểm', textarea: true },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
       { key: 'createdByName', label: 'Người tạo' },
+      { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
+      { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
+    ],
+  },
+  TRAINING_SPECIALTY: {
+    label: 'Chuyên ngành huấn luyện',
+    endpoint: '/training-specialties',
+    listPath: '/training/specialties',
+    getEditPath: (entityId) => `/training/specialties/${entityId}/edit`,
+    idKey: 'specialtyId',
+    fields: [
+      { key: 'specialtyCode', label: 'Mã chuyên ngành' },
+      { key: 'specialtyName', label: 'Tên chuyên ngành' },
+      { key: 'description', label: 'Mô tả', textarea: true },
+      { key: 'version', label: 'Phiên bản' },
+      { key: 'isActive', label: 'Trạng thái', render: (value) => value === false ? 'Ngừng hoạt động' : 'Hoạt động' },
       { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
       { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
     ],
@@ -293,6 +379,7 @@ const ENTITY_CONFIG = {
       { key: 'trainerName', label: 'Huấn luyện viên' },
       { key: 'trainerUsername', label: 'Tên đăng nhập HLV' },
       { key: 'assignmentType', label: 'Loại phân công', render: (value) => getAssignmentTypeLabel(value) },
+      { key: 'assignmentScope', label: 'Phạm vi', render: (value) => getAssignmentScopeLabel(value) },
       { key: 'startDate', label: 'Ngày bắt đầu', render: (value) => formatDateValue(value) },
       { key: 'endDate', label: 'Ngày kết thúc', render: (value) => formatDateValue(value) },
       { key: 'isActive', label: 'Trạng thái', render: (value) => formatDetailEnumValue('isActive', value) },
@@ -330,11 +417,12 @@ const ENTITY_CONFIG = {
     fields: [
       { key: 'title', label: 'Tiêu đề' },
       { key: 'description', label: 'Nội dung', textarea: true },
+      { key: 'suggestionType', label: 'Loại đề xuất', render: (value, row) => getSuggestionTypeLabel(value || row?.contentType) },
       { key: 'status', label: 'Trạng thái', render: (value) => getStatusLabel(value) },
-      { key: 'submittedByName', label: 'Người gửi' },
+      { key: 'trainerName', label: 'Người gửi', render: (value, row) => value || row?.submittedByName || '—' },
       { key: 'adminResponse', label: 'Phản hồi', textarea: true },
-      { key: 'updatedAt', label: 'Cập nhật', render: (value) => formatDateTimeValue(value) },
-      { key: 'createdAt', label: 'Ngày tạo', render: (value) => formatDateTimeValue(value) },
+      { key: 'reviewedAt', label: 'Đã phản hồi lúc', render: (value, row) => formatDateTimeValue(value || row?.updatedAt) },
+      { key: 'submittedAt', label: 'Ngày gửi', render: (value, row) => formatDateTimeValue(value || row?.createdAt) },
     ],
   },
 };
@@ -438,7 +526,7 @@ const EntityDetailPage = () => {
         if (active) {
           setLatestReviewerFeedback(latest && String(latest?.comments || '').trim() ? latest : null);
         }
-      } catch (error) {
+      } catch {
         if (active) setLatestReviewerFeedback(null);
       } finally {
         if (active) setReviewerFeedbackLoading(false);
@@ -467,6 +555,7 @@ const EntityDetailPage = () => {
   };
 
   const workflowStatus = normalizeStatusValue(data?.status);
+  const entityLabelLower = String(config?.label || 'dữ liệu').toLowerCase();
   const canRoleEdit = isAdmin || isEditor;
   const canReviewFromDetail =
     isWorkflowEntity && (isReviewer || (isAdmin && isApprovalContext));
@@ -490,7 +579,7 @@ const EntityDetailPage = () => {
   }, [canManageWorkflowFromDetail, canRoleEdit, config, data?.status, resolvedEntityId, workflowStatus]);
 
   const executeAction = useCallback(
-    async ({ action, title, successMessage, comment = '' }) => {
+    async ({ action, title, successMessage, comment = '', redirectTo = '' }) => {
       if (resolvedEntityId === null || resolvedEntityId === undefined || resolvedEntityId === '') return;
       if (!isWorkflowEntity) return;
 
@@ -505,17 +594,23 @@ const EntityDetailPage = () => {
         } else if (action === 'UNPUBLISH') {
           await approvalService.unpublish(entityType, resolvedEntityId);
         } else {
-          return;
+          return false;
         }
         toast.success(successMessage);
+        if (redirectTo) {
+          navigate(redirectTo, { replace: true });
+          return true;
+        }
         await fetchDetail();
+        return true;
       } catch (error) {
         toast.error(error, { title });
+        return false;
       } finally {
         setActionLoading(false);
       }
     },
-    [entityType, fetchDetail, isWorkflowEntity, resolvedEntityId, toast]
+    [entityType, fetchDetail, isWorkflowEntity, navigate, resolvedEntityId, toast]
   );
 
   const handleApprove = () =>
@@ -523,19 +618,20 @@ const EntityDetailPage = () => {
       action: 'APPROVE',
       title: 'Không thể duyệt nội dung',
       successMessage: 'Duyệt thành công',
+      redirectTo: '/approval',
     });
 
   const handlePublish = () =>
     executeAction({
       action: 'PUBLISH',
-      title: 'Không thể xuất bản',
+      title: `Không thể xuất bản ${entityLabelLower}`,
       successMessage: 'Đã xuất bản thành công',
     });
 
   const handleUnpublish = () =>
     executeAction({
       action: 'UNPUBLISH',
-      title: 'Không thể gỡ xuất bản',
+      title: `Không thể gỡ xuất bản ${entityLabelLower}`,
       successMessage: 'Đã gỡ xuất bản thành công',
     });
 
@@ -556,12 +652,18 @@ const EntityDetailPage = () => {
       toast.warning('Vui lòng nhập lý do từ chối');
       return;
     }
-    await executeAction({
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Lý do từ chối tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
+      return;
+    }
+    const success = await executeAction({
       action: 'REJECT',
       title: 'Không thể từ chối nội dung',
       successMessage: 'Đã từ chối nội dung',
       comment,
+      redirectTo: '/approval',
     });
+    if (!success) return;
     setRejectModalOpen(false);
     setRejectComment('');
   };
@@ -584,6 +686,10 @@ const EntityDetailPage = () => {
       toast.warning('Vui lòng nhập phản hồi trước khi gửi');
       return;
     }
+    if (comment.length > ACTION_COMMENT_MAX_LENGTH) {
+      toast.warning(`Phản hồi tối đa ${ACTION_COMMENT_MAX_LENGTH} ký tự`);
+      return;
+    }
     if (resolvedEntityId === null || resolvedEntityId === undefined || resolvedEntityId === '') return;
 
     setSuggestionResponding(true);
@@ -595,7 +701,7 @@ const EntityDetailPage = () => {
       toast.success(nextStatus === 'ACCEPTED' ? 'Đã chấp nhận đề xuất' : 'Đã từ chối đề xuất');
       setSuggestionResponseOpen(false);
       setSuggestionResponse('');
-      await fetchDetail();
+      navigate('/suggestions', { replace: true });
     } catch (error) {
       toast.error(error, { title: 'Không thể phản hồi đề xuất' });
     } finally {
@@ -691,6 +797,9 @@ const EntityDetailPage = () => {
       });
     }
 
+    // Enrollment buttons hidden
+    // if (entityType === 'DOG_PROFILE' && isAdmin && resolvedEntityId) { ... }
+
     return buttons;
   };
 
@@ -738,7 +847,7 @@ const EntityDetailPage = () => {
           <div className="py-8 text-sm text-muted-foreground">Không có dữ liệu chi tiết</div>
         ) : (
           <div className="space-y-3">
-            {isWorkflowEntity && (
+            {isWorkflowEntity && (reviewerFeedbackLoading || latestReviewerFeedback) && (
               <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h3 className="text-sm font-semibold text-foreground">Phản hồi từ người duyệt</h3>
@@ -750,16 +859,17 @@ const EntityDetailPage = () => {
                   <div className="space-y-1.5">
                     <p className="text-xs text-muted-foreground">
                       {latestReviewerFeedback?.reviewerName || 'Reviewer'} •{' '}
-                      {getApprovalDecisionLabel(latestReviewerFeedback?.decision)} •{' '}
+                      <span className={getApprovalDecisionColorClass(latestReviewerFeedback?.decision)}>
+                        {getApprovalDecisionLabel(latestReviewerFeedback?.decision)}
+                      </span>{' '}
+                      •{' '}
                       {formatDateTimeValue(latestReviewerFeedback?.reviewedAt)}
                     </p>
                     <p className="text-sm text-foreground whitespace-pre-wrap">
                       {latestReviewerFeedback?.comments}
                     </p>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Chưa có nhận xét từ reviewer</p>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -807,8 +917,12 @@ const EntityDetailPage = () => {
       >
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Nhập lý do từ chối để gửi lại cho người biên tập.</p>
+          <label className="block text-sm font-medium text-foreground">
+            Lý do từ chối <span className="text-destructive">*</span>
+          </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={rejectComment}
             onChange={(event) => setRejectComment(event.target.value)}
             placeholder="Nhập lý do từ chối..."
@@ -847,8 +961,12 @@ const EntityDetailPage = () => {
           <p className="text-sm text-muted-foreground">
             Nhập phản hồi của quản trị viên để chấp nhận hoặc từ chối đề xuất.
           </p>
+          <label className="block text-sm font-medium text-foreground">
+            Phản hồi <span className="text-destructive">*</span>
+          </label>
           <FormTextarea
             rows={5}
+            maxLength={ACTION_COMMENT_MAX_LENGTH}
             value={suggestionResponse}
             onChange={(event) => setSuggestionResponse(event.target.value)}
             placeholder="Nhập phản hồi..."

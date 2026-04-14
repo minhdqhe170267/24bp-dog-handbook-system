@@ -1,5 +1,6 @@
 ### Gradle ###
 .gradle/
+.gradle-user-home/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -39,3 +40,4 @@ bin/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+migration_check_source.sql

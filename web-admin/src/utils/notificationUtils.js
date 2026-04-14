@@ -25,6 +25,8 @@ const TYPE_FALLBACK_ROUTE_MAP = {
   CONTENT_UNPUBLISHED: '/content',
   SUGGESTION_SUBMITTED: '/suggestions',
   SUGGESTION_REVIEWED: '/suggestions',
+  SYNC_CONFLICT: '/sync-conflicts',
+  REPEATED_SYNC_FAILURE: '/sync-conflicts',
 };
 
 const TYPE_LABEL_MAP = {
@@ -36,6 +38,8 @@ const TYPE_LABEL_MAP = {
   CONTENT_UNPUBLISHED: 'Gỡ xuất bản',
   SUGGESTION_SUBMITTED: 'Đề xuất mới',
   SUGGESTION_REVIEWED: 'Đã phản hồi',
+  SYNC_CONFLICT: 'Xung đột đồng bộ',
+  REPEATED_SYNC_FAILURE: 'Lỗi đồng bộ lặp lại',
 };
 
 const ENTITY_LABEL_MAP = {
@@ -67,6 +71,12 @@ const REVIEW_APPROVAL_ENTITY_TYPES = new Set([
   'DISEASE',
   'MEDICATION',
   'FIRST_AID_GUIDE',
+]);
+
+const APPROVAL_REVIEW_NOTIFICATION_TYPES = new Set([
+  'CONTENT_APPROVED',
+  'CONTENT_REJECTED',
+  'CONTENT_REVISION_REQUESTED',
 ]);
 
 const toLabel = (value) =>
@@ -115,6 +125,9 @@ export const resolveNotificationRoute = (notification, options = {}) => {
   const entityType = String(notification?.entityType || '').toUpperCase();
   const entityId = Number(notification?.entityId) || null;
   const type = String(notification?.type || '').toUpperCase();
+  if (type === 'SYNC_CONFLICT' || type === 'REPEATED_SYNC_FAILURE') {
+    return '/sync-conflicts';
+  }
   const returnContext = resolveReturnContext({
     entityType,
     type,
@@ -135,6 +148,35 @@ export const resolveNotificationRoute = (notification, options = {}) => {
   }
 
   return TYPE_FALLBACK_ROUTE_MAP[type] || '/dashboard';
+};
+
+export const getNotificationFeedbackMeta = (notification) => {
+  const type = String(notification?.type || '').trim().toUpperCase();
+  const entityType = String(notification?.entityType || '').trim().toUpperCase();
+  const entityId = Number(notification?.entityId);
+
+  if (!Number.isFinite(entityId) || entityId <= 0) return null;
+
+  if (APPROVAL_REVIEW_NOTIFICATION_TYPES.has(type)) {
+    if (!entityType) return null;
+    return {
+      key: `APPROVAL:${entityType}:${entityId}`,
+      source: 'approval',
+      entityType,
+      entityId,
+    };
+  }
+
+  if (type === 'SUGGESTION_REVIEWED') {
+    return {
+      key: `SUGGESTION:${entityId}`,
+      source: 'suggestion',
+      entityType,
+      entityId,
+    };
+  }
+
+  return null;
 };
 
 const MINUTE_MS = 60 * 1000;

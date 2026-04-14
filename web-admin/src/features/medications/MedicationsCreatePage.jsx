@@ -8,6 +8,7 @@ import { medicationService } from '../../services/medicationService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateMedicationForm } from '../../utils/formValidation';
 
 const defaultForm = {
   medicationName: '',
@@ -49,8 +50,12 @@ const MedicationsCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.medicationName.trim()) {
-      toast.error('Vui lòng nhập tên thuốc');
+    const errors = validateMedicationForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin thuốc chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -184,25 +189,25 @@ const MedicationsCreatePage = () => {
       ]}
     >
       <FormField label="Tên thuốc" required>
-        <FormInput value={formData.medicationName} onChange={(e) => updateField('medicationName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.medicationName} onChange={(e) => updateField('medicationName', e.target.value)} />
       </FormField>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Liều dùng">
-        <FormTextarea rows={2} value={formData.dosageInstructions} onChange={(e) => updateField('dosageInstructions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.dosageInstructions} onChange={(e) => updateField('dosageInstructions', e.target.value)} />
       </FormField>
       <FormField label="Phương pháp dùng">
-        <FormInput value={formData.administrationMethod} onChange={(e) => updateField('administrationMethod', e.target.value)} />
+        <FormInput maxLength={200} value={formData.administrationMethod} onChange={(e) => updateField('administrationMethod', e.target.value)} />
       </FormField>
       <FormField label="Tác dụng phụ">
-        <FormTextarea rows={2} value={formData.sideEffects} onChange={(e) => updateField('sideEffects', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.sideEffects} onChange={(e) => updateField('sideEffects', e.target.value)} />
       </FormField>
       <FormField label="Chống chỉ định">
-        <FormTextarea rows={2} value={formData.contraindications} onChange={(e) => updateField('contraindications', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.contraindications} onChange={(e) => updateField('contraindications', e.target.value)} />
       </FormField>
       <FormField label="Bảo quản">
-        <FormTextarea rows={2} value={formData.storageRequirements} onChange={(e) => updateField('storageRequirements', e.target.value)} />
+        <FormTextarea maxLength={255} rows={2} value={formData.storageRequirements} onChange={(e) => updateField('storageRequirements', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.MEDICATION}
@@ -214,3 +219,4 @@ const MedicationsCreatePage = () => {
 };
 
 export default MedicationsCreatePage;
+

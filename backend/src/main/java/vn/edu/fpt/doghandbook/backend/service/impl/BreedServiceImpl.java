@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.BreedRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.BreedCompareResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.BreedResponse;
@@ -23,6 +24,7 @@ import vn.edu.fpt.doghandbook.backend.repository.DevelopmentStageRepository;
 import vn.edu.fpt.doghandbook.backend.repository.DogBreedRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.BreedService;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -37,6 +39,7 @@ public class BreedServiceImpl implements BreedService {
     private final DogBreedRepository dogBreedRepository;
     private final DevelopmentStageRepository developmentStageRepository;
     private final UserRepository userRepository;
+    private final CloudinaryService cloudinaryService;
 
     private static final Map<TrainabilityLevel, Integer> TRAINABILITY_RANK = Map.of(
             TrainabilityLevel.LOW, 1,
@@ -79,12 +82,13 @@ public class BreedServiceImpl implements BreedService {
     }
 
     @Override
-    public BreedResponse create(BreedRequest request, Integer createdByUserId) {
+    public BreedResponse create(BreedRequest request, Integer createdByUserId, MultipartFile image) {
         if (dogBreedRepository.existsByBreedNameAndIsDeletedFalse(request.getBreedName())) {
             throw new BadRequestException("Giống chó '" + request.getBreedName() + "' đã tồn tại");
         }
 
         User createdBy = userRepository.findById(createdByUserId).orElse(null);
+        String imageUrl = resolveImageUrl(image);
 
         DogBreed breed = DogBreed.builder()
                 .breedName(request.getBreedName())
@@ -100,7 +104,7 @@ public class BreedServiceImpl implements BreedService {
                 .trainabilityLevel(parseTrainabilityLevel(request.getTrainabilityLevel()))
                 .operationalCapabilities(request.getOperationalCapabilities())
                 .metadata(request.getMetadata())
-                .imageUrl(request.getImageUrl())
+                .imageUrl(imageUrl)
                 .status(ContentStatus.DRAFT)
                 .createdBy(createdBy)
                 .isDeleted(false)
@@ -110,7 +114,7 @@ public class BreedServiceImpl implements BreedService {
     }
 
     @Override
-    public BreedResponse update(Integer id, BreedRequest request) {
+    public BreedResponse update(Integer id, BreedRequest request, MultipartFile image) {
         DogBreed breed = dogBreedRepository.findByBreedIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Giống chó", "id", id));
 
@@ -136,7 +140,10 @@ public class BreedServiceImpl implements BreedService {
         breed.setTrainabilityLevel(parseTrainabilityLevel(request.getTrainabilityLevel()));
         breed.setOperationalCapabilities(request.getOperationalCapabilities());
         breed.setMetadata(request.getMetadata());
-        breed.setImageUrl(request.getImageUrl());
+        String newImageUrl = resolveImageUrl(image);
+        if (newImageUrl != null) {
+            breed.setImageUrl(newImageUrl);
+        }
 
         if (breed.getStatus() == ContentStatus.REJECTED) {
             breed.setStatus(ContentStatus.DRAFT);
@@ -220,6 +227,13 @@ public class BreedServiceImpl implements BreedService {
                 .stream()
                 .map(this::toDevelopmentStageResponse)
                 .toList();
+    }
+
+    private String resolveImageUrl(MultipartFile image) {
+        if (image != null && !image.isEmpty()) {
+            return cloudinaryService.upload(image, "image").secureUrl();
+        }
+        return null;
     }
 
     // ── Helpers ──────────────────────────────────────────────

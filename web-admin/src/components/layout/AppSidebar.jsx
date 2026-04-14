@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../utils/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
+import syncConflictService from '../../services/syncConflictService';
 import {
     LayoutDashboard, Dog, Pill, Apple, Dumbbell, Stethoscope, UserCheck,
     ChevronDown, ChevronLeft, BookOpen, Route, HeartPulse,
-    FileText, CheckCircle, Lightbulb, Upload, Download,
+    FileText, CheckCircle, Lightbulb, Upload, Download, AlertTriangle,
     Settings, ClipboardList, Users,
 } from 'lucide-react';
 
@@ -28,10 +29,11 @@ const allNavItems = [
         ]
     },
     {
-        label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'], children: [
-            { label: 'Bài tập', href: '/training/exercises', icon: BookOpen },
-            { label: 'Phương pháp', href: '/training/methods', icon: Dumbbell },
-            { label: 'Lộ trình', href: '/training/roadmaps', icon: Route },
+        label: 'Huấn luyện', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR', 'TRAINER'], children: [
+            { label: 'Bài tập', href: '/training/exercises', icon: BookOpen, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Phương pháp', href: '/training/methods', icon: Dumbbell, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Chuyên ngành', href: '/training/specialties', icon: BookOpen, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Lộ trình', href: '/training/roadmaps', icon: Route, roles: ['ADMIN', 'CONTENT_EDITOR'] },
         ]
     },
     {
@@ -42,8 +44,15 @@ const allNavItems = [
             { label: 'Sơ cứu', href: '/medical', icon: Stethoscope },
         ]
     },
-    { label: 'Import dữ liệu', icon: Upload, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
-    { label: 'Export dữ liệu', icon: Download, href: '/export-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Import dữ liệu', icon: Download, href: '/import-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    { label: 'Export dữ liệu', icon: Upload, href: '/export-data', roles: ['ADMIN', 'CONTENT_EDITOR'] },
+    {
+        label: 'Xung đột đồng bộ',
+        icon: AlertTriangle,
+        href: '/sync-conflicts',
+        roles: ['ADMIN'],
+        badgeKey: 'syncConflictPending',
+    },
     {
         label: 'Quản trị Hệ thống', icon: Settings, roles: ['ADMIN'], children: [
             { label: 'Quản lý người dùng', href: '/system/users', icon: Users },
@@ -68,9 +77,48 @@ const filterByRole = (items, role) => {
 const AppSidebar = () => {
     const [collapsed, setCollapsed] = useState(false);
     const [openGroups, setOpenGroups] = useState(['Quản lý Nội dung', 'Quản lý chó', 'Huấn luyện', 'Sức khỏe', 'Quản trị Hệ thống']);
+    const [syncConflictPendingCount, setSyncConflictPendingCount] = useState(0);
     const location = useLocation();
     const { user } = useAuth();
     const navItems = useMemo(() => filterByRole(allNavItems, user?.role), [user?.role]);
+    const canSeeConflictMenu = user?.role === 'ADMIN';
+    const visibleSyncConflictPendingCount = canSeeConflictMenu ? syncConflictPendingCount : 0;
+
+    useEffect(() => {
+        if (!canSeeConflictMenu) return undefined;
+
+        let mounted = true;
+
+        const fetchPendingCount = async () => {
+            try {
+                const count = await syncConflictService.getPendingCount();
+                if (mounted) {
+                    setSyncConflictPendingCount(count);
+                }
+            } catch {
+                // keep silent to avoid noisy UX in sidebar polling
+            }
+        };
+
+        fetchPendingCount();
+        const interval = setInterval(fetchPendingCount, 30000);
+
+        const onRefresh = () => fetchPendingCount();
+        const onCountUpdated = (event) => {
+            const nextPending = Number(event?.detail?.pending);
+            if (!mounted || !Number.isFinite(nextPending)) return;
+            setSyncConflictPendingCount(nextPending);
+        };
+
+        window.addEventListener('sync-conflicts:refresh-count', onRefresh);
+        window.addEventListener('sync-conflicts:count-updated', onCountUpdated);
+        return () => {
+            mounted = false;
+            clearInterval(interval);
+            window.removeEventListener('sync-conflicts:refresh-count', onRefresh);
+            window.removeEventListener('sync-conflicts:count-updated', onCountUpdated);
+        };
+    }, [canSeeConflictMenu]);
 
     const toggleGroup = (label) => {
         setOpenGroups((prev) =>
@@ -96,7 +144,7 @@ const AppSidebar = () => {
                 </div>
                 <AnimatePresence>
                     {!collapsed && (
-                        <motion.div
+                        <Motion.div
                             className="overflow-hidden"
                             initial={{ opacity: 0, width: 0 }}
                             animate={{ opacity: 1, width: 'auto' }}
@@ -105,7 +153,7 @@ const AppSidebar = () => {
                         >
                             <h1 className="text-sm font-bold text-white truncate tracking-tight">24BP DHS</h1>
                             <p className="text-[10px] text-white/70 truncate">Dog Handbook System</p>
-                        </motion.div>
+                        </Motion.div>
                     )}
                 </AnimatePresence>
             </div>
@@ -130,22 +178,34 @@ const AppSidebar = () => {
                                         : 'hover:bg-sidebar-accent/80 text-sidebar-foreground/70 hover:text-sidebar-accent-foreground'
                                 )}
                             >
-                                <Icon className={cn(
-                                    'h-[18px] w-[18px] flex-shrink-0 transition-transform duration-200',
-                                    !isActive(item.href) && 'group-hover:scale-110'
-                                )} />
+                                <div className="relative">
+                                    <Icon className={cn(
+                                        'h-[18px] w-[18px] flex-shrink-0 transition-transform duration-200',
+                                        !isActive(item.href) && 'group-hover:scale-110'
+                                    )} />
+                                    {item.badgeKey === 'syncConflictPending' && visibleSyncConflictPendingCount > 0 && collapsed ? (
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[9px] leading-none flex items-center justify-center font-semibold">
+                                            {visibleSyncConflictPendingCount > 9 ? '9+' : visibleSyncConflictPendingCount}
+                                        </span>
+                                    ) : null}
+                                </div>
                                 <AnimatePresence>
                                     {!collapsed && (
-                                        <motion.span
-                                            className="truncate"
+                                        <Motion.span
+                                            className="truncate flex-1"
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                         >
                                             {item.label}
-                                        </motion.span>
+                                        </Motion.span>
                                     )}
                                 </AnimatePresence>
+                                {!collapsed && item.badgeKey === 'syncConflictPending' && visibleSyncConflictPendingCount > 0 ? (
+                                    <span className="ml-auto inline-flex min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold items-center justify-center">
+                                        {visibleSyncConflictPendingCount > 99 ? '99+' : visibleSyncConflictPendingCount}
+                                    </span>
+                                ) : null}
                             </Link>
                         );
                     }
@@ -164,26 +224,26 @@ const AppSidebar = () => {
                                 <Icon className="h-[18px] w-[18px] flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
                                 <AnimatePresence>
                                     {!collapsed && (
-                                        <motion.div
+                                        <Motion.div
                                             className="flex items-center flex-1 min-w-0"
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             exit={{ opacity: 0 }}
                                         >
                                             <span className="truncate flex-1 text-left">{item.label}</span>
-                                            <motion.div
+                                            <Motion.div
                                                 animate={{ rotate: isOpen ? 180 : 0 }}
                                                 transition={{ duration: 0.2 }}
                                             >
                                                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-                                            </motion.div>
-                                        </motion.div>
+                                            </Motion.div>
+                                        </Motion.div>
                                     )}
                                 </AnimatePresence>
                             </button>
                             <AnimatePresence>
                                 {!collapsed && isOpen && (
-                                    <motion.div
+                                    <Motion.div
                                         className="ml-4 pl-3 border-l border-sidebar-border/50 mt-1 space-y-0.5 overflow-hidden"
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
@@ -193,7 +253,7 @@ const AppSidebar = () => {
                                         {item.children.map((child, i) => {
                                             const ChildIcon = child.icon;
                                             return (
-                                                <motion.div
+                                                <Motion.div
                                                     key={child.href}
                                                     initial={{ x: -10, opacity: 0 }}
                                                     animate={{ x: 0, opacity: 1 }}
@@ -211,10 +271,10 @@ const AppSidebar = () => {
                                                         {ChildIcon && <ChildIcon className="h-3.5 w-3.5" />}
                                                         <span className="truncate">{child.label}</span>
                                                     </Link>
-                                                </motion.div>
+                                                </Motion.div>
                                             );
                                         })}
-                                    </motion.div>
+                                    </Motion.div>
                                 )}
                             </AnimatePresence>
                         </div>
@@ -228,9 +288,9 @@ const AppSidebar = () => {
                     className="w-full flex items-center justify-center py-2 rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/80 transition-all duration-200"
                     onClick={() => setCollapsed(!collapsed)}
                 >
-                    <motion.div animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.3 }}>
+                    <Motion.div animate={{ rotate: collapsed ? 0 : 180 }} transition={{ duration: 0.3 }}>
                         <ChevronLeft className="h-4 w-4" />
-                    </motion.div>
+                    </Motion.div>
                 </button>
             </div>
         </aside>

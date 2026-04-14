@@ -18,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FollowUpStatus;
 
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "session_follow_up")
+@SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -66,11 +68,21 @@ public class SessionFollowUp {
     @Column(name = "updated_at", nullable = true)
     private LocalDateTime updatedAt;
 
+    @Builder.Default
+    @Column(name = "is_deleted", nullable = false)
+    private Boolean isDeleted = false;
+
+    @Column(name = "deleted_at", nullable = true)
+    private LocalDateTime deletedAt;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         if (this.followupDate == null) {
             this.followupDate = now;
+        }
+        if (this.isDeleted == null) {
+            this.isDeleted = false;
         }
         this.updatedAt = now;
     }

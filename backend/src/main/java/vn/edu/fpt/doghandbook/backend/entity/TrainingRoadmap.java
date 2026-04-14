@@ -13,20 +13,20 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.SQLRestriction;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ContentStatus;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "training_roadmap")
+@Table(name = "training_program")
 @SQLRestriction("is_deleted = 0")
 @Getter
 @Setter
@@ -43,9 +43,16 @@ public class TrainingRoadmap {
     @Column(name = "roadmap_name", nullable = false)
     private String roadmapName;
 
+    @Column(name = "roadmap_order", nullable = false)
+    private Integer roadmapOrder;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "breed_id", nullable = true)
     private DogBreed dogBreed;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "specialty_id", nullable = false)
+    private TrainingSpecialty trainingSpecialty;
 
     @Column(name = "target_role", nullable = true)
     private String targetRole;
@@ -55,21 +62,6 @@ public class TrainingRoadmap {
 
     @Column(name = "total_duration_weeks", nullable = true)
     private Integer totalDurationWeeks;
-
-    @Column(name = "phase_name", nullable = false)
-    private String phaseName;
-
-    @Column(name = "phase_order", nullable = false)
-    private Integer phaseOrder;
-
-    @Column(name = "phase_duration_weeks", nullable = true)
-    private Integer phaseDurationWeeks;
-
-    @Column(name = "phase_objectives", nullable = true)
-    private String phaseObjectives;
-
-    @Column(name = "assessment_criteria", nullable = true)
-    private String assessmentCriteria;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
@@ -105,6 +97,9 @@ public class TrainingRoadmap {
 
         if (this.status == null) {
             this.status = ContentStatus.DRAFT;
+        }
+        if (this.roadmapOrder == null || this.roadmapOrder <= 0) {
+            this.roadmapOrder = 1;
         }
         if (this.isDeleted == null) {
             this.isDeleted = false;

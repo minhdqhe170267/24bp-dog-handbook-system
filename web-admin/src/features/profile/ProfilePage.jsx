@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
 import { userService } from '../../services/userService';
 import { getRoleLabel } from '../../utils/enumLabels';
+import { validateProfileForm } from '../../utils/formValidation';
 
 const EMPTY_PASSWORD_FORM = {
   newPassword: '',
@@ -92,11 +93,15 @@ const ProfilePage = () => {
       return;
     }
 
-    const fullName = String(profileForm.fullName || '').trim();
-    if (!fullName) {
-      toast.error('Họ tên không được để trống');
+    const errors = validateProfileForm(profileForm);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hồ sơ chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
+    const fullName = String(profileForm.fullName || '').trim();
 
     setSavingProfile(true);
     try {
@@ -221,6 +226,7 @@ const ProfilePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Họ tên" required>
                 <FormInput
+                  maxLength={100}
                   value={profileForm.fullName}
                   onChange={(event) => updateProfileField('fullName', event.target.value)}
                   placeholder="Nhập họ tên"
@@ -242,6 +248,8 @@ const ProfilePage = () => {
               </FormField>
               <FormField label="Email">
                 <FormInput
+                  type="email"
+                  maxLength={150}
                   value={profileForm.email}
                   onChange={(event) => updateProfileField('email', event.target.value)}
                   placeholder="Nhập email"
@@ -249,6 +257,9 @@ const ProfilePage = () => {
               </FormField>
               <FormField label="Số điện thoại">
                 <FormInput
+                  maxLength={12}
+                  inputMode="tel"
+                  pattern="^(\\+84|0)[0-9]{9,10}$"
                   value={profileForm.phone}
                   onChange={(event) => updateProfileField('phone', event.target.value)}
                   placeholder="Nhập số điện thoại"
@@ -256,6 +267,7 @@ const ProfilePage = () => {
               </FormField>
               <FormField label="Đơn vị">
                 <FormInput
+                  maxLength={100}
                   value={profileForm.unit}
                   onChange={(event) => updateProfileField('unit', event.target.value)}
                   placeholder="Nhập đơn vị"
@@ -263,6 +275,7 @@ const ProfilePage = () => {
               </FormField>
               <FormField label="Cấp bậc">
                 <FormInput
+                  maxLength={50}
                   value={profileForm.militaryRank}
                   onChange={(event) => updateProfileField('militaryRank', event.target.value)}
                   placeholder="Nhập cấp bậc"
@@ -314,6 +327,8 @@ const ProfilePage = () => {
               <FormField label="Mật khẩu mới" required>
                 <FormInput
                   type="password"
+                  minLength={6}
+                  maxLength={100}
                   value={passwordForm.newPassword}
                   onChange={(event) => updatePasswordField('newPassword', event.target.value)}
                   placeholder="Tối thiểu 6 ký tự"
@@ -322,6 +337,8 @@ const ProfilePage = () => {
               <FormField label="Xác nhận mật khẩu mới" required>
                 <FormInput
                   type="password"
+                  minLength={6}
+                  maxLength={100}
                   value={passwordForm.confirmPassword}
                   onChange={(event) => updatePasswordField('confirmPassword', event.target.value)}
                   placeholder="Nhập lại mật khẩu mới"

@@ -18,6 +18,13 @@ const STATUS_LABELS = {
   IMPLEMENTING: 'Đang xử lý',
   REVIEWED: 'Đã xem',
   NEW: 'Mới',
+  ENROLLED: 'Đã khởi tạo',
+  IN_PROGRESS: 'Đang thực hiện',
+  COMPLETED: 'Hoàn thành',
+  SUSPENDED: 'Tạm dừng',
+  WITHDRAWN: 'Ngừng theo học',
+  NOT_STARTED: 'Chưa bắt đầu',
+  SKIPPED: 'Bỏ qua',
 };
 
 const CONTENT_TYPE_LABELS = {
@@ -28,6 +35,7 @@ const CONTENT_TYPE_LABELS = {
   TRAINING_EXERCISE: 'Bài tập huấn luyện',
   TRAINING_ROADMAP: 'Lộ trình huấn luyện',
   TRAINING_METHOD: 'Phương pháp huấn luyện',
+  TRAINING_SPECIALTY: 'Chuyên ngành huấn luyện',
   DEVELOPMENT_STAGE: 'Giai đoạn phát triển',
   DISEASE: 'Bệnh',
   MEDICATION: 'Thuốc',
@@ -41,6 +49,13 @@ const CONTENT_TYPE_LABELS = {
   FIRST_AID: 'Sơ cứu',
 };
 
+const SUGGESTION_TYPE_LABELS = {
+  NEW_CONTENT: 'Đề xuất nội dung mới',
+  UPDATE_EXISTING: 'Cập nhật nội dung',
+  ERROR_REPORT: 'Báo lỗi nội dung',
+  GENERAL_FEEDBACK: 'Góp ý chung',
+};
+
 const ROLE_LABELS = {
   ADMIN: 'Admin',
   CONTENT_EDITOR: 'Biên tập nội dung',
@@ -52,6 +67,11 @@ const ASSIGNMENT_TYPE_LABELS = {
   PRIMARY: 'Chính',
   SECONDARY: 'Phụ',
   TEMPORARY: 'Tạm thời',
+};
+
+const ASSIGNMENT_SCOPE_LABELS = {
+  FULL_TRAINING: 'Huấn luyện toàn phần',
+  CARE_ONLY: 'Chăm sóc tạm',
 };
 
 const SEVERITY_LABELS = {
@@ -117,8 +137,10 @@ export const getBooleanLabel = (value, yesLabel = 'Có', noLabel = 'Không') =>
 
 export const getStatusLabel = (value) => mapEnum(STATUS_LABELS, value);
 export const getContentTypeLabel = (value) => mapEnum(CONTENT_TYPE_LABELS, value);
+export const getSuggestionTypeLabel = (value) => mapEnum(SUGGESTION_TYPE_LABELS, value);
 export const getRoleLabel = (value) => mapEnum(ROLE_LABELS, value);
 export const getAssignmentTypeLabel = (value) => mapEnum(ASSIGNMENT_TYPE_LABELS, value);
+export const getAssignmentScopeLabel = (value) => mapEnum(ASSIGNMENT_SCOPE_LABELS, value);
 export const getSeverityLabel = (value) => mapEnum(SEVERITY_LABELS, value);
 export const getLevelLabel = (value) => mapEnum(LEVEL_LABELS, value);
 export const getActivityLabel = (value) => mapEnum(ACTIVITY_LABELS, value);
@@ -136,10 +158,14 @@ export const formatDetailEnumValue = (key, value) => {
     case 'contentType':
     case 'entityType':
       return getContentTypeLabel(value);
+    case 'suggestionType':
+      return getSuggestionTypeLabel(value);
     case 'role':
       return getRoleLabel(value);
     case 'assignmentType':
       return getAssignmentTypeLabel(value);
+    case 'assignmentScope':
+      return getAssignmentScopeLabel(value);
     case 'severityLevel':
       return getSeverityLabel(value);
     case 'difficultyLevel':

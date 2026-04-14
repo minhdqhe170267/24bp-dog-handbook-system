@@ -1,11 +1,14 @@
 package vn.edu.fpt.doghandbook.backend.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -14,6 +17,11 @@ public class TrainingRoadmapRequest {
     @NotBlank(message = "Tên lộ trình không được để trống")
     @Size(max = 200, message = "Tên lộ trình tối đa 200 ký tự")
     private String roadmapName;
+
+    private Integer specialtyId;
+
+    @Min(value = 1, message = "Thứ tự lộ trình phải >= 1")
+    private Integer roadmapOrder;
 
     private Integer breedId;
 
@@ -27,6 +35,7 @@ public class TrainingRoadmapRequest {
     @Max(value = 104, message = "Tổng thời gian phải <= 104 tuần")
     private Integer totalDurationWeeks;
 
+    // Backward-compatible single-phase payload.
     @Size(max = 100, message = "Tên giai đoạn tối đa 100 ký tự")
     private String phaseName;
 
@@ -42,4 +51,9 @@ public class TrainingRoadmapRequest {
 
     @Size(max = 5000, message = "Tiêu chí đánh giá tối đa 5000 ký tự")
     private String assessmentCriteria;
+
+    private List<Integer> exerciseIds;
+
+    @Valid
+    private List<TrainingPhaseRequest> phases;
 }

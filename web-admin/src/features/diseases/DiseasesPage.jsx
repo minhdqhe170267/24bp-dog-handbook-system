@@ -103,13 +103,13 @@ const DiseasesPage = () => {
       setModalOpen(false); setFormData({}); setEditing(null);
       if (isCreate) fetchData(0, pagination.pageSize);
       else fetchData(pagination.page, pagination.pageSize);
-    } catch (err) { toast.error(err, { title: 'Có lỗi xảy ra' }); }
+    } catch (err) { toast.error(err, { title: 'Không thể lưu thông tin bệnh' }); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try { await diseaseService.delete(deleteId); toast.success('Đã xóa bệnh thành công'); setDeleteId(null); fetchData(pagination.page, pagination.pageSize); }
-    catch (err) { toast.error(err, { title: 'Lỗi khi xóa bệnh' }); }
+    catch (err) { toast.error(err, { title: 'Không thể xóa bệnh' }); }
   };
 
   const getDiseaseId = (row) => row.diseaseId || row.id;
@@ -125,7 +125,7 @@ const DiseasesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit disease for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt bệnh' });
     }
   };
 
@@ -138,7 +138,7 @@ const DiseasesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish disease error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản bệnh' });
     }
   };
 
@@ -151,7 +151,7 @@ const DiseasesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish disease error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản bệnh' });
     }
   };
 
@@ -226,7 +226,7 @@ const DiseasesPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openDetail(r)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(r)}><History className="h-4 w-4 text-muted-foreground" /></Button>
           {canShowEdit(r) && <Button variant="ghost" size="sm" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getDiseaseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {canDelete && getStatus(r) === 'DRAFT' && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getDiseaseId(r))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(r)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(r)}><Send className="h-4 w-4 text-amber-600 dark:text-amber-300" /></Button>
           )}
@@ -264,15 +264,15 @@ const DiseasesPage = () => {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Sửa bệnh' : 'Thêm bệnh mới'} width={650}
         footer={<><Button variant="outline" onClick={() => setModalOpen(false)}>Hủy</Button><Button onClick={handleSubmit}>{editing ? 'Cập nhật' : 'Tạo mới'}</Button></>}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Tên bệnh" required><FormInput placeholder="VD: Parvo" value={formData.diseaseName || ''} onChange={(e) => updateField('diseaseName', e.target.value)} /></FormField>
+          <FormField label="Tên bệnh" required><FormInput maxLength={200} placeholder="VD: Parvo" value={formData.diseaseName || ''} onChange={(e) => updateField('diseaseName', e.target.value)} /></FormField>
           <FormField label="Mức độ">
             <FormSelect value={formData.severityLevel || ''} onChange={(e) => updateField('severityLevel', e.target.value)} placeholder="Chọn mức độ"
               options={[{ value: 'LOW', label: 'Nhẹ' }, { value: 'MEDIUM', label: 'Trung bình' }, { value: 'HIGH', label: 'Nặng' }, { value: 'CRITICAL', label: 'Nguy kịch' }]} />
           </FormField>
-          <FormField label="Mô tả"><FormTextarea rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
-          <FormField label="Triệu chứng"><FormTextarea rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>
-          <FormField label="Điều trị"><FormTextarea rows={2} value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} /></FormField>
-          <FormField label="Phòng ngừa"><FormTextarea rows={2} value={formData.preventionMethods || ''} onChange={(e) => updateField('preventionMethods', e.target.value)} /></FormField>
+          <FormField label="Mô tả"><FormTextarea maxLength={255} rows={3} value={formData.description || ''} onChange={(e) => updateField('description', e.target.value)} /></FormField>
+          <FormField label="Triệu chứng"><FormTextarea maxLength={255} rows={2} value={formData.commonSymptoms || ''} onChange={(e) => updateField('commonSymptoms', e.target.value)} /></FormField>
+          <FormField label="Điều trị"><FormTextarea maxLength={255} rows={2} value={formData.treatment || ''} onChange={(e) => updateField('treatment', e.target.value)} /></FormField>
+          <FormField label="Phòng ngừa"><FormTextarea maxLength={255} rows={2} value={formData.preventionMethods || ''} onChange={(e) => updateField('preventionMethods', e.target.value)} /></FormField>
           <FormField label="Lây nhiễm"><FormSwitch checked={formData.isContagious || false} onChange={(v) => updateField('isContagious', v)} /></FormField>
         </form>
       </Modal>
@@ -290,4 +290,6 @@ const DiseasesPage = () => {
 };
 
 export default DiseasesPage;
+
+
 

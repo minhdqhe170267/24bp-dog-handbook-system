@@ -5,88 +5,102 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import vn.edu.fpt.doghandbook.backend.entity.TrainingSpecialty;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
+import vn.edu.fpt.doghandbook.backend.repository.TrainingSpecialtyRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
-
-import java.util.Map;
-import java.util.Optional;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class DataSeeder implements CommandLineRunner {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-
     private static final String DEFAULT_PASSWORD = "123456";
 
+    private final UserRepository userRepository;
+    private final TrainingSpecialtyRepository trainingSpecialtyRepository;
+    private final PasswordEncoder passwordEncoder;
+
     @Override
+    @Transactional
     public void run(String... args) {
-        // Reset password for existing mock users (user_id 1-7)
         resetExistingPasswords();
 
-        // Ensure 4 test users exist
-        ensureTestUser("admin01", "admin123", UserRole.ADMIN, "Admin Hệ Thống", null, null);
-        ensureTestUser("editor01", "editor123", UserRole.CONTENT_EDITOR, "Biên tập viên Trần Văn Phong", null, null);
-        ensureTestUser("reviewer01", "reviewer123", UserRole.REVIEWER, "Phản biện Lê Thị Hoa", null, null);
-        ensureTestUser("trainer01", "trainer123", UserRole.TRAINER, "Nguyễn Văn Kiên", "Trung úy", "Tiểu đoàn 24");
+        TrainingSpecialty generalSpecialty = ensureSpecialty(
+                "GENERAL",
+                "General Training",
+                "Fallback specialty for base training library."
+        );
+
+        ensureTestUser("admin01", "admin123", UserRole.ADMIN, "Admin He Thong", null, null, null);
+        ensureTestUser("editor01", "editor123", UserRole.CONTENT_EDITOR, "Bien tap vien Tran Van Phong", null, null, null);
+        ensureTestUser("reviewer01", "reviewer123", UserRole.REVIEWER, "Phan bien Le Thi Hoa", null, null, null);
+        ensureTestUser(
+                "trainer01",
+                "trainer123",
+                UserRole.TRAINER,
+                "Nguyen Van Kien",
+                "Trung uy",
+                "Tieu doan 24",
+                generalSpecialty
+        );
     }
 
     private void resetExistingPasswords() {
-        Map<String, String> mockUsers = Map.of(
-                "admin.dhs", DEFAULT_PASSWORD,
-                "trainer.minh", DEFAULT_PASSWORD,
-                "trainer.huong", DEFAULT_PASSWORD,
-                "trainer.duc", DEFAULT_PASSWORD,
-                "editor.lan", DEFAULT_PASSWORD,
-                "editor.tuan", DEFAULT_PASSWORD,
-                "reviewer.hung", DEFAULT_PASSWORD
-        );
-
-        String encodedDefault = passwordEncoder.encode(DEFAULT_PASSWORD);
-        int updated = 0;
-
-        for (String username : mockUsers.keySet()) {
-            Optional<User> opt = userRepository.findByUsername(username);
-            if (opt.isPresent()) {
-                User user = opt.get();
+        for (String username : new String[] {
+                "admin.dhs", "trainer.minh", "trainer.huong", "trainer.duc",
+                "editor.lan", "editor.tuan", "reviewer.hung"
+        }) {
+            userRepository.findByUsername(username).ifPresent(user -> {
                 if (!passwordEncoder.matches(DEFAULT_PASSWORD, user.getPasswordHash())) {
-                    user.setPasswordHash(encodedDefault);
+                    user.setPasswordHash(passwordEncoder.encode(DEFAULT_PASSWORD));
                     user.setFailedLoginCount(0);
                     user.setIsLocked(false);
                     userRepository.save(user);
-                    updated++;
                 }
-            }
-        }
-
-        if (updated > 0) {
-            log.info("Reset password to '{}' for {} existing mock users", DEFAULT_PASSWORD, updated);
+            });
         }
     }
 
-    private void ensureTestUser(String username, String password, UserRole role,
-                                String fullName, String militaryRank, String unit) {
-        if (userRepository.findByUsername(username).isPresent()) {
-            return;
+    private TrainingSpecialty ensureSpecialty(String code, String name, String description) {
+        TrainingSpecialty specialty = trainingSpecialtyRepository.findBySpecialtyCodeIgnoreCaseAndIsDeletedFalse(code)
+                .orElseGet(TrainingSpecialty::new);
+        specialty.setSpecialtyCode(code);
+        specialty.setSpecialtyName(name);
+        specialty.setDescription(description);
+        specialty.setIsActive(true);
+        specialty.setIsDeleted(false);
+        if (specialty.getVersion() == null || specialty.getVersion() <= 0) {
+            specialty.setVersion(1);
         }
+        return trainingSpecialtyRepository.save(specialty);
+    }
 
-        User user = User.builder()
-                .username(username)
-                .passwordHash(passwordEncoder.encode(password))
-                .role(role)
-                .fullName(fullName)
-                .militaryRank(militaryRank)
-                .unit(unit)
-                .isActive(true)
-                .isLocked(false)
-                .failedLoginCount(0)
-                .isDeleted(false)
-                .build();
-
-        userRepository.save(user);
-        log.info("Seeded test user: {} / {} ({})", username, password, role);
+    private User ensureTestUser(
+            String username,
+            String password,
+            UserRole role,
+            String fullName,
+            String militaryRank,
+            String unit,
+            TrainingSpecialty specialty
+    ) {
+        User user = userRepository.findByUsername(username).orElseGet(User::new);
+        user.setUsername(username);
+        if (user.getUserId() == null) {
+            user.setPasswordHash(passwordEncoder.encode(password));
+        }
+        user.setRole(role);
+        user.setFullName(fullName);
+        user.setMilitaryRank(militaryRank);
+        user.setUnit(unit);
+        user.setTrainingSpecialty(role == UserRole.TRAINER ? specialty : null);
+        user.setIsActive(true);
+        user.setIsLocked(false);
+        user.setFailedLoginCount(0);
+        user.setIsDeleted(false);
+        return userRepository.save(user);
     }
 }

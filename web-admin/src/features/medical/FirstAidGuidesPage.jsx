@@ -29,7 +29,6 @@ const EMPTY_FORM = {
   requiredMaterials: '',
   doNotActions: '',
   whenToSeekVet: '',
-  imageUrl: '',
 };
 
 const statusOptions = [
@@ -108,7 +107,6 @@ const FirstAidGuidesPage = () => {
     requiredMaterials: formData.requiredMaterials?.trim() || '',
     doNotActions: formData.doNotActions?.trim() || '',
     whenToSeekVet: formData.whenToSeekVet?.trim() || '',
-    imageUrl: formData.imageUrl?.trim() || '',
   });
 
   const handleSubmit = async (e) => {
@@ -147,7 +145,7 @@ const FirstAidGuidesPage = () => {
         fetchData(pagination.page, pagination.pageSize);
       }
     } catch (err) {
-      toast.error(err, { title: 'Có lỗi xảy ra' });
+      toast.error(err, { title: 'Không thể lưu hướng dẫn sơ cứu' });
     }
   };
 
@@ -159,7 +157,7 @@ const FirstAidGuidesPage = () => {
       setDeleteId(null);
       fetchData(pagination.page, pagination.pageSize);
     } catch (err) {
-      toast.error(err, { title: 'Lỗi khi xóa hướng dẫn sơ cứu' });
+      toast.error(err, { title: 'Không thể xóa hướng dẫn sơ cứu' });
     }
   };
 
@@ -176,7 +174,7 @@ const FirstAidGuidesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Submit first aid guide for review error:', err);
-      toast.error(err, { title: 'Không thể gửi duyệt' });
+      toast.error(err, { title: 'Không thể gửi duyệt hướng dẫn sơ cứu' });
     }
   };
 
@@ -189,7 +187,7 @@ const FirstAidGuidesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Publish first aid guide error:', err);
-      toast.error(err, { title: 'Không thể xuất bản' });
+      toast.error(err, { title: 'Không thể xuất bản hướng dẫn sơ cứu' });
     }
   };
 
@@ -202,7 +200,7 @@ const FirstAidGuidesPage = () => {
       await fetchData(0, pagination.pageSize);
     } catch (err) {
       console.error('Unpublish first aid guide error:', err);
-      toast.error(err, { title: 'Không thể gỡ xuất bản' });
+      toast.error(err, { title: 'Không thể gỡ xuất bản hướng dẫn sơ cứu' });
     }
   };
 
@@ -285,7 +283,7 @@ const FirstAidGuidesPage = () => {
           <Button variant="ghost" size="sm" onClick={() => openDetail(row)}><Eye className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" title="Lịch sử duyệt" onClick={() => openHistory(row)}><History className="h-4 w-4 text-muted-foreground" /></Button>
           {canShowEdit(row) && <Button variant="ghost" size="sm" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>}
-          {canDelete && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getGuideId(row))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {canDelete && getStatus(row) === 'DRAFT' && <Button variant="ghost" size="sm" title="Xóa" onClick={() => setDeleteId(getGuideId(row))}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           {canEdit && ['DRAFT', 'REJECTED'].includes(getStatus(row)) && (
             <Button variant="ghost" size="sm" title="Gửi duyệt" onClick={() => handleSubmitForReview(row)}><Send className="h-4 w-4 text-amber-600 dark:text-amber-300" /></Button>
           )}
@@ -354,6 +352,7 @@ const FirstAidGuidesPage = () => {
         <form onSubmit={handleSubmit}>
           <FormField label="Tiêu đề" required>
             <FormInput
+              maxLength={200}
               placeholder="VD: Sơ cứu khi chó bị say nắng"
               value={formData.guideTitle}
               onChange={(e) => updateField('guideTitle', e.target.value)}
@@ -362,6 +361,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Loại tình huống" required>
             <FormInput
+              maxLength={100}
               placeholder="VD: Heat Stroke"
               value={formData.emergencyType}
               onChange={(e) => updateField('emergencyType', e.target.value)}
@@ -370,6 +370,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Mô tả">
             <FormTextarea
+              maxLength={255}
               rows={3}
               value={formData.description}
               onChange={(e) => updateField('description', e.target.value)}
@@ -378,6 +379,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Các bước xử lý ngay" required>
             <FormTextarea
+              maxLength={255}
               rows={4}
               value={formData.immediateSteps}
               onChange={(e) => updateField('immediateSteps', e.target.value)}
@@ -386,6 +388,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Vật tư cần thiết">
             <FormTextarea
+              maxLength={255}
               rows={2}
               value={formData.requiredMaterials}
               onChange={(e) => updateField('requiredMaterials', e.target.value)}
@@ -394,6 +397,7 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Không nên làm">
             <FormTextarea
+              maxLength={255}
               rows={2}
               value={formData.doNotActions}
               onChange={(e) => updateField('doNotActions', e.target.value)}
@@ -402,19 +406,13 @@ const FirstAidGuidesPage = () => {
 
           <FormField label="Khi nào cần bác sĩ thú y">
             <FormTextarea
+              maxLength={255}
               rows={2}
               value={formData.whenToSeekVet}
               onChange={(e) => updateField('whenToSeekVet', e.target.value)}
             />
           </FormField>
 
-          <FormField label="URL ảnh minh họa">
-            <FormInput
-              placeholder="https://..."
-              value={formData.imageUrl}
-              onChange={(e) => updateField('imageUrl', e.target.value)}
-            />
-          </FormField>
         </form>
       </Modal>
 
@@ -439,4 +437,6 @@ const FirstAidGuidesPage = () => {
 };
 
 export default FirstAidGuidesPage;
+
+
 

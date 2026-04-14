@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.dto.request.FirstAidGuideRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.FirstAidGuideResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -20,6 +21,7 @@ import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.repository.FirstAidGuideRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
+import vn.edu.fpt.doghandbook.backend.service.CloudinaryService;
 import vn.edu.fpt.doghandbook.backend.service.FirstAidGuideService;
 
 import java.time.LocalDateTime;
@@ -33,6 +35,7 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
 
     private final FirstAidGuideRepository firstAidGuideRepository;
     private final UserRepository userRepository;
+    private final CloudinaryService cloudinaryService;
 
     @Override
     public PageResponse<FirstAidGuideResponse> getAll(int page, int size, String search, String status) {
@@ -80,10 +83,12 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
 
     @Override
     @Transactional
-    public FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId) {
+    public FirstAidGuideResponse create(FirstAidGuideRequest request, Integer createdByUserId, MultipartFile image) {
         User actor = getUserById(createdByUserId);
         String guideTitle = normalizeRequired(request.getGuideTitle(), "guideTitle");
         ensureUniqueGuideTitle(guideTitle, null);
+
+        String imageUrl = resolveImageUrl(image);
 
         FirstAidGuide guide = FirstAidGuide.builder()
                 .guideTitle(guideTitle)
@@ -93,7 +98,7 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
                 .requiredMaterials(trimToNull(request.getRequiredMaterials()))
                 .doNotActions(trimToNull(request.getDoNotActions()))
                 .whenToSeekVet(trimToNull(request.getWhenToSeekVet()))
-                .imageUrl(trimToNull(request.getImageUrl()))
+                .imageUrl(imageUrl)
                 .status(ContentStatus.DRAFT)
                 .createdBy(actor)
                 .isDeleted(false)
@@ -105,7 +110,7 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
 
     @Override
     @Transactional
-    public FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId) {
+    public FirstAidGuideResponse update(Integer id, FirstAidGuideRequest request, Integer actorUserId, MultipartFile image) {
         FirstAidGuide guide = getActiveGuideById(id);
         getUserById(actorUserId);
 
@@ -123,7 +128,10 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
         guide.setRequiredMaterials(trimToNull(request.getRequiredMaterials()));
         guide.setDoNotActions(trimToNull(request.getDoNotActions()));
         guide.setWhenToSeekVet(trimToNull(request.getWhenToSeekVet()));
-        guide.setImageUrl(trimToNull(request.getImageUrl()));
+        String newImageUrl = resolveImageUrl(image);
+        if (newImageUrl != null) {
+            guide.setImageUrl(newImageUrl);
+        }
 
         if (guide.getStatus() == ContentStatus.REJECTED) {
             guide.setStatus(ContentStatus.DRAFT);
@@ -218,6 +226,13 @@ public class FirstAidGuideServiceImpl implements FirstAidGuideService {
             throw new BadRequestException(fieldName + " is required");
         }
         return normalized;
+    }
+
+    private String resolveImageUrl(MultipartFile image) {
+        if (image != null && !image.isEmpty()) {
+            return cloudinaryService.upload(image, "image").secureUrl();
+        }
+        return null;
     }
 
     private String trimToNull(String value) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -17,6 +17,7 @@ import {
 import { useToast } from '../../components/ui/Toast';
 import { dogService } from '../../services/dogService';
 import { breedService } from '../../services/breedService';
+import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 
@@ -48,13 +49,12 @@ const defaultForm = {
   dogName: '',
   breedId: '',
   gender: 'MALE',
-  dateOfBirth: '',
+  ageMonths: '',
   currentWeightKg: '',
   heightCm: '',
   color: '',
   microchipId: '',
   status: 'ACTIVE',
-  imageUrl: '',
   notes: '',
 };
 
@@ -80,20 +80,49 @@ const normalizeGenderFilterValue = (value) => {
 
 const getGenderLabel = (value) => (normalizeGender(value) === 'FEMALE' ? 'Cái' : 'Đực');
 
-const toDateInput = (value) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : '';
+const renderAssignmentStatus = (row) => {
+  const isAssigned = Boolean(row?.isAssigned);
+  if (!isAssigned) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-300/60 dark:border-orange-500/40 whitespace-nowrap">
+        <AlertCircle className="h-3.5 w-3.5" />
+        Chưa phân công
+      </span>
+    );
   }
-  const two = (num) => String(num).padStart(2, '0');
-  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/70 dark:border-emerald-500/40 whitespace-nowrap">
+      <CheckCircle2 className="h-3.5 w-3.5" />
+      Đã phân công
+    </span>
+  );
 };
 
 const toNullableNumber = (value) => {
   if (value === '' || value === null || value === undefined) return null;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const toNullableInteger = (value) => {
+  if (value === '' || value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const formatLocalDate = (date) => {
+  const two = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+};
+
+const ageMonthsToDateOfBirth = (ageMonths) => {
+  if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
+  const baseDate = new Date();
+  baseDate.setHours(0, 0, 0, 0);
+  baseDate.setMonth(baseDate.getMonth() - ageMonths);
+  return formatLocalDate(baseDate);
 };
 
 const getDateTimeParts = (value) => {
@@ -152,7 +181,34 @@ const DogsPage = () => {
       });
       const sortedRows = sortByNewest(filteredRows, { idKeys: ['dogId', 'id'] });
       const { pageRows, totalItems, effectivePage } = paginateRows(sortedRows, nextPage, nextPageSize);
-      setDogs(pageRows);
+      const enrichedRows = await Promise.all(
+        pageRows.map(async (dog) => {
+          if (!dog?.dogId) {
+            return { ...dog, isAssigned: false, assignedTrainerName: '' };
+          }
+          try {
+            const assignmentResponse = await dogAssignmentService.getByDog(dog.dogId);
+            const rawAssignments = assignmentResponse?.data ?? assignmentResponse ?? [];
+            const assignments = Array.isArray(rawAssignments) ? rawAssignments : [];
+            const activeAssignments = assignments.filter((assignment) => assignment?.isActive !== false);
+            const preferredAssignment =
+              activeAssignments.find(
+                (assignment) =>
+                  String(assignment?.assignmentType || '').trim().toUpperCase() === 'PRIMARY'
+              ) || activeAssignments[0];
+
+            return {
+              ...dog,
+              isAssigned: activeAssignments.length > 0,
+              assignedTrainerName: preferredAssignment?.trainerName || '',
+            };
+          } catch {
+            return { ...dog, isAssigned: false, assignedTrainerName: '' };
+          }
+        })
+      );
+
+      setDogs(enrichedRows);
       setPagination((prev) => ({
         ...prev,
         page: effectivePage,
@@ -195,12 +251,11 @@ const DogsPage = () => {
     const payload = {
       dogName: formData.dogName?.trim() || null,
       breedId: Number(formData.breedId),
-      dateOfBirth: formData.dateOfBirth || null,
+      dateOfBirth: ageMonthsToDateOfBirth(toNullableInteger(formData.ageMonths)),
       currentWeightKg: toNullableNumber(formData.currentWeightKg),
       heightCm: toNullableNumber(formData.heightCm),
       color: formData.color?.trim() || null,
       microchipId: formData.microchipId?.trim() || null,
-      imageUrl: formData.imageUrl?.trim() || null,
       notes: formData.notes?.trim() || null,
     };
 
@@ -212,13 +267,20 @@ const DogsPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!formData.dogName?.trim()) {
+      toast.error('Vui lòng nhập tên chó');
+      return;
+    }
     if (!formData.breedId) {
       toast.error('Vui lòng chọn giống chó');
       return;
     }
+    if (toNullableInteger(formData.ageMonths) == null) {
+      toast.error('Vui lòng nhập tuổi theo tháng');
+      return;
+    }
 
     try {
-      const isCreate = !editing;
       const payload = buildPayload();
       if (editing) {
         await dogService.update(editing.dogId, payload);
@@ -276,6 +338,7 @@ const DogsPage = () => {
     { key: 'dogName', header: 'Tên chó', render: (row) => <span className="font-medium">{row.dogName || '—'}</span> },
     { key: 'breedName', header: 'Giống chó', className: 'w-56', render: (row) => row.breedName || '—' },
     { key: 'gender', header: 'Giới tính', className: 'w-28', render: (row) => getGenderLabel(row.gender) },
+    { key: 'assignment', header: 'Phân công', className: 'w-44', render: (row) => renderAssignmentStatus(row) },
     { key: 'status', header: 'Trạng thái', className: 'w-36', render: (row) => renderDogStatus(row.status) },
     {
       key: 'currentWeightKg',
@@ -380,8 +443,8 @@ const DogsPage = () => {
       >
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <FormField label="Tên chó">
-              <FormInput value={formData.dogName} onChange={(event) => updateField('dogName', event.target.value)} />
+            <FormField label="Tên chó" required>
+              <FormInput maxLength={100} value={formData.dogName} onChange={(event) => updateField('dogName', event.target.value)} />
             </FormField>
             <FormField label="Giống chó" required>
               <FormSelect
@@ -397,8 +460,16 @@ const DogsPage = () => {
             <FormField label="Giới tính">
               <FormSelect value={formData.gender} onChange={(event) => updateField('gender', event.target.value)} options={genderOptions} />
             </FormField>
-            <FormField label="Ngày sinh">
-              <FormInput type="date" value={formData.dateOfBirth} onChange={(event) => updateField('dateOfBirth', event.target.value)} />
+            <FormField label="Tuổi (tháng)" required>
+              <FormInput
+                type="number"
+                min="0"
+                max="240"
+                step="1"
+                value={formData.ageMonths}
+                onChange={(event) => updateField('ageMonths', event.target.value)}
+                placeholder="Nhập số tháng tuổi"
+              />
             </FormField>
             <FormField label="Trạng thái">
               <FormSelect value={formData.status} onChange={(event) => updateField('status', event.target.value)} options={statusOptions} />
@@ -407,30 +478,24 @@ const DogsPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Cân nặng (kg)">
-              <FormInput type="number" min="0" step="0.01" value={formData.currentWeightKg} onChange={(event) => updateField('currentWeightKg', event.target.value)} />
+              <FormInput type="number" min="0" max="200" step="0.01" value={formData.currentWeightKg} onChange={(event) => updateField('currentWeightKg', event.target.value)} />
             </FormField>
             <FormField label="Chiều cao (cm)">
-              <FormInput type="number" min="0" step="0.01" value={formData.heightCm} onChange={(event) => updateField('heightCm', event.target.value)} />
+              <FormInput type="number" min="0" max="200" step="0.01" value={formData.heightCm} onChange={(event) => updateField('heightCm', event.target.value)} />
             </FormField>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <FormField label="Màu lông">
-              <FormInput value={formData.color} onChange={(event) => updateField('color', event.target.value)} />
+              <FormInput maxLength={100} value={formData.color} onChange={(event) => updateField('color', event.target.value)} />
             </FormField>
             <FormField label="Microchip ID">
-              <FormInput value={formData.microchipId} onChange={(event) => updateField('microchipId', event.target.value)} />
-            </FormField>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
-            <FormField label="Ảnh (URL)">
-              <FormInput value={formData.imageUrl} onChange={(event) => updateField('imageUrl', event.target.value)} />
+              <FormInput maxLength={50} value={formData.microchipId} onChange={(event) => updateField('microchipId', event.target.value)} />
             </FormField>
           </div>
 
           <FormField label="Ghi chú">
-            <FormTextarea rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
+            <FormTextarea maxLength={255} rows={4} value={formData.notes} onChange={(event) => updateField('notes', event.target.value)} />
           </FormField>
         </form>
       </Modal>
@@ -448,3 +513,4 @@ const DogsPage = () => {
 };
 
 export default DogsPage;
+

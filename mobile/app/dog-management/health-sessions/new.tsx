@@ -18,11 +18,13 @@ import { useAuthStore } from '../../../src/stores/authStore';
 import { useThemeStore } from '../../../src/stores/themeStore';
 import { healthSessionService } from '../../../src/services/healthSessionService';
 import { trainerDogScopeService } from '../../../src/services/trainerDogScopeService';
-import { DogProfile } from '../../../src/types/dogManagement';
 import {
-    dogManagementFonts,
-    dogManagementUi,
-} from '../../../src/features/dog-management/ui';
+    getCharacterCountLabel,
+    validateDateField,
+    validateTextField,
+} from '../../../src/utils/formValidation';
+import { DogProfile } from '../../../src/types/dogManagement';
+import { dogManagementFonts, dogManagementUi } from '../../../src/features/dog-management/ui';
 
 const severityOptions = [
     { key: 'LOW', label: 'Thấp' },
@@ -77,21 +79,36 @@ export default function NewHealthSessionScreen() {
             }
         };
 
-        loadDogs();
+        void loadDogs();
     }, [dogId]);
 
     const selectedDog = useMemo(
         () => dogs.find((item) => item.dogId === selectedDogId) || null,
-        [dogs, selectedDogId]
+        [dogs, selectedDogId],
     );
+    const issueSummaryError = validateTextField(issueSummary, {
+        label: 'Tóm tắt vấn đề sức khỏe',
+        required: true,
+        minLength: 8,
+        maxLength: 500,
+    });
+    const followUpDateError = validateDateField(followUpDate, {
+        label: 'Ngày follow-up',
+        mustBeTodayOrFuture: true,
+    });
+    const canSubmit = Boolean(selectedDogId) && !issueSummaryError && !followUpDateError && !saving;
 
     const submit = async () => {
         if (!selectedDogId) {
             Alert.alert('Thiếu thông tin', 'Vui lòng chọn chó cần mở phiên theo dõi.');
             return;
         }
-        if (!issueSummary.trim()) {
-            Alert.alert('Thiếu thông tin', 'Vui lòng nhập tóm tắt vấn đề sức khỏe.');
+
+        if (!canSubmit) {
+            Alert.alert(
+                'Biểu mẫu chưa hợp lệ',
+                issueSummaryError || followUpDateError || 'Vui lòng kiểm tra lại thông tin phiên theo dõi.',
+            );
             return;
         }
 
@@ -105,12 +122,21 @@ export default function NewHealthSessionScreen() {
             });
             router.replace(`/dog-management/health-sessions/${String(created.sessionId)}` as any);
         } catch {
-            Alert.alert('Đã lưu ở giao diện mẫu', 'Phiên theo dõi đã được tạo trong luồng frontend. Khi backend sẵn sàng, dữ liệu sẽ được ghi thật.', [
-                {
-                    text: 'Tiếp tục',
-                    onPress: () => router.replace(selectedDogId ? `/dog-management/health-sessions?dogId=${selectedDogId}` as any : '/dog-management/health-sessions'),
-                },
-            ]);
+            Alert.alert(
+                'Đã lưu ở giao diện mẫu',
+                'Phiên theo dõi đã được tạo trong luồng frontend. Khi backend sẵn sàng, dữ liệu sẽ được ghi thật.',
+                [
+                    {
+                        text: 'Tiếp tục',
+                        onPress: () =>
+                            router.replace(
+                                selectedDogId
+                                    ? (`/dog-management/health-sessions?dogId=${selectedDogId}` as any)
+                                    : '/dog-management/health-sessions',
+                            ),
+                    },
+                ],
+            );
         } finally {
             setSaving(false);
         }
@@ -205,7 +231,14 @@ export default function NewHealthSessionScreen() {
                         placeholder="Mô tả vấn đề sức khỏe, dấu hiệu lâm sàng hoặc hành vi cần theo dõi..."
                         placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                         style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#FAFCFB', borderColor: isDark ? colors.border : dogManagementUi.border }]}
+                        maxLength={500}
                     />
+                    <View style={styles.metaRow}>
+                        <Text style={[styles.counterText, { color: isDark ? colors.textLight : dogManagementUi.textMuted }]}>
+                            {getCharacterCountLabel(issueSummary, 500)}
+                        </Text>
+                    </View>
+                    {issueSummaryError ? <Text style={[styles.errorText, { color: colors.error }]}>{issueSummaryError}</Text> : null}
                 </View>
 
                 <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -239,17 +272,22 @@ export default function NewHealthSessionScreen() {
                         <TextInput
                             value={followUpDate}
                             onChangeText={setFollowUpDate}
-                            placeholder="yyyy-mm-dd"
+                            placeholder="YYYY-MM-DD"
                             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                             style={[styles.input, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}
+                            maxLength={10}
                         />
                         <Ionicons name="calendar-outline" size={18} color={dogManagementUi.textMuted} />
                     </View>
+                    {followUpDateError ? <Text style={[styles.errorText, { color: colors.error }]}>{followUpDateError}</Text> : null}
+                    <Text style={[styles.helperText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
+                        Đây là ngày hẹn theo dõi tiếp theo. Thời điểm tạo phiên được ghi tự động theo lúc bạn lưu.
+                    </Text>
                 </View>
             </ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
-                <TouchableOpacity activeOpacity={0.9} onPress={submit} disabled={saving} style={[styles.saveButton, { backgroundColor: colors.primary, opacity: saving ? 0.72 : 1 }]}>
+                <TouchableOpacity activeOpacity={0.9} onPress={submit} disabled={!canSubmit} style={[styles.saveButton, { backgroundColor: colors.primary, opacity: canSubmit ? 1 : 0.6 }]}>
                     {saving ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
@@ -344,6 +382,22 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         fontSize: 14,
         lineHeight: 20,
+    },
+    metaRow: {
+        marginTop: 8,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+    },
+    counterText: {
+        fontSize: 11,
+        lineHeight: 14,
+        fontWeight: '700',
+    },
+    errorText: {
+        marginTop: 8,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: '700',
     },
     segmentWrap: {
         flexDirection: 'row',

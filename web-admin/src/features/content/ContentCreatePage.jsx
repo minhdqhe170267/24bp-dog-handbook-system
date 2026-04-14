@@ -42,6 +42,7 @@ const categories = {
 };
 
 const MAX_MEDIA_FILES = 10;
+const MAX_TAG_LENGTH = 255;
 
 const ContentCreatePage = () => {
     const navigate = useNavigate();
@@ -128,6 +129,10 @@ const ContentCreatePage = () => {
     const ensureValidContent = () => {
         if (!title.trim() || !contentType || !body.trim()) {
             toast.warning('Vui lòng nhập Tiêu đề, Loại nội dung và Nội dung chính trước khi lưu hoặc tải tệp đa phương tiện');
+            return false;
+        }
+        if (tags.trim().length > MAX_TAG_LENGTH) {
+            toast.warning(`Tags tối đa ${MAX_TAG_LENGTH} ký tự`);
             return false;
         }
         return true;
@@ -330,7 +335,7 @@ const ContentCreatePage = () => {
 
                             {/* Rich Text Editor Area */}
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Nội dung chính</label>
+                                <label className="text-sm font-medium text-foreground">Nội dung chính <span className="text-destructive">*</span></label>
                                 <div className="border border-border rounded-lg overflow-hidden">
                                     {/* Toolbar */}
                                     <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-muted/30 flex-wrap">
@@ -381,6 +386,7 @@ const ContentCreatePage = () => {
                                     value={tags}
                                     onChange={(e) => setTags(e.target.value)}
                                     placeholder="Nhập tags, phân cách bằng dấu phẩy"
+                                    maxLength={MAX_TAG_LENGTH}
                                     className="w-full h-10 px-3 border border-border rounded-lg text-sm bg-card outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors text-foreground"
                                     disabled={isReadonlyMode}
                                 />
@@ -417,7 +423,7 @@ const ContentCreatePage = () => {
                                     {isReadonlyMode ? 'Ảnh và video đã upload cho nội dung này.' : `Hỗ trợ ảnh và video. Tối đa ${MAX_MEDIA_FILES} file.`}
                                 </p>
                                 {contentId && (
-                                    <p className="text-xs text-muted-foreground mt-2">Đã liên kết nội dung ID: {contentId}</p>
+                                    <p className="text-xs text-muted-foreground mt-2">Đã liên kết nội dung hiện tại</p>
                                 )}
                                 <input
                                     ref={fileInputRef}

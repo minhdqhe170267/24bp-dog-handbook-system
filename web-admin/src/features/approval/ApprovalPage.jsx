@@ -69,6 +69,7 @@ const entityTypeOptions = [
         label: entityTypeLabels[entityType] || entityType,
     })),
 ];
+const REVIEW_COMMENT_MAX_LENGTH = 255;
 
 const ApprovalPage = () => {
     const navigate = useNavigate();
@@ -246,6 +247,10 @@ const ApprovalPage = () => {
             toast.warning('Vui lòng nhập lý do cho quyết định này');
             return;
         }
+        if (comment.length > REVIEW_COMMENT_MAX_LENGTH) {
+            toast.warning(`Nhận xét tối đa ${REVIEW_COMMENT_MAX_LENGTH} ký tự`);
+            return;
+        }
 
         const entityType = getEntityType(reviewTarget);
         setReviewSubmitting(true);
@@ -257,7 +262,7 @@ const ApprovalPage = () => {
             await fetchData(0, pageSize);
         } catch (err) {
             console.error('Review error:', err);
-            toast.error(err, { title: 'Có lỗi xảy ra khi duyệt nội dung' });
+            toast.error(err, { title: 'Không thể xử lý duyệt hoặc từ chối nội dung' });
         } finally {
             setReviewSubmitting(false);
         }
@@ -367,6 +372,7 @@ const ApprovalPage = () => {
                         </label>
                         <FormTextarea
                             rows={4}
+                            maxLength={REVIEW_COMMENT_MAX_LENGTH}
                             value={reviewComment}
                             onChange={(event) => setReviewComment(event.target.value)}
                             placeholder={reviewAction === 'APPROVED' ? 'Nhập ghi chú nếu có...' : 'Nhập lý do từ chối...'}

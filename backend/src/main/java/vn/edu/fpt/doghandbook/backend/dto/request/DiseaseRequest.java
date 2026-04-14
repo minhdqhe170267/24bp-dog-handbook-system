@@ -44,6 +44,12 @@ public class DiseaseRequest {
     @Valid
     private List<SymptomMappingItem> symptomMappings;
 
+    @Valid
+    private List<MedicationMappingItem> medicationMappings;
+
+    @Valid
+    private List<FirstAidGuideMappingItem> firstAidGuideMappings;
+
     @Getter
     @Setter
     public static class SymptomMappingItem {
@@ -55,6 +61,30 @@ public class DiseaseRequest {
         private Double weight;
 
         private Boolean isPrimary;
+
+        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        private String notes;
+    }
+
+    @Getter
+    @Setter
+    public static class MedicationMappingItem {
+        @NotNull(message = "medicationId không được null")
+        private Integer medicationId;
+
+        private Integer priority;
+
+        @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
+        private String notes;
+    }
+
+    @Getter
+    @Setter
+    public static class FirstAidGuideMappingItem {
+        @NotNull(message = "guideId không được null")
+        private Integer guideId;
+
+        private Integer priority;
 
         @Size(max = 500, message = "Ghi chú tối đa 500 ký tự")
         private String notes;

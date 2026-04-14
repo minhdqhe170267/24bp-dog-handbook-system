@@ -61,6 +61,4 @@ public class BreedRequest {
     @Size(max = 5000, message = "Metadata tối đa 5000 ký tự")
     private String metadata;
 
-    @Size(max = 500, message = "URL ảnh tối đa 500 ký tự")
-    private String imageUrl;
 }

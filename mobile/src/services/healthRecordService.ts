@@ -215,6 +215,54 @@ export const healthRecordService = {
     return mapRowToHealthRecord(row);
   },
 
+  update: async (recordId: string | number, request: HealthRecordRequest): Promise<HealthRecord> => {
+    let localRow = await resolveLocalRow(recordId);
+
+    if (!localRow) {
+      const serverId = parseServerId(recordId);
+      if (serverId == null || !isOnline()) {
+        throw new Error('Khong tim thay ho so kham de cap nhat');
+      }
+
+      const response = (await api.get(`/health-records/${serverId}`)) as ApiResponse<HealthRecordApiDto>;
+      const remoteRecord = mapApiToHealthRecord(unwrapApiData(response));
+      await trainerDogScopeService.assertAccessToDog(remoteRecord.dogId, true, 'Ban khong duoc sua ho so cua cho nay');
+      await saveRemoteRecordsToLocal([remoteRecord]);
+      localRow = await healthRecordDBService.getByServerId(serverId);
+    }
+
+    if (!localRow) {
+      throw new Error('Khong tim thay ho so kham de cap nhat');
+    }
+
+    await trainerDogScopeService.assertAccessToDog(localRow.dog_id, true, 'Ban khong duoc sua ho so cua cho nay');
+
+    await healthRecordDBService.update(localRow.local_id, {
+      dog_id: localRow.dog_id,
+      weight_kg: request.weightKg ?? null,
+      temperature_c: request.temperatureC ?? null,
+      feces_status: (request.fecesStatus ?? null) as HealthRecordRow['feces_status'],
+      appetite_level: (request.appetiteLevel ?? null) as HealthRecordRow['appetite_level'],
+      activity_level: (request.activityLevel ?? null) as HealthRecordRow['activity_level'],
+      observed_symptoms: request.observedSymptoms ?? null,
+      diagnosis: request.diagnosis ?? null,
+      treatment_given: request.treatmentGiven ?? null,
+      next_checkup_date: request.nextCheckupDate ?? null,
+      notes: request.notes ?? null,
+    });
+
+    if (isOnline()) {
+      await syncEngine.quickPush();
+    }
+
+    const updatedRow = await healthRecordDBService.getById(localRow.local_id);
+    if (!updatedRow) {
+      throw new Error('Khong the cap nhat ho so kham');
+    }
+
+    return mapRowToHealthRecord(updatedRow);
+  },
+
   assessWeight: async (dogId: number): Promise<WeightAssessment> => {
     await trainerDogScopeService.assertAccessToDog(dogId, true, 'Ban khong duoc danh gia can nang cho cho nay');
     const response = (await api.get(`/weight-assessment/${dogId}`)) as ApiResponse<WeightAssessment>;

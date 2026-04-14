@@ -3,9 +3,11 @@ package vn.edu.fpt.doghandbook.backend.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import vn.edu.fpt.doghandbook.backend.config.CustomUserDetails;
 import vn.edu.fpt.doghandbook.backend.dto.request.BreedCompareRequest;
 import vn.edu.fpt.doghandbook.backend.dto.request.BreedRequest;
@@ -38,21 +40,38 @@ public class BreedController {
         return ApiResponse.success(breedService.getById(id));
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<BreedResponse>> createBreed(
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<BreedResponse>> createBreedJson(
             @Valid @RequestBody BreedRequest request,
             Authentication authentication) {
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        Integer userId = userDetails.getUser().getUserId();
-        BreedResponse response = breedService.create(request, userId);
+        Integer userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getUserId();
+        BreedResponse response = breedService.create(request, userId, null);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response, "Tạo giống chó thành công"));
     }
 
-    @PutMapping("/{id}")
-    public ApiResponse<BreedResponse> updateBreed(
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<BreedResponse>> createBreedMultipart(
+            @Valid @RequestPart("data") BreedRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image,
+            Authentication authentication) {
+        Integer userId = ((CustomUserDetails) authentication.getPrincipal()).getUser().getUserId();
+        BreedResponse response = breedService.create(request, userId, image);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response, "Tạo giống chó thành công"));
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<BreedResponse> updateBreedJson(
             @PathVariable Integer id,
             @Valid @RequestBody BreedRequest request) {
-        return ApiResponse.success(breedService.update(id, request), "Cập nhật giống chó thành công");
+        return ApiResponse.success(breedService.update(id, request, null), "Cập nhật giống chó thành công");
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<BreedResponse> updateBreedMultipart(
+            @PathVariable Integer id,
+            @Valid @RequestPart("data") BreedRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        return ApiResponse.success(breedService.update(id, request, image), "Cập nhật giống chó thành công");
     }
 
     @DeleteMapping("/{id}")

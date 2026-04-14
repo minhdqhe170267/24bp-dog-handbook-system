@@ -1,27 +1,71 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../../../src/components/ScreenWrapper';
 import { useThemeStore } from '../../../../../src/stores/themeStore';
+import { useEnrollmentStore } from '../../../../../src/stores/enrollmentStore';
 import { useTrainingProgressStore } from '../../../../../src/stores/trainingProgressStore';
 import { spacing, borderRadius, fontSize } from '../../../../../src/constants/theme';
 import { exerciseService } from '../../../../../src/services/exerciseService';
+import { enrollmentService } from '../../../../../src/services/enrollmentService';
 import { TrainingExercise } from '../../../../../src/types/training';
-import { buildInstructionSteps, parseMediaUrls, pickTrainingImage, trainingUi } from '../../../../../src/features/training/ui';
+import { trainingUi } from '../../../../../src/features/training/ui';
+import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../../../src/features/training/presentation';
+
+const resolveProgressStatus = (value: string | null | undefined) => {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === 'COMPLETED' || normalized === 'SKIPPED') {
+        return 'COMPLETED';
+    }
+    if (normalized === 'IN_PROGRESS') {
+        return 'IN_PROGRESS';
+    }
+    return 'NOT_STARTED';
+};
 
 export default function ExerciseStepScreen() {
-    const { id, step } = useLocalSearchParams<{ id: string; step: string }>();
+    const {
+        id,
+        step,
+        enrollmentId: enrollmentIdParam,
+        exerciseStatus,
+        progressId: progressIdParam,
+        roadmapName,
+        phaseName,
+    } = useLocalSearchParams<{
+        id: string;
+        step: string;
+        enrollmentId?: string;
+        exerciseStatus?: string;
+        progressId?: string;
+        roadmapName?: string;
+        phaseName?: string;
+    }>();
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
+    const progressByExercise = useTrainingProgressStore((state) => state.progressByExercise);
     const getExerciseStatus = useTrainingProgressStore((state) => state.getExerciseStatus);
     const startExercise = useTrainingProgressStore((state) => state.startExercise);
     const completeExercise = useTrainingProgressStore((state) => state.completeExercise);
+    const applyExercisePatch = useEnrollmentStore((state) => state.applyExercisePatch);
+    const setSummary = useEnrollmentStore((state) => state.setSummary);
 
     const [exercise, setExercise] = useState<TrainingExercise | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [remoteProgressStatus, setRemoteProgressStatus] = useState(resolveProgressStatus(exerciseStatus));
+    const [syncing, setSyncing] = useState(false);
+    const { animatedStyle } = useTrainingEntrance();
+    const parsedEnrollmentId = Number(enrollmentIdParam);
+    const parsedProgressId = Number(progressIdParam);
+    const activeEnrollmentId = Number.isFinite(parsedEnrollmentId) && parsedEnrollmentId > 0 ? parsedEnrollmentId : null;
+    const activeProgressId = Number.isFinite(parsedProgressId) && parsedProgressId > 0 ? parsedProgressId : null;
+
+    useEffect(() => {
+        setRemoteProgressStatus(resolveProgressStatus(exerciseStatus));
+    }, [exerciseStatus]);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -42,6 +86,9 @@ export default function ExerciseStepScreen() {
         }
     }, [id]);
 
+    const localProgressStatus = exercise ? progressByExercise[exercise.exerciseId]?.status : undefined;
+    const progressStatus = activeEnrollmentId ? remoteProgressStatus : localProgressStatus || remoteProgressStatus;
+
     useEffect(() => {
         if (!exercise) {
             return;
@@ -50,7 +97,41 @@ export default function ExerciseStepScreen() {
         if (getExerciseStatus(exercise.exerciseId) === 'NOT_STARTED') {
             startExercise(exercise.exerciseId);
         }
-    }, [exercise, getExerciseStatus, startExercise]);
+
+        if (!activeEnrollmentId || !activeProgressId || remoteProgressStatus !== 'NOT_STARTED') {
+            return;
+        }
+
+        let cancelled = false;
+
+        const syncStarted = async () => {
+            try {
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
+                    status: 'IN_PROGRESS',
+                });
+                setSummary(summary);
+                setRemoteProgressStatus('IN_PROGRESS');
+                applyExercisePatch(activeEnrollmentId, {
+                    progressId: activeProgressId,
+                    status: 'IN_PROGRESS',
+                });
+            } catch (syncError: any) {
+                if (!cancelled) {
+                    Alert.alert(
+                        'Không thể đồng bộ theo dõi',
+                        syncError?.message || 'Trạng thái bài tập chưa được cập nhật trên chương trình.',
+                    );
+                }
+            }
+        };
+
+        void syncStarted();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeEnrollmentId, activeProgressId, applyExercisePatch, exercise, getExerciseStatus, remoteProgressStatus, setSummary, startExercise]);
 
     const stepIndex = useMemo(() => {
         const parsed = Number(step);
@@ -60,7 +141,7 @@ export default function ExerciseStepScreen() {
         return Math.floor(parsed) - 1;
     }, [step]);
 
-    const steps = useMemo(() => buildInstructionSteps(exercise?.instructions), [exercise?.instructions]);
+    const steps = useMemo(() => buildTrainingInstructionSteps(exercise?.instructions), [exercise?.instructions]);
     const safeIndex = useMemo(() => {
         if (steps.length === 0) {
             return 0;
@@ -69,14 +150,39 @@ export default function ExerciseStepScreen() {
     }, [stepIndex, steps.length]);
     const currentStep = steps[safeIndex];
 
-    const mediaUrls = useMemo(() => parseMediaUrls(exercise?.mediaUrls), [exercise?.mediaUrls]);
-    const currentMedia = useMemo(() => {
-        const firstImageCandidate = mediaUrls.find((url) => /^https?:\/\//i.test(url) && !/\.mp4(?:$|\?)/i.test(url));
-        return firstImageCandidate || pickTrainingImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`);
-    }, [exercise?.exerciseId, id, mediaUrls, safeIndex]);
+    const currentMedia = useMemo(
+        () => pickTrainingCoverImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`, exercise?.mediaUrls),
+        [exercise?.exerciseId, exercise?.mediaUrls, id, safeIndex],
+    );
 
     const progressText = `${Math.min(safeIndex + 1, Math.max(steps.length, 1))}/${Math.max(steps.length, 1)}`;
     const isLastStep = steps.length > 0 && safeIndex >= steps.length - 1;
+
+    const buildExerciseRoute = (nextStatus: string) => ({
+        pathname: `/training/exercises/${exercise?.exerciseId}` as any,
+        params: activeEnrollmentId
+            ? {
+                enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
+                exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
+            }
+            : undefined,
+    });
+
+    const buildStepRoute = (stepNumber: number, nextStatus: string) => ({
+        pathname: `/training/exercises/${exercise?.exerciseId}/steps/${stepNumber}` as any,
+        params: activeEnrollmentId
+            ? {
+                enrollmentId: String(activeEnrollmentId),
+                progressId: activeProgressId ? String(activeProgressId) : undefined,
+                exerciseStatus: nextStatus,
+                roadmapName,
+                phaseName,
+            }
+            : undefined,
+    });
 
     const onPressPrevious = () => {
         if (!exercise) {
@@ -85,30 +191,72 @@ export default function ExerciseStepScreen() {
         }
 
         if (safeIndex === 0) {
-            router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+            router.replace(buildExerciseRoute(progressStatus === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'));
             return;
         }
 
-        router.replace(`/training/exercises/${exercise.exerciseId}/steps/${safeIndex}` as any);
+        router.replace(buildStepRoute(safeIndex, 'IN_PROGRESS'));
     };
 
-    const onPressNext = () => {
+    const onPressNext = async () => {
+        if (syncing) {
+            return;
+        }
+
         if (!exercise) {
             return;
         }
 
         if (steps.length === 0) {
-            router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+            router.replace(buildExerciseRoute(progressStatus));
             return;
         }
 
         if (!isLastStep) {
-            router.replace(`/training/exercises/${exercise.exerciseId}/steps/${safeIndex + 2}` as any);
+            router.replace(buildStepRoute(safeIndex + 2, 'IN_PROGRESS'));
             return;
         }
 
+        if (activeEnrollmentId && activeProgressId) {
+            setSyncing(true);
+            try {
+                const summary = await enrollmentService.evaluate(activeProgressId, {
+                    progressId: activeProgressId,
+                    status: 'COMPLETED',
+                });
+                setSummary(summary);
+                setRemoteProgressStatus('COMPLETED');
+                applyExercisePatch(activeEnrollmentId, {
+                    progressId: activeProgressId,
+                    status: 'COMPLETED',
+                });
+            } catch (syncError: any) {
+                Alert.alert(
+                    'Không thể đồng bộ hoàn thành',
+                    syncError?.message || 'Hệ thống chưa ghi nhận bài tập này là hoàn thành.',
+                );
+                setSyncing(false);
+                return;
+            }
+            setSyncing(false);
+        }
+
         completeExercise(exercise.exerciseId);
-        router.replace(`/training/exercises/${exercise.exerciseId}` as any);
+        if (activeEnrollmentId) {
+            router.replace(`/training/enrollments/${activeEnrollmentId}` as any);
+            return;
+        }
+
+        router.replace(buildExerciseRoute('COMPLETED'));
+    };
+
+    const goToStep = (targetIndex: number) => {
+        if (!exercise || steps.length === 0) {
+            return;
+        }
+
+        const nextIndex = Math.max(0, Math.min(targetIndex, steps.length - 1));
+        router.replace(buildStepRoute(nextIndex + 1, 'IN_PROGRESS'));
     };
 
     if (loading) {
@@ -139,14 +287,12 @@ export default function ExerciseStepScreen() {
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <Animated.ScrollView style={animatedStyle} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onPressPrevious} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Bước {safeIndex + 1}
-                    </Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.title}</Text>
                     <View style={[styles.progressPill, { backgroundColor: isDark ? colors.surface : '#E6F1EA' }]}>
                         <Text style={[styles.progressPillText, { color: colors.primary }]}>{progressText}</Text>
                     </View>
@@ -162,6 +308,50 @@ export default function ExerciseStepScreen() {
                         <Ionicons name="videocam" size={13} color="#E8F3EC" />
                         <Text style={styles.mediaLabelText}>Video mô phỏng bước huấn luyện</Text>
                     </View>
+                    <View style={styles.stepHeroBadge}>
+                        <Text style={styles.stepHeroBadgeText}>{currentStep.title}</Text>
+                    </View>
+                </View>
+
+                <View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+                        {steps.map((item, index) => {
+                            const active = index === safeIndex;
+
+                            return (
+                                <View key={`${item.title}-${index}`}>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.stepTab,
+                                            {
+                                                backgroundColor: active
+                                                    ? isDark
+                                                        ? colors.primaryLight
+                                                        : trainingUi.brand
+                                                    : isDark
+                                                      ? colors.surface
+                                                      : '#EDF4F0',
+                                                borderColor: active ? colors.primary : isDark ? colors.border : '#D5E2DA',
+                                            },
+                                        ]}
+                                        onPress={() => goToStep(index)}
+                                        activeOpacity={0.86}
+                                    >
+                                        <Text style={[styles.stepTabLabel, { color: active ? '#FFFFFF' : colors.primary }]}>{item.title}</Text>
+                                        <Text
+                                            style={[
+                                                styles.stepTabSummary,
+                                                { color: active ? '#E8F3EC' : isDark ? colors.textSecondary : trainingUi.textNormal },
+                                            ]}
+                                            numberOfLines={1}
+                                        >
+                                            {item.summary}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })}
+                    </ScrollView>
                 </View>
 
                 <View
@@ -173,10 +363,43 @@ export default function ExerciseStepScreen() {
                         },
                     ]}
                 >
-                    <Text style={[styles.stepTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.title}</Text>
+                    <View style={styles.stepHeaderRow}>
+                        <View style={[styles.stepBadge, { backgroundColor: isDark ? colors.background : '#E6F1EA' }]}>
+                            <Text style={[styles.stepBadgeText, { color: colors.primary }]}>{currentStep.title}</Text>
+                        </View>
+                        <Text style={[styles.stepProgressLabel, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
+                            {`${safeIndex + 1}/${steps.length}`}
+                        </Text>
+                    </View>
+
+                    <Text style={[styles.stepTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{currentStep.summary}</Text>
                     <Text style={[styles.stepDescription, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
                         {currentStep.detail}
                     </Text>
+                </View>
+
+                <View style={styles.quickJumpRow}>
+                    {steps.map((item, index) => {
+                        const active = index === safeIndex;
+                        return (
+                            <TouchableOpacity
+                                key={`jump-${item.title}-${index}`}
+                                activeOpacity={0.86}
+                                onPress={() => goToStep(index)}
+                                style={[
+                                    styles.quickJumpChip,
+                                    {
+                                        backgroundColor: active ? colors.primary : isDark ? colors.surface : '#EEF4F0',
+                                        borderColor: active ? colors.primary : isDark ? colors.border : '#D7E4DC',
+                                    },
+                                ]}
+                            >
+                                <Text style={[styles.quickJumpLabel, { color: active ? '#FFFFFF' : isDark ? colors.text : trainingUi.textStrong }]}>
+                                    {item.title}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
                 <View style={styles.paginationRow}>
@@ -186,6 +409,7 @@ export default function ExerciseStepScreen() {
                             style={[
                                 styles.dot,
                                 {
+                                    width: index === safeIndex ? 20 : 7,
                                     backgroundColor:
                                         index === safeIndex
                                             ? colors.primary
@@ -197,7 +421,7 @@ export default function ExerciseStepScreen() {
                         />
                     ))}
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity
@@ -217,7 +441,13 @@ export default function ExerciseStepScreen() {
                     </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={onPressNext} activeOpacity={0.88}>
+                <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: syncing ? 0.72 : 1 }]}
+                    onPress={onPressNext}
+                    activeOpacity={0.88}
+                    disabled={syncing}
+                >
+                    {syncing ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
                     <Text style={styles.primaryButtonText}>{isLastStep ? 'Hoàn tất bài tập' : 'Sang bước tiếp theo'}</Text>
                     <Ionicons name={isLastStep ? 'checkmark-circle' : 'arrow-forward'} size={16} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -320,17 +550,79 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         minHeight: 30,
     },
+    stepHeroBadge: {
+        position: 'absolute',
+        right: spacing.md,
+        top: spacing.md,
+        borderRadius: borderRadius.full,
+        backgroundColor: 'rgba(8, 14, 11, 0.62)',
+        borderWidth: 1,
+        borderColor: 'rgba(226, 238, 230, 0.24)',
+        paddingHorizontal: 12,
+        minHeight: 32,
+        justifyContent: 'center',
+    },
+    stepHeroBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
     mediaLabelText: {
         color: '#E8F3EC',
         fontSize: 11,
         fontWeight: '600',
+    },
+    tabRow: {
+        gap: spacing.sm,
+        paddingRight: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    stepTab: {
+        width: 146,
+        minHeight: 72,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: spacing.sm + 2,
+        paddingVertical: spacing.sm,
+        justifyContent: 'space-between',
+    },
+    stepTabLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    stepTabSummary: {
+        marginTop: 4,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: '500',
     },
     contentCard: {
         borderWidth: 1,
         borderRadius: 20,
         padding: spacing.lg,
     },
+    stepHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    stepBadge: {
+        minHeight: 28,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: 12,
+        justifyContent: 'center',
+    },
+    stepBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    stepProgressLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     stepTitle: {
+        marginTop: spacing.sm,
         fontSize: 24,
         lineHeight: 30,
         fontWeight: '700',
@@ -341,6 +633,23 @@ const styles = StyleSheet.create({
         lineHeight: 24,
         fontWeight: '500',
     },
+    quickJumpRow: {
+        marginTop: spacing.md,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+    },
+    quickJumpChip: {
+        minHeight: 36,
+        borderRadius: borderRadius.full,
+        paddingHorizontal: spacing.md,
+        borderWidth: 1,
+        justifyContent: 'center',
+    },
+    quickJumpLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     paginationRow: {
         marginTop: spacing.md,
         flexDirection: 'row',
@@ -349,9 +658,8 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     dot: {
-        width: 7,
         height: 7,
-        borderRadius: 3.5,
+        borderRadius: 999,
     },
     bottomBar: {
         position: 'absolute',

@@ -110,6 +110,13 @@ export default function BreedCompareScreen() {
     () => breeds.filter((breed) => selectedIds.includes(breed.breedId)),
     [breeds, selectedIds],
   );
+  const compareError =
+    selectedIds.length < 2
+      ? 'Chọn ít nhất 2 giống để bắt đầu so sánh.'
+      : selectedIds.length > 5
+        ? 'Bạn chỉ có thể so sánh tối đa 5 giống trong một lượt.'
+        : null;
+  const canCompare = !compareError && !comparing;
 
   const metricRows = useMemo(() => getMetricRows(result?.breeds ?? selectedBreeds), [result, selectedBreeds]);
 
@@ -129,7 +136,7 @@ export default function BreedCompareScreen() {
   };
 
   const handleCompare = async () => {
-    if (selectedIds.length < 2) {
+    if (compareError) {
       Alert.alert('Chọn thêm giống', 'Hãy chọn ít nhất 2 giống chó để bắt đầu so sánh.');
       return;
     }
@@ -269,7 +276,8 @@ export default function BreedCompareScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={handleCompare}
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+            disabled={!canCompare}
+            style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: canCompare ? 1 : 0.6 }]}
           >
             <Ionicons name="flash-outline" size={18} color="#FFFFFF" />
             <Text style={styles.primaryButtonText}>{comparing ? 'Đang đối chiếu...' : 'So sánh ngay'}</Text>
@@ -287,6 +295,7 @@ export default function BreedCompareScreen() {
             <Text style={[styles.secondaryButtonText, { color: colors.textSecondary }]}>Xóa chọn</Text>
           </TouchableOpacity>
         </View>
+        {compareError ? <Text style={[styles.inlineError, { color: colors.error }]}>{compareError}</Text> : null}
 
         {result ? (
           <Animated.View
@@ -595,6 +604,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  inlineError: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+    fontWeight: '700',
   },
   primaryButton: {
     flex: 1,

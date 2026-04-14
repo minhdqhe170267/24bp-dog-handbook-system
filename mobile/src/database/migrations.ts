@@ -30,22 +30,8 @@ const addColumnIfMissing = (
  * Each migration bumps PRAGMA user_version by 1 after success.
  */
 const migrations: Migration[] = [
-  {
-    version: 2,
-    description: 'Add trainerName, dogName, dogCode to dog_assignment',
-    run: (db) => {
-      addColumnIfMissing(db, 'dog_assignment', 'trainer_name', 'TEXT');
-      addColumnIfMissing(db, 'dog_assignment', 'dog_name', 'TEXT');
-      addColumnIfMissing(db, 'dog_assignment', 'dog_code', 'TEXT');
-    },
-  },
-  {
-    version: 3,
-    description: 'Add password_hash to user_session for offline login',
-    run: (db) => {
-      addColumnIfMissing(db, 'user_session', 'password_hash', 'TEXT');
-    },
-  },
+  // All columns from previous migrations (v2-v5) are now in CREATE TABLE statements in schema.ts
+  // Next migration should use version: 6
 ];
 
 /**

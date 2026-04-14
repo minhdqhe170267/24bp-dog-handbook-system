@@ -5,6 +5,8 @@ import vn.edu.fpt.doghandbook.backend.dto.request.SessionFollowUpRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthSessionResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 
+import java.time.LocalDateTime;
+
 public interface HealthSessionService {
 
     HealthSessionResponse create(HealthSessionRequest request, Integer trainerId);
@@ -17,5 +19,6 @@ public interface HealthSessionService {
 
     HealthSessionResponse addFollowUp(SessionFollowUpRequest request, Integer trainerId);
 
-    HealthSessionResponse resolve(Integer sessionId, String resolutionNotes, Integer trainerId);
+    HealthSessionResponse resolve(Integer sessionId, String resolutionNotes, Integer trainerId,
+                                   LocalDateTime localUpdatedAt);
 }

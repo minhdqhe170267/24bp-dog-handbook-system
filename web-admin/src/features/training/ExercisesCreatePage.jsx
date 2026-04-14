@@ -8,6 +8,7 @@ import api from '../../services/api';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
+import { validateExerciseForm } from '../../utils/formValidation';
 
 const defaultForm = {
   exerciseName: '',
@@ -49,8 +50,12 @@ const ExercisesCreatePage = () => {
   });
 
   const validate = () => {
-    if (!formData.exerciseName.trim() || !formData.difficultyLevel) {
-      toast.error('Vui lòng nhập tên bài tập và độ khó');
+    const errors = validateExerciseForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin bài tập chưa hợp lệ',
+        description: errors,
+      });
       return false;
     }
     return true;
@@ -179,7 +184,7 @@ const ExercisesCreatePage = () => {
       ]}
     >
       <FormField label="Tên bài tập" required>
-        <FormInput value={formData.exerciseName} onChange={(e) => updateField('exerciseName', e.target.value)} />
+        <FormInput maxLength={200} value={formData.exerciseName} onChange={(e) => updateField('exerciseName', e.target.value)} />
       </FormField>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <FormField label="Độ khó" required>
@@ -195,20 +200,20 @@ const ExercisesCreatePage = () => {
           />
         </FormField>
         <FormField label="Thời gian (phút)">
-          <FormInput type="number" value={formData.durationMinutes} onChange={(e) => updateField('durationMinutes', e.target.value)} />
+          <FormInput type="number" min="1" max="480" step="1" value={formData.durationMinutes} onChange={(e) => updateField('durationMinutes', e.target.value)} />
         </FormField>
       </div>
       <FormField label="Mô tả">
-        <FormTextarea rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />
       </FormField>
       <FormField label="Hướng dẫn">
-        <FormTextarea rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.instructions} onChange={(e) => updateField('instructions', e.target.value)} />
       </FormField>
       <FormField label="Thiết bị cần thiết">
-        <FormInput value={formData.requiredEquipment} onChange={(e) => updateField('requiredEquipment', e.target.value)} />
+        <FormInput maxLength={255} value={formData.requiredEquipment} onChange={(e) => updateField('requiredEquipment', e.target.value)} />
       </FormField>
       <FormField label="Lưu ý an toàn">
-        <FormTextarea rows={3} value={formData.safetyPrecautions} onChange={(e) => updateField('safetyPrecautions', e.target.value)} />
+        <FormTextarea maxLength={255} rows={3} value={formData.safetyPrecautions} onChange={(e) => updateField('safetyPrecautions', e.target.value)} />
       </FormField>
       <EntityMediaSection
         entityType={APPROVAL_ENTITY_TYPES.TRAINING_EXERCISE}
@@ -220,3 +225,4 @@ const ExercisesCreatePage = () => {
 };
 
 export default ExercisesCreatePage;
+

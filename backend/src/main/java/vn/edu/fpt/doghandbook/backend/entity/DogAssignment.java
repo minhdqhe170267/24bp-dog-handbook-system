@@ -18,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentScope;
 import vn.edu.fpt.doghandbook.backend.entity.enums.AssignmentType;
 
 import java.time.LocalDate;
@@ -45,10 +46,23 @@ public class DogAssignment {
     @JoinColumn(name = "dog_id", nullable = false)
     private DogProfile dogProfile;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "specialty_id", nullable = false)
+    private TrainingSpecialty trainingSpecialty;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "assignment_type", nullable = false)
     private AssignmentType assignmentType = AssignmentType.PRIMARY;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "assignment_scope", nullable = false)
+    private AssignmentScope assignmentScope = AssignmentScope.FULL_TRAINING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "covered_assignment_id")
+    private DogAssignment coveredAssignment;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
@@ -77,6 +91,9 @@ public class DogAssignment {
 
         if (this.assignmentType == null) {
             this.assignmentType = AssignmentType.PRIMARY;
+        }
+        if (this.assignmentScope == null) {
+            this.assignmentScope = AssignmentScope.FULL_TRAINING;
         }
         if (this.isActive == null) {
             this.isActive = true;

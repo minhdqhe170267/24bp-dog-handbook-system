@@ -10,11 +10,13 @@ import org.springframework.stereotype.Service;
 import vn.edu.fpt.doghandbook.backend.dto.request.UserRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.UserResponse;
+import vn.edu.fpt.doghandbook.backend.entity.TrainingSpecialty;
 import vn.edu.fpt.doghandbook.backend.entity.User;
 import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ConflictException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
+import vn.edu.fpt.doghandbook.backend.repository.TrainingSpecialtyRepository;
 import vn.edu.fpt.doghandbook.backend.repository.UserRepository;
 import vn.edu.fpt.doghandbook.backend.service.UserManagementService;
 
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepository userRepository;
+    private final TrainingSpecialtyRepository trainingSpecialtyRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -64,15 +67,18 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new ConflictException("Tên đăng nhập đã tồn tại: " + request.getUsername());
         }
 
+        UserRole role = parseRole(request.getRole());
+
         User user = User.builder()
                 .username(request.getUsername())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .phone(request.getPhone())
-                .role(UserRole.valueOf(request.getRole()))
+                .role(role)
                 .militaryRank(request.getMilitaryRank())
                 .unit(request.getUnit())
+                .trainingSpecialty(resolveSpecialty(role, request.getSpecialtyId()))
                 .build();
 
         return toResponse(userRepository.save(user));
@@ -92,9 +98,11 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
-        user.setRole(UserRole.valueOf(request.getRole()));
+        UserRole role = parseRole(request.getRole());
+        user.setRole(role);
         user.setMilitaryRank(request.getMilitaryRank());
         user.setUnit(request.getUnit());
+        user.setTrainingSpecialty(resolveSpecialty(role, request.getSpecialtyId()));
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -128,6 +136,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     private UserResponse toResponse(User user) {
+        TrainingSpecialty specialty = user.getTrainingSpecialty();
         return UserResponse.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
@@ -137,11 +146,32 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .role(user.getRole().name())
                 .militaryRank(user.getMilitaryRank())
                 .unit(user.getUnit())
+                .specialtyId(specialty == null ? null : specialty.getSpecialtyId())
+                .specialtyName(specialty == null ? null : specialty.getSpecialtyName())
                 .isActive(user.getIsActive())
                 .isLocked(user.getIsLocked())
                 .failedLoginCount(user.getFailedLoginCount())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    private UserRole parseRole(String role) {
+        try {
+            return UserRole.valueOf(role);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Vai trò không hợp lệ: " + role);
+        }
+    }
+
+    private TrainingSpecialty resolveSpecialty(UserRole role, Integer specialtyId) {
+        if (role != UserRole.TRAINER) {
+            return null;
+        }
+        if (specialtyId == null || specialtyId <= 0) {
+            throw new BadRequestException("Trainer phải có chuyên ngành");
+        }
+        return trainingSpecialtyRepository.findBySpecialtyIdAndIsDeletedFalse(specialtyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chuyên ngành với id: " + specialtyId));
     }
 }
