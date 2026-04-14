@@ -75,7 +75,7 @@ const PULL_KEY_TO_TABLE: Record<string, PullTableConfig> = {
   firstAidGuides: { table: 'first_aid_guide', dbService: firstAidDBService },
   trainingMethods: { table: 'training_method', dbService: trainingMethodDBService },
   exercises: { table: 'training_exercise', dbService: exerciseDBService },
-  roadmaps: { table: 'training_roadmap', dbService: roadmapDBService },
+  roadmapPhases: { table: 'training_roadmap', dbService: roadmapDBService },
   nutritionStandards: { table: 'nutrition_standard', dbService: nutritionDBService },
   developmentStages: { table: 'development_stage', dbService: developmentStageDBService },
   contents: { table: 'content', dbService: contentDBService },
@@ -112,14 +112,85 @@ const normalizeRecordForTable = (
     record.immediate_steps = record.description || 'Chưa có hướng dẫn sơ cứu tức thì.';
   }
 
+  // Handle DELETE records: server only sends IDs + is_deleted/status, fill NOT NULL defaults
+  const isDeleteRecord = record.is_deleted === 1 || record.is_deleted === true;
+
+  if (table === 'training_exercise') {
+    if (!record.exercise_name) record.exercise_name = isDeleteRecord ? '(deleted)' : 'N/A';
+    if (!record.difficulty_level) record.difficulty_level = 'MEDIUM';
+    if (!record.status) record.status = 'DRAFT';
+  }
+
+  if (table === 'training_roadmap') {
+    // Backend sends phaseId as the actual roadmap_id PK, and roadmapId as the program_id
+    if (record.phase_id && !record.roadmap_id) {
+      record.roadmap_id = record.phase_id;
+    }
+    if (record.phase_id && record.roadmap_id && record.phase_id !== record.roadmap_id) {
+      const programId = record.roadmap_id;
+      record.roadmap_id = record.phase_id;
+      record.program_id = programId;
+    }
+    // Remove phase_id — training_roadmap table has no such column
+    delete record.phase_id;
+    if (!record.phase_name) record.phase_name = record.roadmap_name || 'Phase';
+    if (record.phase_order === null || record.phase_order === undefined) record.phase_order = 1;
+    if (!record.roadmap_name) record.roadmap_name = record.phase_name || 'Roadmap';
+  }
+
   if (table === 'content') {
+    if (!record.title) record.title = isDeleteRecord ? '(deleted)' : 'N/A';
+    if (!record.content_type) record.content_type = 'GENERAL_ARTICLE';
     if (record.author_id === null || record.author_id === undefined) {
       record.author_id = 0;
     }
-
     if (record.version === null || record.version === undefined) {
       record.version = 1;
     }
+  }
+
+  if (table === 'disease') {
+    if (!record.disease_name) record.disease_name = isDeleteRecord ? '(deleted)' : 'N/A';
+  }
+
+  if (table === 'medication') {
+    if (!record.medication_name) record.medication_name = isDeleteRecord ? '(deleted)' : 'N/A';
+  }
+
+  if (table === 'first_aid_guide') {
+    if (!record.guide_title) record.guide_title = isDeleteRecord ? '(deleted)' : 'N/A';
+    if (!record.emergency_type) record.emergency_type = 'OTHER';
+  }
+
+  if (table === 'training_method') {
+    if (!record.method_name) record.method_name = isDeleteRecord ? '(deleted)' : 'N/A';
+  }
+
+  if (table === 'nutrition_standard') {
+    if (!record.ration_code) record.ration_code = `DEL_${record.standard_id || Date.now()}`;
+    if (!record.ration_name) record.ration_name = isDeleteRecord ? '(deleted)' : 'N/A';
+  }
+
+  if (table === 'development_stage') {
+    if (!record.stage_name) record.stage_name = isDeleteRecord ? '(deleted)' : 'N/A';
+    if (record.age_min_months === null || record.age_min_months === undefined) record.age_min_months = 0;
+    if (record.age_max_months === null || record.age_max_months === undefined) record.age_max_months = 0;
+    if (record.stage_order === null || record.stage_order === undefined) record.stage_order = 0;
+  }
+
+  if (table === 'symptom') {
+    if (!record.symptom_code) record.symptom_code = `DEL_${record.symptom_id || Date.now()}`;
+    if (!record.symptom_name) record.symptom_name = isDeleteRecord ? '(deleted)' : 'N/A';
+    if (!record.category) record.category = 'OTHER';
+  }
+
+  if (table === 'dog_profile') {
+    if (!record.dog_code) record.dog_code = `DEL_${record.dog_id || Date.now()}`;
+    if (!record.gender) record.gender = 'MALE';
+  }
+
+  if (table === 'dog_assignment') {
+    if (!record.start_date) record.start_date = record.created_at || new Date().toISOString();
   }
 
   return record;
