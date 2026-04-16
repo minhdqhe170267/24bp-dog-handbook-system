@@ -11,6 +11,7 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { SearchBar } from '../../../src/components/SearchBar';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
@@ -44,6 +45,7 @@ export default function HealthSessionListScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<SessionFilter>('ALL');
+    const [search, setSearch] = useState('');
     const [accessDenied, setAccessDenied] = useState(false);
 
     const numericDogId = dogId ? Number(dogId) : null;
@@ -90,10 +92,34 @@ export default function HealthSessionListScreen() {
         }, [loadData]),
     );
 
-    const filteredSessions = useMemo(
-        () => sessions.filter((item) => (filter === 'ALL' ? true : item.status === filter)),
-        [filter, sessions],
-    );
+    const filteredSessions = useMemo(() => {
+        const statusFiltered = sessions.filter((item) => (filter === 'ALL' ? true : item.status === filter));
+        const keyword = search.trim().toLowerCase();
+
+        if (!keyword) {
+            return statusFiltered;
+        }
+
+        return statusFiltered.filter((item) =>
+            [
+                item.issueSummary,
+                item.dogName,
+                item.dogCode,
+                item.dogBreedName,
+                item.handlerName,
+                item.unitName,
+                item.status,
+                getSessionStatusMeta(item.status).label,
+                item.severity,
+                getSeverityMeta(item.severity).label,
+                item.startedAt ? formatDate(item.startedAt) : null,
+                item.lastUpdatedAt ? formatDate(item.lastUpdatedAt) : null,
+                item.followUpDate ? formatDateTime(item.followUpDate) : null,
+            ]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(keyword)),
+        );
+    }, [filter, search, sessions]);
 
     const emptyTitle = numericDogId
         ? `Chưa có phiên theo dõi cho ${contextDog?.dogName || 'chó này'}`
@@ -146,6 +172,21 @@ export default function HealthSessionListScreen() {
                 </Text>
             </View>
 
+            <SearchBar
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Tìm theo chó, mã chó hoặc vấn đề sức khỏe"
+                containerStyle={[
+                    styles.searchBar,
+                    {
+                        backgroundColor: isDark ? colors.surface : '#F8FBF9',
+                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                    },
+                ]}
+                inputStyle={{ color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }}
+                clearAccessibilityLabel="Xóa từ khóa tìm phiên theo dõi"
+            />
+
             <View style={styles.filterRow}>
                 {healthSessionStatusOptions.map((item) => {
                     const active = filter === item.key;
@@ -180,6 +221,8 @@ export default function HealthSessionListScreen() {
                     keyExtractor={(item) => String(item.sessionId)}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    keyboardDismissMode="none"
+                    keyboardShouldPersistTaps="handled"
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.primary} />}
                     ListEmptyComponent={
                         <View style={styles.emptyWrap}>
@@ -294,6 +337,12 @@ const styles = StyleSheet.create({
         marginTop: 5,
         fontSize: 13,
         lineHeight: 19,
+    },
+    searchBar: {
+        marginBottom: 12,
+        minHeight: 50,
+        borderRadius: 18,
+        borderWidth: 1,
     },
     filterRow: {
         flexDirection: 'row',

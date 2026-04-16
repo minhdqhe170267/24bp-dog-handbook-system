@@ -29,6 +29,8 @@ export const ScreenWrapper: React.FC<ScreenWrapperProps> = ({
             {scrollable ? (
                 <ScrollView
                     contentContainerStyle={[styles.scrollContent, style]}
+                    keyboardDismissMode="none"
+                    keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
                     {children}

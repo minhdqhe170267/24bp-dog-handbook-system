@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View }
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing, borderRadius } from '../../src/constants/theme';
 import { useThemeStore } from '../../src/stores/themeStore';
@@ -228,17 +229,22 @@ export default function TrainingHubScreen() {
         <ScreenWrapper scrollable style={{ backgroundColor: isDark ? colors.background : trainingUi.page }}>
             <Animated.View style={animatedStyle}>
                 <View style={styles.pageHeader}>
-                    <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
-                        TRUNG TÂM HUẤN LUYỆN
-                    </Text>
-                    <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Huấn luyện
-                    </Text>
-                    <Text style={[styles.heroAccent, { color: colors.primary }]}>chó nghiệp vụ</Text>
-                    <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                        Theo dõi program theo specialty, roadmap hiện tại, phase đang chạy và các bản ghi follow-up
-                        huấn luyện trong một hub trực quan, hiện đại và bám sát backend mới.
-                    </Text>
+                    <View style={styles.pageHeaderTop}>
+                        <View style={styles.pageHeaderCopy}>
+                            <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
+                                TRUNG TÂM HUẤN LUYỆN
+                            </Text>
+                            <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
+                                Huấn luyện
+                            </Text>
+                            <Text style={[styles.heroAccent, { color: colors.primary }]}>chó nghiệp vụ</Text>
+                            <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
+                                Theo dõi program theo specialty, roadmap hiện tại, phase đang chạy và các bản ghi follow-up
+                                huấn luyện trong một hub trực quan, hiện đại và bám sát backend mới.
+                            </Text>
+                        </View>
+                        <GlobalSearchButton size={42} />
+                    </View>
                 </View>
 
                 <View style={styles.statStrip}>
@@ -379,6 +385,15 @@ const styles = StyleSheet.create({
     pageHeader: {
         marginTop: spacing.md,
         marginBottom: spacing.md,
+    },
+    pageHeaderTop: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.md,
+    },
+    pageHeaderCopy: {
+        flex: 1,
+        minWidth: 0,
     },
     heroEyebrow: {
         fontSize: 11,

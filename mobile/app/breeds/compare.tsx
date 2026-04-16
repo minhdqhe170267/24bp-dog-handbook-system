@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
+import { resolveBreedImageUrl } from '../../src/features/breeds/ui';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { type BreedCompareResult, breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
@@ -57,7 +59,7 @@ export default function BreedCompareScreen() {
   useEffect(() => {
     const loadBreeds = async () => {
       try {
-        const response = await breedService.getAll(0, 100);
+        const response = await breedService.refreshAll('', 100);
         setBreeds(response.content);
       } catch (error) {
         console.log('[SYNC_UI] Lỗi tải dữ liệu so sánh giống chó:', error);
@@ -100,7 +102,7 @@ export default function BreedCompareScreen() {
 
       return (
         breed.breedName.toLowerCase().includes(keyword) ||
-        breed.origin.toLowerCase().includes(keyword) ||
+        (breed.origin ?? '').toLowerCase().includes(keyword) ||
         (breed.operationalCapabilities ?? '').toLowerCase().includes(keyword)
       );
     });
@@ -241,27 +243,34 @@ export default function BreedCompareScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectedRow}>
           {selectedBreeds.length > 0 ? (
-            selectedBreeds.map((breed) => (
-              <TouchableOpacity
-                key={breed.breedId}
-                activeOpacity={0.9}
-                onPress={() => toggleBreed(breed.breedId)}
-                style={[styles.selectedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
-                <View style={styles.selectedCardTop}>
-                  <View style={styles.selectedIconWrap}>
-                    <Ionicons name="paw" size={18} color={colors.primary} />
+            selectedBreeds.map((breed) => {
+              const imageUrl = resolveBreedImageUrl(breed.imageUrl);
+              return (
+                <TouchableOpacity
+                  key={breed.breedId}
+                  activeOpacity={0.9}
+                  onPress={() => toggleBreed(breed.breedId)}
+                  style={[styles.selectedCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                >
+                  <View style={styles.selectedCardTop}>
+                    <View style={styles.selectedIconWrap}>
+                      {imageUrl ? (
+                        <Image source={imageUrl} style={styles.smallBreedImage} contentFit="cover" />
+                      ) : (
+                        <Ionicons name="paw" size={18} color={colors.primary} />
+                      )}
+                    </View>
+                    <Ionicons name="close-outline" size={16} color={colors.textSecondary} />
                   </View>
-                  <Ionicons name="close-outline" size={16} color={colors.textSecondary} />
-                </View>
-                <Text style={[styles.selectedCardTitle, { color: colors.text }]} numberOfLines={1}>
-                  {breed.breedName}
-                </Text>
-                <Text style={[styles.selectedCardCaption, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {breed.trainabilityLevel}
-                </Text>
-              </TouchableOpacity>
-            ))
+                  <Text style={[styles.selectedCardTitle, { color: colors.text }]} numberOfLines={1}>
+                    {breed.breedName}
+                  </Text>
+                  <Text style={[styles.selectedCardCaption, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {breed.trainabilityLevel}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
           ) : (
             <View style={[styles.emptySelectCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
@@ -376,6 +385,7 @@ export default function BreedCompareScreen() {
         <View style={styles.libraryGrid}>
           {filteredBreeds.map((breed, index) => {
             const selected = selectedIds.includes(breed.breedId);
+            const imageUrl = resolveBreedImageUrl(breed.imageUrl);
             return (
               <Animated.View
                 key={breed.breedId}
@@ -404,7 +414,11 @@ export default function BreedCompareScreen() {
                   ]}
                 >
                   <View style={[styles.libraryIconWrap, { backgroundColor: selected ? '#EAF7F0' : '#F5F8F6' }]}>
-                    <Ionicons name={selected ? 'checkmark-circle' : 'paw-outline'} size={20} color={colors.primary} />
+                    {imageUrl ? (
+                      <Image source={imageUrl} style={styles.smallBreedImage} contentFit="cover" />
+                    ) : (
+                      <Ionicons name={selected ? 'checkmark-circle' : 'paw-outline'} size={20} color={colors.primary} />
+                    )}
                   </View>
                   <Text style={[styles.libraryCardTitle, { color: colors.text }]} numberOfLines={2}>
                     {breed.breedName}
@@ -572,6 +586,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EAF7F0',
+    overflow: 'hidden',
+  },
+  smallBreedImage: {
+    width: '100%',
+    height: '100%',
   },
   selectedCardTitle: {
     marginTop: spacing.md,
@@ -722,6 +741,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   libraryCardTitle: {
     marginTop: spacing.md,

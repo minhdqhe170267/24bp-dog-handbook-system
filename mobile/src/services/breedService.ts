@@ -33,6 +33,167 @@ export interface BreedCompareResult {
     summary: BreedCompareSummary;
 }
 
+export interface BreedQueryOptions {
+    forceRemote?: boolean;
+    includeMedia?: boolean;
+}
+
+interface BreedMediaResponse {
+    mediaId: number;
+    fileUrl?: string | null;
+    url?: string | null;
+    secureUrl?: string | null;
+    mediaType: string | null;
+    mimeType: string | null;
+    displayOrder: number | null;
+}
+
+const DEFAULT_BREED_PAGE_SIZE = 100;
+const MEDIA_FETCH_CONCURRENCY = 6;
+
+const normalizeString = (value: unknown): string => {
+    if (value == null) {
+        return '';
+    }
+
+    return typeof value === 'string' ? value : String(value);
+};
+
+const normalizeBreed = (breed: Breed): Breed => ({
+    ...breed,
+    breedName: normalizeString(breed.breedName),
+    origin: normalizeString(breed.origin),
+    description: normalizeString(breed.description),
+    sizeClassification: normalizeString(breed.sizeClassification),
+    trainabilityLevel: normalizeString(breed.trainabilityLevel),
+    lifespanYears: normalizeString(breed.lifespanYears),
+    operationalCapabilities: breed.operationalCapabilities ?? null,
+    metadata: breed.metadata ?? null,
+    imageUrl: breed.imageUrl ?? null,
+});
+
+const normalizeBreedPage = (page: PageResponse<Breed>): PageResponse<Breed> => ({
+    ...page,
+    content: (page.content ?? []).map(normalizeBreed),
+});
+
+const mapWithConcurrency = async <T, R>(
+    items: T[],
+    limit: number,
+    mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> => {
+    const results: R[] = new Array(items.length);
+    let nextIndex = 0;
+    const workerCount = Math.min(Math.max(limit, 1), items.length);
+
+    await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+            while (nextIndex < items.length) {
+                const currentIndex = nextIndex;
+                nextIndex += 1;
+                results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+            }
+        }),
+    );
+
+    return results;
+};
+
+const fetchFirstBreedMediaImage = async (breedId: number): Promise<string | null> => {
+    try {
+        const res = (await api.get(`/media/entity/DOG_BREED/${breedId}`)) as ApiResponse<BreedMediaResponse[]>;
+        const mediaList = unwrapApiData(res);
+        const image = [...(mediaList ?? [])]
+            .sort((left, right) => (left.displayOrder ?? 999) - (right.displayOrder ?? 999))
+            .find((item) => {
+                const mediaType = item.mediaType?.toUpperCase() ?? '';
+                const mimeType = item.mimeType?.toLowerCase() ?? '';
+                return mediaType === 'IMAGE' || mimeType.startsWith('image/');
+            });
+
+        return (image?.fileUrl || image?.secureUrl || image?.url || '').trim() || null;
+    } catch (error) {
+        console.warn(`[BREED] Cannot fetch media for breed ${breedId}`, error);
+        return null;
+    }
+};
+
+const enrichBreedWithMedia = async (breed: Breed): Promise<Breed> => {
+    const normalizedBreed = normalizeBreed(breed);
+    const mediaImageUrl = await fetchFirstBreedMediaImage(normalizedBreed.breedId);
+    return {
+        ...normalizedBreed,
+        imageUrl: mediaImageUrl || normalizedBreed.imageUrl || null,
+    };
+};
+
+const enrichPageWithMedia = async (page: PageResponse<Breed>): Promise<PageResponse<Breed>> => ({
+    ...page,
+    content: await mapWithConcurrency(page.content ?? [], MEDIA_FETCH_CONCURRENCY, enrichBreedWithMedia),
+});
+
+const readLocalBreedPage = async (search = ''): Promise<PageResponse<Breed>> => {
+    const rows = search
+        ? await breedDBService.search(search)
+        : await breedDBService.getAll();
+    return toPageResponse(rows.map((row) => normalizeBreed(rowToApi<Breed>(row))));
+};
+
+const fetchBreedPageFromRemote = async (
+    page = 0,
+    size = DEFAULT_BREED_PAGE_SIZE,
+    search = '',
+    includeMedia = true,
+): Promise<PageResponse<Breed>> => {
+    const res = (await api.get('/breeds', {
+        params: { page, size, search: search || undefined },
+    })) as ApiResponse<PageResponse<Breed>>;
+    const data = normalizeBreedPage(unwrapApiData(res));
+    return includeMedia ? enrichPageWithMedia(data) : data;
+};
+
+const fetchAllBreedPagesFromRemote = async (
+    search = '',
+    pageSize = DEFAULT_BREED_PAGE_SIZE,
+    includeMedia = true,
+): Promise<PageResponse<Breed>> => {
+    const firstPage = await fetchBreedPageFromRemote(0, pageSize, search, false);
+    const pages: PageResponse<Breed>[] = [firstPage];
+
+    for (let pageIndex = 1; pageIndex < firstPage.totalPages; pageIndex += 1) {
+        pages.push(await fetchBreedPageFromRemote(pageIndex, pageSize, search, false));
+    }
+
+    const content = pages.flatMap((page) => page.content ?? []);
+    const enrichedContent = includeMedia
+        ? await mapWithConcurrency(content, MEDIA_FETCH_CONCURRENCY, enrichBreedWithMedia)
+        : content.map(normalizeBreed);
+
+    return {
+        ...firstPage,
+        content: enrichedContent,
+        page: 0,
+        size: enrichedContent.length,
+        totalElements: firstPage.totalElements,
+        totalPages: firstPage.totalPages,
+    };
+};
+
+const saveBreedPageToLocal = async (data: PageResponse<Breed>) => {
+    const rows = (data.content ?? []).map((breed) => apiToRow(normalizeBreed(breed), BREED_COLS));
+    await breedDBService.upsertFromServer(rows as any);
+};
+
+const fetchBreedByIdFromRemote = async (id: number, includeMedia = true): Promise<Breed> => {
+    const res = (await api.get(`/breeds/${id}`)) as ApiResponse<Breed>;
+    const breed = normalizeBreed(unwrapApiData(res));
+    return includeMedia ? enrichBreedWithMedia(breed) : breed;
+};
+
+const saveBreedToLocal = async (breed: Breed) => {
+    await breedDBService.upsertFromServer([apiToRow(normalizeBreed(breed), BREED_COLS)] as any);
+};
+
 const mapStageRowToApi = (row: DevelopmentStageRow, breedName?: string | null): DevelopmentStage => ({
     stageId: row.stage_id,
     breedId: row.breed_id,
@@ -120,42 +281,87 @@ const buildCompareSummary = (breeds: Breed[]): BreedCompareSummary => {
 };
 
 export const breedService = {
-    getAll: (page = 0, size = 20, search = ''): Promise<PageResponse<Breed>> =>
-        offlineFirstRead<PageResponse<Breed>>({
-            localFetch: async () => {
-                const rows = search
-                    ? await breedDBService.search(search)
-                    : await breedDBService.getAll();
-                return toPageResponse(rows.map((r) => rowToApi<Breed>(r)));
-            },
-            remoteFetch: async () => {
-                const res = (await api.get('/breeds', {
-                    params: { page, size, search: search || undefined },
-                })) as ApiResponse<PageResponse<Breed>>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async (data) => {
-                const rows = data.content.map((b) => apiToRow(b, BREED_COLS));
-                await breedDBService.upsertFromServer(rows as any);
-            },
-            entityName: 'breeds',
-        }),
+    getAll: async (
+        page = 0,
+        size = 20,
+        search = '',
+        options: BreedQueryOptions = {},
+    ): Promise<PageResponse<Breed>> => {
+        if (options.forceRemote) {
+            if (isOnline()) {
+                try {
+                    const remoteData = await fetchBreedPageFromRemote(page, size, search, options.includeMedia !== false);
+                    await saveBreedPageToLocal(remoteData).catch(() => {});
+                    return remoteData;
+                } catch (error) {
+                    console.warn('[BREED] Remote refresh failed, using local cache', error);
+                }
+            }
 
-    getById: (id: number): Promise<Breed> =>
-        offlineFirstRead<Breed>({
+            return readLocalBreedPage(search);
+        }
+
+        return offlineFirstRead<PageResponse<Breed>>({
+            localFetch: () => readLocalBreedPage(search),
+            remoteFetch: () => fetchBreedPageFromRemote(page, size, search, options.includeMedia !== false),
+            saveToLocal: saveBreedPageToLocal,
+            entityName: 'breeds',
+        });
+    },
+
+    refreshAll: async (
+        search = '',
+        pageSize = DEFAULT_BREED_PAGE_SIZE,
+        options: Pick<BreedQueryOptions, 'includeMedia'> = {},
+    ): Promise<PageResponse<Breed>> => {
+        if (isOnline()) {
+            try {
+                const remoteData = await fetchAllBreedPagesFromRemote(search, pageSize, options.includeMedia !== false);
+                try {
+                    await saveBreedPageToLocal(remoteData);
+                    if (!search.trim()) {
+                        await breedDBService.markMissingAsDeleted(remoteData.content.map((breed) => breed.breedId));
+                    }
+                } catch (cacheError) {
+                    console.warn('[BREED] Remote data loaded but cache sync failed', cacheError);
+                }
+                return remoteData;
+            } catch (error) {
+                console.warn('[BREED] Full remote refresh failed, using local cache', error);
+            }
+        }
+
+        return readLocalBreedPage(search);
+    },
+
+    getById: async (id: number, options: BreedQueryOptions = {}): Promise<Breed> => {
+        if (options.forceRemote) {
+            if (isOnline()) {
+                try {
+                    const remoteBreed = await fetchBreedByIdFromRemote(id, options.includeMedia !== false);
+                    await saveBreedToLocal(remoteBreed).catch(() => {});
+                    return remoteBreed;
+                } catch (error) {
+                    console.warn(`[BREED] Remote detail refresh failed for breed ${id}, using local cache`, error);
+                }
+            }
+
+            const row = await breedDBService.getById(id);
+            if (row) {
+                return normalizeBreed(rowToApi<Breed>(row));
+            }
+        }
+
+        return offlineFirstRead<Breed>({
             localFetch: async () => {
                 const row = await breedDBService.getById(id);
-                return row ? rowToApi<Breed>(row) : (null as any);
+                return row ? normalizeBreed(rowToApi<Breed>(row)) : (null as any);
             },
-            remoteFetch: async () => {
-                const res = (await api.get(`/breeds/${id}`)) as ApiResponse<Breed>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async (breed) => {
-                await breedDBService.upsertFromServer([apiToRow(breed, BREED_COLS)] as any);
-            },
+            remoteFetch: () => fetchBreedByIdFromRemote(id, options.includeMedia !== false),
+            saveToLocal: saveBreedToLocal,
             entityName: `breed:${id}`,
-        }),
+        });
+    },
 
     compareBreeds: (breedIds: number[]): Promise<BreedCompareResult> =>
         offlineFirstRead<BreedCompareResult>({
@@ -163,7 +369,7 @@ export const breedService = {
                 const rows = await Promise.all(breedIds.map((id) => breedDBService.getById(id)));
                 const breeds = rows
                     .filter((row): row is NonNullable<typeof row> => Boolean(row))
-                    .map((row) => rowToApi<Breed>(row));
+                    .map((row) => normalizeBreed(rowToApi<Breed>(row)));
 
                 return {
                     breeds,
@@ -172,10 +378,14 @@ export const breedService = {
             },
             remoteFetch: async () => {
                 const res = (await api.post('/breeds/compare', { breedIds })) as ApiResponse<BreedCompareResult>;
-                return unwrapApiData(res);
+                const data = unwrapApiData(res);
+                return {
+                    ...data,
+                    breeds: await mapWithConcurrency(data.breeds ?? [], MEDIA_FETCH_CONCURRENCY, enrichBreedWithMedia),
+                };
             },
             saveToLocal: async (data) => {
-                const rows = data.breeds.map((breed) => apiToRow(breed, BREED_COLS));
+                const rows = data.breeds.map((breed) => apiToRow(normalizeBreed(breed), BREED_COLS));
                 await breedDBService.upsertFromServer(rows as any);
             },
             entityName: `breeds:compare:${breedIds.join('-')}`,
