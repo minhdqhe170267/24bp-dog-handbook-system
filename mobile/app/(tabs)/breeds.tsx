@@ -6,16 +6,19 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
+import { SearchBar } from '../../src/components/SearchBar';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { EmptyState } from '../../src/components/EmptyState';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
+import { resolveBreedImageUrl } from '../../src/features/breeds/ui';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
@@ -30,14 +33,6 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: keyof typeof Ionicons
   { key: 'phat_hien', label: 'Phát hiện', icon: 'scan-outline' },
   { key: 'cuu_ho', label: 'Cứu hộ', icon: 'medkit-outline' },
 ];
-
-const BREED_CATEGORY: Record<number, CategoryKey[]> = {
-  1: ['nghiep_vu', 'tuan_tra'],
-  2: ['phat_hien', 'cuu_ho'],
-  3: ['nghiep_vu', 'tuan_tra'],
-  4: ['tuan_tra'],
-  5: ['nghiep_vu', 'tuan_tra'],
-};
 
 const CATEGORY_TONE: Record<CategoryKey, { soft: string; strong: string }> = {
   all: { soft: '#E8F1EC', strong: '#335B47' },
@@ -78,7 +73,31 @@ const normalizeBreedText = (value: string | null | undefined, fallback = '') => 
 };
 
 const getBreedCategories = (breed: Breed): CategoryKey[] => {
-  return BREED_CATEGORY[breed.breedId] ?? ['nghiep_vu'];
+  const source = [
+    breed.operationalCapabilities,
+    breed.description,
+    breed.metadata,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const categories = new Set<CategoryKey>();
+
+  if (/nghiệp vụ|nghiep vu|bảo vệ|bao ve|canh gác|canh gac|guard|protection|police/.test(source)) {
+    categories.add('nghiep_vu');
+  }
+  if (/tuần tra|tuan tra|patrol|kiểm soát|kiem soat/.test(source)) {
+    categories.add('tuan_tra');
+  }
+  if (/phát hiện|phat hien|đánh hơi|danh hoi|ma túy|ma tuy|chất nổ|chat no|detection|sniff/.test(source)) {
+    categories.add('phat_hien');
+  }
+  if (/cứu hộ|cuu ho|cứu nạn|cuu nan|rescue|search/.test(source)) {
+    categories.add('cuu_ho');
+  }
+
+  return Array.from(categories);
 };
 
 const getTrainabilityTone = (value: string | null | undefined, isDark: boolean) => {
@@ -117,29 +136,34 @@ export default function BreedsScreen() {
 
   const heroProgress = useRef(new Animated.Value(0)).current;
   const listProgress = useRef(new Animated.Value(0)).current;
+  const hasLoadedRef = useRef(false);
 
-  const loadBreeds = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+  const loadBreeds = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (mode === 'refresh') {
       setRefreshing(true);
-    } else {
+    } else if (mode === 'initial') {
       setLoading(true);
     }
 
     try {
-      const data = await breedService.getAll(0, 100);
+      const data = await breedService.refreshAll('', 100);
       setBreeds(data.content || data || []);
     } catch (error) {
       console.log('[SYNC_UI] Lỗi tải danh sách giống chó:', error);
-      setBreeds([]);
+      setBreeds((current) => (current.length > 0 ? current : []));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    void loadBreeds('initial');
-  }, [loadBreeds]);
+  useFocusEffect(
+    useCallback(() => {
+      const mode = hasLoadedRef.current ? 'silent' : 'initial';
+      hasLoadedRef.current = true;
+      void loadBreeds(mode);
+    }, [loadBreeds]),
+  );
 
   useEffect(() => {
     heroProgress.setValue(0);
@@ -253,9 +277,18 @@ export default function BreedsScreen() {
             <Ionicons name="sparkles" size={12} color="#FFFFFF" />
             <Text style={styles.heroEyebrowText}>Thư viện giống chó</Text>
           </View>
-          <View style={styles.heroStatusBadge}>
-            <Ionicons name="paw-outline" size={12} color="#D8F3E4" />
-            <Text style={styles.heroStatusText}>{breeds.length} hồ sơ</Text>
+          <View style={styles.heroTopActions}>
+            <GlobalSearchButton
+              size={34}
+              iconSize={16}
+              iconColor="#D8F3E4"
+              backgroundColor="rgba(255,255,255,0.12)"
+              borderColor="transparent"
+            />
+            <View style={styles.heroStatusBadge}>
+              <Ionicons name="paw-outline" size={12} color="#D8F3E4" />
+              <Text style={styles.heroStatusText}>{breeds.length} hồ sơ</Text>
+            </View>
           </View>
         </View>
 
@@ -296,36 +329,20 @@ export default function BreedsScreen() {
         </View>
       </View>
 
-      <View
-        style={[
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Tìm giống chó, nguồn gốc hoặc năng lực..."
+        containerStyle={[
           styles.searchShell,
           {
             backgroundColor: colors.surface,
             borderColor: isDark ? colors.border : '#D8E5DE',
           },
         ]}
-      >
-        <View
-          style={[
-            styles.searchIconWrap,
-            { backgroundColor: isDark ? 'rgba(82,183,136,0.16)' : '#EBF6F0' },
-          ]}
-        >
-          <Ionicons name="search" size={16} color={colors.primary} />
-        </View>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Tìm giống chó, nguồn gốc hoặc năng lực..."
-          placeholderTextColor={colors.textLight}
-          style={[styles.searchInput, { color: colors.text }]}
-        />
-        {search.length > 0 ? (
-          <TouchableOpacity onPress={() => setSearch('')} activeOpacity={0.8} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={18} color={colors.textLight} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
+        inputStyle={[styles.searchInput, { color: colors.text }]}
+        clearAccessibilityLabel="Xóa từ khóa tìm giống chó"
+      />
 
       <FlatList
         horizontal
@@ -383,8 +400,10 @@ export default function BreedsScreen() {
       <FlatList
         data={filteredBreeds}
         keyExtractor={(item) => String(item.breedId)}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeader()}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         refreshControl={
@@ -408,7 +427,7 @@ export default function BreedsScreen() {
         }
         renderItem={({ item, index }) => {
           const breedCategories = getBreedCategories(item);
-          const accentKey = breedCategories[0] ?? 'nghiep_vu';
+          const accentKey = breedCategories[0] ?? 'all';
           const accentTone = CATEGORY_TONE[accentKey];
           const breedName = normalizeBreedText(item.breedName, `Giống chó #${item.breedId}`);
           const origin = normalizeBreedText(item.origin, 'Chưa rõ xuất xứ');
@@ -422,6 +441,7 @@ export default function BreedsScreen() {
           const trainabilityTone = getTrainabilityTone(item.trainabilityLevel, isDark);
           const capabilityPreview = parseCapabilities(item.operationalCapabilities).slice(0, 2);
           const isFavorite = favorites.includes(item.breedId);
+          const breedImageUrl = resolveBreedImageUrl(item.imageUrl);
 
           return (
             <Animated.View style={getCardAnimatedStyle(index)}>
@@ -446,7 +466,11 @@ export default function BreedsScreen() {
                         { backgroundColor: isDark ? 'rgba(82,183,136,0.14)' : accentTone.soft },
                       ]}
                     >
-                      <Ionicons name="paw" size={22} color={accentTone.strong} />
+                      {breedImageUrl ? (
+                        <Image source={breedImageUrl} style={styles.breedThumbImage} contentFit="cover" />
+                      ) : (
+                        <Ionicons name="paw" size={22} color={accentTone.strong} />
+                      )}
                     </View>
 
                     <View style={styles.cardHeadingText}>
@@ -615,6 +639,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  heroTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   heroEyebrowBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -725,20 +754,10 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 2,
   },
-  searchIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   searchInput: {
     flex: 1,
     fontSize: fontSize.md,
     fontWeight: '600',
-  },
-  clearButton: {
-    padding: 2,
   },
   categoryRow: {
     paddingTop: spacing.md,
@@ -798,6 +817,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  breedThumbImage: {
+    width: '100%',
+    height: '100%',
   },
   cardHeadingText: {
     flex: 1,

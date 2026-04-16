@@ -13,9 +13,11 @@ export interface Breed {
     lifespanYears: string;
     operationalCapabilities?: string | null;
     metadata?: string | null;
-    imageUrl?: string;
+    imageUrl?: string | null;
     status?: string;
     createdByName?: string;
+    createdAt?: string;
+    updatedAt?: string;
     temperament?: string[];
     careInstructions?: string;
     trainingTips?: string;

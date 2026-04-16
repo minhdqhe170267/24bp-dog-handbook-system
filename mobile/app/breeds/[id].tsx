@@ -10,11 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
+import { resolveBreedImageUrl } from '../../src/features/breeds/ui';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
@@ -150,7 +152,7 @@ export default function BreedDetailScreen() {
   useEffect(() => {
     const fetchBreed = async () => {
       try {
-        const data = await breedService.getById(Number(id));
+        const data = await breedService.getById(Number(id), { forceRemote: true });
         setBreed(data);
       } catch (error) {
         console.log('[SYNC_UI] Lỗi tải chi tiết giống chó:', error);
@@ -194,6 +196,7 @@ export default function BreedDetailScreen() {
   const breedSize = normalizeBreedText(breed?.sizeClassification, '--');
   const breedTrainability = normalizeBreedText(breed?.trainabilityLevel, '--');
   const breedLifespan = normalizeBreedText(breed?.lifespanYears, '--');
+  const breedImageUrl = resolveBreedImageUrl(breed?.imageUrl);
 
   const capabilities = useMemo(() => parseCapabilities(breed?.operationalCapabilities), [breed?.operationalCapabilities]);
   const metadata = useMemo(() => parseMetadata(breed?.metadata), [breed?.metadata]);
@@ -201,27 +204,19 @@ export default function BreedDetailScreen() {
     () =>
       breed?.temperament && breed.temperament.length > 0
         ? breed.temperament
-        : ['Trung thành', 'Bền bỉ', 'Tập trung', 'Phản xạ tốt'],
+        : [],
     [breed?.temperament],
   );
 
   const careBullets = useMemo(
     () =>
-      parseBulletList(breed?.careInstructions, [
-        'Giữ khẩu phần đều theo cường độ nhiệm vụ và thời tiết.',
-        'Chải lông, vệ sinh chân và tai định kỳ sau các ca ngoài hiện trường.',
-        'Khám sức khỏe định kỳ để theo dõi thể lực, khớp và da lông.',
-      ]),
+      parseBulletList(breed?.careInstructions, []),
     [breed?.careInstructions],
   );
 
   const trainingBullets = useMemo(
     () =>
-      parseBulletList(breed?.trainingTips, [
-        'Ưu tiên chuỗi lệnh ngắn, rõ và nhất quán để giữ nhịp tập trung.',
-        'Dùng thưởng tích cực để củng cố phản xạ thay vì ép cường độ quá sớm.',
-        'Luân phiên bài tập cơ bản, thể lực và xử lý tình huống để tránh quá tải.',
-      ]),
+      parseBulletList(breed?.trainingTips, []),
     [breed?.trainingTips],
   );
 
@@ -272,20 +267,26 @@ export default function BreedDetailScreen() {
 
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Năng lực nổi bật</Text>
-        <View style={styles.chipWrap}>
-          {(capabilities.length > 0 ? capabilities : ['Bảo vệ mục tiêu', 'Theo vết', 'Tuần tra']).map((capability) => (
-            <View
-              key={capability}
-              style={[
-                styles.softChip,
-                { backgroundColor: isDark ? 'rgba(82,183,136,0.14)' : '#EAF7F0' },
-              ]}
-            >
-              <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
-              <Text style={[styles.softChipText, { color: colors.text }]}>{capability}</Text>
-            </View>
-          ))}
-        </View>
+        {capabilities.length > 0 ? (
+          <View style={styles.chipWrap}>
+            {capabilities.map((capability) => (
+              <View
+                key={capability}
+                style={[
+                  styles.softChip,
+                  { backgroundColor: isDark ? 'rgba(82,183,136,0.14)' : '#EAF7F0' },
+                ]}
+              >
+                <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
+                <Text style={[styles.softChipText, { color: colors.text }]}>{capability}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={[styles.panelCaption, { color: colors.textSecondary }]}>
+            Chưa có dữ liệu năng lực vận hành trong hồ sơ giống chó.
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -300,27 +301,29 @@ export default function BreedDetailScreen() {
         <InfoRow label="Người tạo" value={breed?.createdByName || 'Hệ thống'} colors={colors} />
       </View>
 
-      <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.panelTitle, { color: colors.text }]}>Tính cách điển hình</Text>
-        <View style={styles.chipWrap}>
-          {temperament.map((item, index) => (
-            <View
-              key={`${item}-${index}`}
-              style={[
-                styles.softChip,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F4F7F5' },
-              ]}
-            >
-              <Ionicons
-                name={index % 2 === 0 ? 'heart-outline' : 'flash-outline'}
-                size={14}
-                color={colors.primary}
-              />
-              <Text style={[styles.softChipText, { color: colors.text }]}>{item}</Text>
-            </View>
-          ))}
+      {temperament.length > 0 ? (
+        <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.panelTitle, { color: colors.text }]}>Tính cách điển hình</Text>
+          <View style={styles.chipWrap}>
+            {temperament.map((item, index) => (
+              <View
+                key={`${item}-${index}`}
+                style={[
+                  styles.softChip,
+                  { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F4F7F5' },
+                ]}
+              >
+                <Ionicons
+                  name={index % 2 === 0 ? 'heart-outline' : 'flash-outline'}
+                  size={14}
+                  color={colors.primary}
+                />
+                <Text style={[styles.softChipText, { color: colors.text }]}>{item}</Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       {metadataHighlights.length > 0 ? (
         <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -362,10 +365,12 @@ export default function BreedDetailScreen() {
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Chăm sóc hằng ngày</Text>
         <Text style={[styles.panelCaption, { color: colors.textSecondary }]}>
-          Giữ thể trạng đều, tránh quá tải cơ khớp và ưu tiên phục hồi sau mỗi chuỗi vận động nặng.
+          {careBullets.length > 0
+            ? 'Dữ liệu chăm sóc được lấy từ hồ sơ giống chó hiện tại.'
+            : 'Chưa có dữ liệu chăm sóc trong hồ sơ giống chó.'}
         </Text>
       </View>
-      {renderBulletColumn(careBullets, 'leaf-outline', colors.primary)}
+      {careBullets.length > 0 ? renderBulletColumn(careBullets, 'leaf-outline', colors.primary) : null}
     </View>
   );
 
@@ -374,10 +379,12 @@ export default function BreedDetailScreen() {
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Gợi ý huấn luyện</Text>
         <Text style={[styles.panelCaption, { color: colors.textSecondary }]}>
-          Lên giáo án theo mức tập trung, độ nhạy lệnh và nhịp phục hồi của từng cá thể.
+          {trainingBullets.length > 0
+            ? 'Dữ liệu huấn luyện được lấy từ hồ sơ giống chó hiện tại.'
+            : 'Chưa có dữ liệu huấn luyện riêng trong hồ sơ giống chó.'}
         </Text>
       </View>
-      {renderBulletColumn(trainingBullets, 'fitness-outline', '#2F6D4C')}
+      {trainingBullets.length > 0 ? renderBulletColumn(trainingBullets, 'fitness-outline', '#2F6D4C') : null}
 
       <View style={styles.quickActionRow}>
         <TouchableOpacity
@@ -497,7 +504,11 @@ export default function BreedDetailScreen() {
 
             <View style={styles.heroSymbolWrap}>
               <View style={[styles.heroSymbolRing, { borderColor: 'rgba(255,255,255,0.16)' }]}>
-                <Ionicons name="paw" size={40} color="#FFFFFF" />
+                {breedImageUrl ? (
+                  <Image source={breedImageUrl} style={styles.heroBreedImage} contentFit="cover" />
+                ) : (
+                  <Ionicons name="paw" size={40} color="#FFFFFF" />
+                )}
               </View>
             </View>
 
@@ -724,6 +735,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.10)',
+    overflow: 'hidden',
+  },
+  heroBreedImage: {
+    width: '100%',
+    height: '100%',
   },
   heroTitle: {
     marginTop: spacing.md,
