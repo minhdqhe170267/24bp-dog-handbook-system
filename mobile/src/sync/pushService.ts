@@ -318,6 +318,60 @@ const ensureLocalUpdatedAt = (payloadJson: string, action: string): string => {
   }
 };
 
+const normalizeDiagnosisPayload = (payloadJson: string): string => {
+  try {
+    const parsed = JSON.parse(payloadJson);
+
+    if (parsed.dogId == null && parsed.dog_id != null) {
+      parsed.dogId = parsed.dog_id;
+    }
+    if (parsed.trainerId == null && parsed.trainer_id != null) {
+      parsed.trainerId = parsed.trainer_id;
+    }
+    if (parsed.selectedSymptoms == null && parsed.selected_symptoms != null) {
+      parsed.selectedSymptoms = parsed.selected_symptoms;
+    }
+    if (parsed.matchedDiseaseId == null && parsed.matched_disease_id !== undefined) {
+      parsed.matchedDiseaseId = parsed.matched_disease_id;
+    }
+    if (parsed.matchScore == null && parsed.match_score !== undefined) {
+      parsed.matchScore = parsed.match_score;
+    }
+    if (parsed.allResults == null && parsed.all_results !== undefined) {
+      parsed.allResults = parsed.all_results;
+    }
+    if (parsed.actionTaken == null && parsed.action_taken !== undefined) {
+      parsed.actionTaken = parsed.action_taken;
+    }
+    if (parsed.diagnosedAt == null && parsed.diagnosed_at != null) {
+      parsed.diagnosedAt = parsed.diagnosed_at;
+    }
+    if (parsed.localId == null && parsed.local_id != null) {
+      parsed.localId = parsed.local_id;
+    }
+    if (parsed.localUpdatedAt == null && parsed.updated_at != null) {
+      parsed.localUpdatedAt = parsed.updated_at;
+    }
+    if (parsed.localUpdatedAt == null && parsed.created_at != null) {
+      parsed.localUpdatedAt = parsed.created_at;
+    }
+
+    return JSON.stringify(parsed);
+  } catch {
+    return payloadJson;
+  }
+};
+
+const normalizePayloadForBackend = (item: SyncQueueRow, payloadJson: string): string => {
+  let normalized = ensureLocalUpdatedAt(payloadJson, item.action);
+
+  if (item.entity_type === 'diagnosis_record') {
+    normalized = normalizeDiagnosisPayload(normalized);
+  }
+
+  return normalized;
+};
+
 const getRequestEntityId = (item: SyncQueueRow, payloadData: string): number => {
   if (item.action === 'CREATE') {
     // Older backend schemas may still require sync_queue.entity_id to be non-null
@@ -353,7 +407,7 @@ const getRequestEntityId = (item: SyncQueueRow, payloadData: string): number => 
  */
 const toBatchRequest = (items: SyncQueueRow[]): PushBatchRequest[] =>
   items.map(item => {
-    const payloadData = ensureLocalUpdatedAt(item.payload, item.action);
+    const payloadData = normalizePayloadForBackend(item, item.payload);
     const request: PushBatchRequest = {
       localId: item.entity_id,                                // UUID string
       entityType: item.entity_type,                            // snake_case
