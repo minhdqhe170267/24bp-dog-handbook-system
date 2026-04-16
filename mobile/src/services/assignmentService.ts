@@ -4,6 +4,35 @@ import { dogAssignmentDBService } from '../database/services';
 import { rowToApi, apiToRow, ASSIGNMENT_COLS } from './mappers';
 import type { DogAssignment, DogAssignmentRequest } from '../types/dogManagement';
 
+interface AssignmentQueryOptions {
+    forceRemote?: boolean;
+}
+
+const readLocalAssignmentsByDog = async (dogId: number): Promise<DogAssignment[]> => {
+    const rows = await dogAssignmentDBService.getByDog(dogId);
+    return rows.map((row) => rowToApi<DogAssignment>(row));
+};
+
+const readLocalAssignmentsByTrainer = async (trainerId: number): Promise<DogAssignment[]> => {
+    const rows = await dogAssignmentDBService.getByTrainer(trainerId);
+    return rows.map((row) => rowToApi<DogAssignment>(row));
+};
+
+const saveAssignmentsToLocal = async (assignments: DogAssignment[]) => {
+    const rows = assignments.map((assignment) => apiToRow(assignment, ASSIGNMENT_COLS));
+    await dogAssignmentDBService.upsertFromServer(rows as any);
+};
+
+const fetchAssignmentsByDog = async (dogId: number): Promise<DogAssignment[]> => {
+    const res = (await api.get(`/assignments/by-dog/${dogId}`)) as ApiResponse<DogAssignment[]>;
+    return unwrapApiData(res);
+};
+
+const fetchAssignmentsByTrainer = async (trainerId: number): Promise<DogAssignment[]> => {
+    const res = (await api.get(`/assignments/by-trainer/${trainerId}`)) as ApiResponse<DogAssignment[]>;
+    return unwrapApiData(res);
+};
+
 export const assignmentService = {
     getById: (assignmentId: number): Promise<DogAssignment> =>
         offlineFirstRead<DogAssignment>({
@@ -21,39 +50,51 @@ export const assignmentService = {
             entityName: `assignment:${assignmentId}`,
         }),
 
-    getByDog: (dogId: number): Promise<DogAssignment[]> =>
-        offlineFirstRead<DogAssignment[]>({
-            localFetch: async () => {
-                const rows = await dogAssignmentDBService.getByDog(dogId);
-                return rows.map((r) => rowToApi<DogAssignment>(r));
-            },
-            remoteFetch: async () => {
-                const res = (await api.get(`/assignments/by-dog/${dogId}`)) as ApiResponse<DogAssignment[]>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async (assignments) => {
-                const rows = assignments.map((a) => apiToRow(a, ASSIGNMENT_COLS));
-                await dogAssignmentDBService.upsertFromServer(rows as any);
-            },
-            entityName: `assignments:dog:${dogId}`,
-        }),
+    getByDog: async (dogId: number, options: AssignmentQueryOptions = {}): Promise<DogAssignment[]> => {
+        if (options.forceRemote) {
+            if (isOnline()) {
+                try {
+                    const remoteAssignments = await fetchAssignmentsByDog(dogId);
+                    await saveAssignmentsToLocal(remoteAssignments).catch(() => {});
+                    return remoteAssignments;
+                } catch (error) {
+                    console.warn(`[ASSIGNMENT] Remote refresh failed for dog ${dogId}, using local cache`, error);
+                }
+            }
 
-    getByTrainer: (trainerId: number): Promise<DogAssignment[]> =>
-        offlineFirstRead<DogAssignment[]>({
-            localFetch: async () => {
-                const rows = await dogAssignmentDBService.getByTrainer(trainerId);
-                return rows.map((r) => rowToApi<DogAssignment>(r));
-            },
-            remoteFetch: async () => {
-                const res = (await api.get(`/assignments/by-trainer/${trainerId}`)) as ApiResponse<DogAssignment[]>;
-                return unwrapApiData(res);
-            },
-            saveToLocal: async (assignments) => {
-                const rows = assignments.map((a) => apiToRow(a, ASSIGNMENT_COLS));
-                await dogAssignmentDBService.upsertFromServer(rows as any);
-            },
+            return readLocalAssignmentsByDog(dogId);
+        }
+
+        return offlineFirstRead<DogAssignment[]>({
+            localFetch: () => readLocalAssignmentsByDog(dogId),
+            remoteFetch: () => fetchAssignmentsByDog(dogId),
+            saveToLocal: saveAssignmentsToLocal,
+            entityName: `assignments:dog:${dogId}`,
+        });
+    },
+
+    getByTrainer: async (trainerId: number, options: AssignmentQueryOptions = {}): Promise<DogAssignment[]> => {
+        if (options.forceRemote) {
+            if (isOnline()) {
+                try {
+                    const remoteAssignments = await fetchAssignmentsByTrainer(trainerId);
+                    await saveAssignmentsToLocal(remoteAssignments).catch(() => {});
+                    return remoteAssignments;
+                } catch (error) {
+                    console.warn(`[ASSIGNMENT] Remote refresh failed for trainer ${trainerId}, using local cache`, error);
+                }
+            }
+
+            return readLocalAssignmentsByTrainer(trainerId);
+        }
+
+        return offlineFirstRead<DogAssignment[]>({
+            localFetch: () => readLocalAssignmentsByTrainer(trainerId),
+            remoteFetch: () => fetchAssignmentsByTrainer(trainerId),
+            saveToLocal: saveAssignmentsToLocal,
             entityName: `assignments:trainer:${trainerId}`,
-        }),
+        });
+    },
 
     // Write operations — always save locally, try sync if online
     create: async (request: DogAssignmentRequest): Promise<DogAssignment> => {

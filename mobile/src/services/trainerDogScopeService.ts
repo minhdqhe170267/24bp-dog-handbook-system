@@ -67,13 +67,15 @@ const filterFallbackAssignments = (trainerId: number): DogAssignment[] =>
     (assignment) => assignment.trainerId === trainerId && isActiveAssignment(assignment),
   );
 
-const resolveDogs = async (dogIds: number[]): Promise<DogProfile[]> => {
+const resolveDogs = async (dogIds: number[], forceRemote = false): Promise<DogProfile[]> => {
   if (!dogIds.length) {
     return [];
   }
 
   const fallbackMap = new Map(fallbackDogs.map((dog) => [dog.dogId, dog]));
-  const results = await Promise.allSettled(dogIds.map((dogId) => dogService.getById(dogId)));
+  const results = await Promise.allSettled(
+    dogIds.map((dogId) => dogService.getById(dogId, { forceRemote })),
+  );
 
   return dogIds
     .map((dogId, index) => {
@@ -81,23 +83,24 @@ const resolveDogs = async (dogIds: number[]): Promise<DogProfile[]> => {
       if (result?.status === 'fulfilled') {
         return result.value;
       }
-      return fallbackMap.get(dogId) ?? null;
+      const fallbackDog = fallbackMap.get(dogId);
+      return fallbackDog ? { ...fallbackDog, imageUrl: null } : null;
     })
     .filter((dog): dog is DogProfile => dog != null);
 };
 
-const buildScope = async (trainerId: number): Promise<TrainerDogScope> => {
+const buildScope = async (trainerId: number, forceRemote = false): Promise<TrainerDogScope> => {
   let assignments: DogAssignment[] = [];
 
   try {
-    assignments = (await assignmentService.getByTrainer(trainerId)).filter(isActiveAssignment);
+    assignments = (await assignmentService.getByTrainer(trainerId, { forceRemote })).filter(isActiveAssignment);
   } catch {
     assignments = filterFallbackAssignments(trainerId);
   }
 
   const assignmentMap = toAssignmentMap(assignments);
   const assignedDogIds = [...assignmentMap.keys()];
-  const dogs = await resolveDogs(assignedDogIds);
+  const dogs = await resolveDogs(assignedDogIds, forceRemote);
 
   return {
     trainerId,
@@ -130,7 +133,7 @@ export const trainerDogScopeService = {
       return scopeCache.value;
     }
 
-    const scope = await buildScope(trainerId);
+    const scope = await buildScope(trainerId, force);
     scopeCache = {
       trainerId,
       expiresAt: Date.now() + CACHE_TTL_MS,
