@@ -14,6 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { EmptyState } from '../../src/components/EmptyState';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
+import { SearchBar } from '../../src/components/SearchBar';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
 import { buildReportExcerpt, formatReportDate, reportSyncMeta, reportTypeMeta, reportUi } from '../../src/features/reports/ui';
 import { reportService } from '../../src/services/reportService';
@@ -39,6 +41,7 @@ export default function ReportsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<FilterKey>('ALL');
+    const [search, setSearch] = useState('');
 
     const loadData = React.useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
         if (mode === 'refresh') {
@@ -85,7 +88,8 @@ export default function ReportsScreen() {
     const summary = useMemo(() => reportService.getSummary(items), [items]);
 
     const filteredItems = useMemo(() => {
-        switch (filter) {
+        const statusFiltered = (() => {
+            switch (filter) {
             case 'TRAINING':
                 return items.filter((item) => String(item.reportType).toUpperCase() === 'TRAINING');
             case 'HEALTH':
@@ -94,14 +98,40 @@ export default function ReportsScreen() {
                 return items.filter((item) => item.syncStatus !== 'SYNCED');
             default:
                 return items;
+            }
+        })();
+
+        const keyword = search.trim().toLowerCase();
+        if (!keyword) {
+            return statusFiltered;
         }
-    }, [filter, items]);
+
+        return statusFiltered.filter((item) =>
+            [
+                item.reportTitle,
+                item.dogName,
+                item.dogCode,
+                item.trainerName,
+                item.reportType,
+                reportTypeMeta(item.reportType).label,
+                item.reportContent,
+                item.metadata,
+                formatReportDate(item.reportDate),
+                reportSyncMeta(item.syncStatus).label,
+                item.source === 'LOCAL' ? 'Thiết bị' : 'Máy chủ',
+            ]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(keyword)),
+        );
+    }, [filter, items, search]);
 
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? colors.background : reportUi.page }]}>
             <Animated.ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
+                keyboardDismissMode="none"
+                keyboardShouldPersistTaps="handled"
                 style={{
                     opacity: intro,
                     transform: [
@@ -139,13 +169,22 @@ export default function ReportsScreen() {
                         <TouchableOpacity style={styles.heroButton} onPress={() => router.back()} activeOpacity={0.9}>
                             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.heroButton}
-                            onPress={() => router.push('/reports/new' as never)}
-                            activeOpacity={0.9}
-                        >
-                            <Ionicons name="add" size={22} color="#FFFFFF" />
-                        </TouchableOpacity>
+                        <View style={styles.heroTopActions}>
+                            <GlobalSearchButton
+                                size={42}
+                                iconSize={20}
+                                iconColor="#FFFFFF"
+                                backgroundColor="rgba(255,255,255,0.15)"
+                                borderColor="transparent"
+                            />
+                            <TouchableOpacity
+                                style={styles.heroButton}
+                                onPress={() => router.push('/reports/new' as never)}
+                                activeOpacity={0.9}
+                            >
+                                <Ionicons name="add" size={22} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <View style={styles.heroBadge}>
@@ -164,6 +203,15 @@ export default function ReportsScreen() {
                         <MetricCard label="Chờ đồng bộ" value={String(summary.pendingSync)} />
                     </View>
                 </View>
+
+                <SearchBar
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Tìm báo cáo, chó hoặc nội dung..."
+                    containerStyle={styles.searchBar}
+                    inputStyle={styles.searchInput}
+                    clearAccessibilityLabel="Xóa từ khóa tìm báo cáo"
+                />
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
                     {FILTERS.map((item) => {
@@ -295,6 +343,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    heroTopActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     heroButton: {
         width: 42,
         height: 42,
@@ -346,6 +395,19 @@ const styles = StyleSheet.create({
     },
     metricValue: { color: reportUi.textStrong, fontSize: 26, fontWeight: '800' },
     metricLabel: { marginTop: 4, color: reportUi.textNormal, fontSize: fontSize.sm, fontWeight: '600' },
+    searchBar: {
+        marginTop: spacing.lg,
+        backgroundColor: '#FFFFFF',
+        borderColor: reportUi.border,
+        borderRadius: 18,
+        borderWidth: 1,
+        shadowColor: '#173425',
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 2,
+    },
+    searchInput: { color: reportUi.textStrong, fontWeight: '600' },
     filterRow: { paddingTop: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
     filterChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: borderRadius.full, borderWidth: 1 },
     filterText: { fontSize: fontSize.sm, fontWeight: '700' },
