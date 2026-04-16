@@ -199,6 +199,7 @@ CREATE INDEX IF NOT EXISTS idx_exercise_difficulty ON training_exercise(difficul
 -- ─── training_roadmap ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS training_roadmap (
   roadmap_id          INTEGER PRIMARY KEY,
+  program_id          INTEGER,
   roadmap_name        TEXT    NOT NULL,
   breed_id            INTEGER REFERENCES dog_breed(breed_id),
   target_role         TEXT,
@@ -224,6 +225,7 @@ CREATE INDEX IF NOT EXISTS idx_roadmap_updated_at ON training_roadmap(updated_at
 CREATE TABLE IF NOT EXISTS roadmap_exercise (
   roadmap_exercise_id INTEGER PRIMARY KEY,
   roadmap_id          INTEGER NOT NULL REFERENCES training_roadmap(roadmap_id),
+  phase_id            INTEGER REFERENCES training_roadmap(roadmap_id),
   exercise_id         INTEGER NOT NULL REFERENCES training_exercise(exercise_id),
   exercise_order      INTEGER NOT NULL,
   is_mandatory        INTEGER NOT NULL DEFAULT 1,
@@ -318,6 +320,8 @@ CREATE TABLE IF NOT EXISTS dog_assignment (
   trainer_id      INTEGER NOT NULL,
   dog_id          INTEGER NOT NULL REFERENCES dog_profile(dog_id),
   assignment_type TEXT    NOT NULL DEFAULT 'PRIMARY',
+  assignment_scope TEXT   NOT NULL DEFAULT 'FULL_TRAINING',
+  covered_assignment_id INTEGER,
   start_date      TEXT    NOT NULL,
   end_date        TEXT,
   is_active       INTEGER NOT NULL DEFAULT 1,
@@ -644,9 +648,6 @@ export const initDatabase = async (): Promise<void> => {
   db.execSync(GROUP_A_TABLES);
   db.execSync(GROUP_B_TABLES);
   db.execSync(GROUP_C_TABLES);
-
-  // Ensure password_hash column exists for offline login (safe for existing DBs)
-  ensureColumnExists('user_session', 'password_hash', 'TEXT');
 
   // Seed sync_metadata
   db.execSync(SEED_SYNC_METADATA);

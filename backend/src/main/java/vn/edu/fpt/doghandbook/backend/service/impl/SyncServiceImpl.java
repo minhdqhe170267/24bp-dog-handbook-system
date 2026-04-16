@@ -1104,7 +1104,7 @@ public class SyncServiceImpl implements SyncService {
     // ── Conflict Resolution Helpers ──
 
     private void applyDataToEntity(String entityType, Integer entityId, Map<String, Object> data) {
-        switch (entityType) {
+        switch (entityType.toLowerCase()) {
             case "field_note" -> {
                 FieldNote note = fieldNoteRepository.findByNoteIdAndIsDeletedFalse(entityId)
                         .orElseThrow(() -> new ResourceNotFoundException("FieldNote not found: " + entityId));
