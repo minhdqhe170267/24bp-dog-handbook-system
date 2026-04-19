@@ -119,28 +119,24 @@ export default function DiseaseListScreen() {
         );
     }
 
-    if (filtered.length === 0) {
-        return (
-            <ScreenWrapper>
-                {renderHeader()}
-                <EmptyState
-                    title="Không tìm thấy"
-                    message="Không có bệnh nào phù hợp với tìm kiếm"
-                    icon="medkit-outline"
-                />
-            </ScreenWrapper>
-        );
-    }
-
     return (
         <ScreenWrapper>
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => String(item.diseaseId)}
-                ListHeaderComponent={renderHeader}
+                ListHeaderComponent={renderHeader()}
                 ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
                 showsVerticalScrollIndicator={false}
+                keyboardDismissMode="none"
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ paddingBottom: spacing.xl }}
+                ListEmptyComponent={
+                    <EmptyState
+                        title="Không tìm thấy"
+                        message="Không có bệnh nào phù hợp với tìm kiếm"
+                        icon="medkit-outline"
+                    />
+                }
                 renderItem={({ item }) => {
                     const sev = getSeverity(item.severityLevel);
                     return (

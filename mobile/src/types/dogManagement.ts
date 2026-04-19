@@ -16,6 +16,8 @@ export interface DogProfile {
     color?: string | null;
     microchipId?: string | null;
     status?: DogStatus | string | null;
+    assignmentDate?: string | null;
+    isSterilized?: boolean | null;
     imageUrl?: string | null;
     notes?: string | null;
     createdAt?: string | null;

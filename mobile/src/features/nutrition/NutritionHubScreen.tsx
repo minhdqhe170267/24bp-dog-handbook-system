@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobalSearchButton } from '../../components/GlobalSearchButton';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { SearchBar } from '../../components/SearchBar';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -99,7 +100,7 @@ export function NutritionHubScreen({ showBackButton = false }: Props) {
                     <View style={styles.headerSpacer} />
                 )}
                 <Text style={[styles.title, { color: colors.text }]}>Dinh dưỡng</Text>
-                <View style={styles.headerSpacer} />
+                <GlobalSearchButton size={40} />
             </View>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Tiêu chuẩn khẩu phần cho chó nghiệp vụ
@@ -159,29 +160,24 @@ export function NutritionHubScreen({ showBackButton = false }: Props) {
         );
     }
 
-    if (filtered.length === 0) {
-        return (
-            <ScreenWrapper>
-                {renderHeader()}
-                <EmptyState
-                    title="Chưa có dữ liệu"
-                    message="Không tìm thấy khẩu phần dinh dưỡng nào"
-                    icon="restaurant-outline"
-                />
-                {renderFab()}
-            </ScreenWrapper>
-        );
-    }
-
     return (
         <ScreenWrapper>
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => String(item.standardId)}
-                ListHeaderComponent={renderHeader}
+                ListHeaderComponent={renderHeader()}
                 ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
                 showsVerticalScrollIndicator={false}
+                keyboardDismissMode="none"
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ paddingBottom: spacing.xl }}
+                ListEmptyComponent={
+                    <EmptyState
+                        title="Chưa có dữ liệu"
+                        message="Không tìm thấy khẩu phần dinh dưỡng nào"
+                        icon="restaurant-outline"
+                    />
+                }
                 renderItem={({ item }) => {
                     const badge = getBadgeStyle(item.activityLevel);
 

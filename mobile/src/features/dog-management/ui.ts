@@ -92,32 +92,41 @@ export const pickNoteImage = (seed: number | string | null | undefined): string 
 };
 
 const isLocalDevHost = (url: string) => /localhost|127\.0\.0\.1|10\.0\.2\.2/i.test(url);
+const apiOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/i, '');
+
+export const resolveDogImageUrlOrNull = (imageUrl: string | null | undefined): string | null => {
+    const raw = (imageUrl || '').trim();
+
+    if (!raw) {
+        return null;
+    }
+
+    if (raw.startsWith('/')) {
+        return `${apiOrigin}${raw}`;
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+        if (isLocalDevHost(raw)) {
+            try {
+                const parsed = new URL(raw);
+                return `${apiOrigin}${parsed.pathname}${parsed.search}`;
+            } catch {
+                return raw;
+            }
+        }
+
+        return raw;
+    }
+
+    return `${apiOrigin}/${raw.replace(/^\/+/, '')}`;
+};
 
 export const resolveDogImageUrl = (
     imageUrl: string | null | undefined,
     seed: number | string | null | undefined
 ): string => {
     const fallback = pickDogImage(seed);
-    const raw = (imageUrl || '').trim();
-
-    if (!raw) {
-        return fallback;
-    }
-
-    if (isLocalDevHost(raw)) {
-        return fallback;
-    }
-
-    if (raw.startsWith('/')) {
-        const apiOrigin = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/i, '');
-        return `${apiOrigin}${raw}`;
-    }
-
-    if (/^https?:\/\//i.test(raw)) {
-        return raw;
-    }
-
-    return fallback;
+    return resolveDogImageUrlOrNull(imageUrl) ?? fallback;
 };
 
 const parseDate = (iso: string | null | undefined) => {

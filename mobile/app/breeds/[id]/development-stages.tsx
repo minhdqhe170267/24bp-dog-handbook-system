@@ -39,7 +39,7 @@ export default function BreedDevelopmentStagesScreen() {
       try {
         const breedId = Number(id);
         const [breedDetail, stageList] = await Promise.all([
-          breedService.getById(breedId),
+          breedService.getById(breedId, { forceRemote: true, includeMedia: false }),
           breedService.getDevelopmentStages(breedId),
         ]);
         setBreed(breedDetail);

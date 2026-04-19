@@ -2,11 +2,23 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing, fontSize, borderRadius } from '../../src/constants/theme';
 import { useThemeStore } from '../../src/stores/themeStore';
 
 const SECTIONS = [
+    {
+        id: 'symptom-checker',
+        icon: 'pulse',
+        title: 'Chẩn đoán theo triệu chứng',
+        description: 'Chọn chó được giao, đánh dấu triệu chứng và nhận danh sách bệnh khả dĩ cùng mức độ ưu tiên.',
+        linkText: 'Mở Symptom Checker',
+        route: '/health/symptom-checker',
+        iconColor: '#1D6A43',
+        bgColor: '#E4F5EB',
+        bgColorDark: '#16452D30',
+    },
     {
         id: 'diseases',
         icon: 'medkit',
@@ -53,7 +65,7 @@ export default function HealthScreen() {
                 <View style={styles.headerRow}>
                     <View style={{ width: 40 }} />
                     <Text style={[styles.title, { color: colors.text }]}>Sức khỏe</Text>
-                    <View style={{ width: 40 }} />
+                    <GlobalSearchButton size={40} />
                 </View>
 
                 {/* Section Cards */}
@@ -90,7 +102,7 @@ export default function HealthScreen() {
 }
 
 const styles = StyleSheet.create({
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: spacing.lg, marginBottom: spacing.lg },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.lg, marginBottom: spacing.lg },
     title: { fontSize: fontSize.xxl, fontWeight: 'bold' },
     sectionCard: {
         borderRadius: borderRadius.xl,
