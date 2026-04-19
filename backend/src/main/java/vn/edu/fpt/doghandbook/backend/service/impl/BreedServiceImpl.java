@@ -89,6 +89,7 @@ public class BreedServiceImpl implements BreedService {
 
         User createdBy = userRepository.findById(createdByUserId).orElse(null);
         String imageUrl = resolveImageUrl(image);
+        String normalizedLifespanYears = normalizeAndValidateLifespanYears(request.getLifespanYears());
 
         DogBreed breed = DogBreed.builder()
                 .breedName(request.getBreedName())
@@ -100,7 +101,7 @@ public class BreedServiceImpl implements BreedService {
                 .weightFemaleMinKg(request.getWeightFemaleMinKg())
                 .weightFemaleMaxKg(request.getWeightFemaleMaxKg())
                 .avgHeightCm(request.getAvgHeightCm())
-                .lifespanYears(request.getLifespanYears())
+                .lifespanYears(normalizedLifespanYears)
                 .trainabilityLevel(parseTrainabilityLevel(request.getTrainabilityLevel()))
                 .operationalCapabilities(request.getOperationalCapabilities())
                 .metadata(request.getMetadata())
@@ -136,7 +137,7 @@ public class BreedServiceImpl implements BreedService {
         breed.setWeightFemaleMinKg(request.getWeightFemaleMinKg());
         breed.setWeightFemaleMaxKg(request.getWeightFemaleMaxKg());
         breed.setAvgHeightCm(request.getAvgHeightCm());
-        breed.setLifespanYears(request.getLifespanYears());
+        breed.setLifespanYears(normalizeAndValidateLifespanYears(request.getLifespanYears()));
         breed.setTrainabilityLevel(parseTrainabilityLevel(request.getTrainabilityLevel()));
         breed.setOperationalCapabilities(request.getOperationalCapabilities());
         breed.setMetadata(request.getMetadata());
@@ -234,6 +235,25 @@ public class BreedServiceImpl implements BreedService {
             return cloudinaryService.upload(image, "image").secureUrl();
         }
         return null;
+    }
+
+    private String normalizeAndValidateLifespanYears(String lifespanYears) {
+        if (lifespanYears == null || lifespanYears.isBlank()) {
+            return null;
+        }
+
+        String normalized = lifespanYears.trim();
+        int years;
+        try {
+            years = Integer.parseInt(normalized);
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("Tuổi thọ phải là số năm hợp lệ, ví dụ 10");
+        }
+
+        if (years < 1 || years > 30) {
+            throw new BadRequestException("Tuổi thọ phải nằm trong khoảng 1-30 năm");
+        }
+        return String.valueOf(years);
     }
 
     // ── Helpers ──────────────────────────────────────────────

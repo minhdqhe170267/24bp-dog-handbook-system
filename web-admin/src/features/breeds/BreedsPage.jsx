@@ -13,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
+import { validateBreedForm } from '../../utils/formValidation';
 
 const sizeLabels = { SMALL: 'Nhỏ', MEDIUM: 'Trung bình', LARGE: 'Lớn', GIANT: 'Khổng lồ' };
 const trainLabels = { LOW: 'Thấp', MEDIUM: 'Trung bình', HIGH: 'Cao', VERY_HIGH: 'Rất cao' };
@@ -38,7 +39,7 @@ const editFields = [
   { key: 'origin', label: 'Nguồn gốc' },
   { key: 'sizeClassification', label: 'Kích thước', type: 'select', options: [{ value: 'SMALL', label: 'Nhỏ' }, { value: 'MEDIUM', label: 'Trung bình' }, { value: 'LARGE', label: 'Lớn' }, { value: 'GIANT', label: 'Khổng lồ' }] },
   { key: 'trainabilityLevel', label: 'Khả năng huấn luyện', type: 'select', options: [{ value: 'LOW', label: 'Thấp' }, { value: 'MEDIUM', label: 'Trung bình' }, { value: 'HIGH', label: 'Cao' }, { value: 'VERY_HIGH', label: 'Rất cao' }] },
-  { key: 'lifespanYears', label: 'Tuổi thọ' },
+  { key: 'lifespanYears', label: 'Tuổi thọ (năm)' },
   { key: 'description', label: 'Mô tả', type: 'textarea' },
   { key: 'operationalCapabilities', label: 'Khả năng tác chiến', type: 'textarea' },
 ];
@@ -211,6 +212,15 @@ const BreedsPage = () => {
   };
 
   const handleEdit = async (formData) => {
+    const errors = validateBreedForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Dữ liệu chưa hợp lệ',
+        description: errors.join('. '),
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       await api.put(`/breeds/${editItem.breedId}`, toBreedPayload(formData));
@@ -225,6 +235,15 @@ const BreedsPage = () => {
   };
 
   const handleCreate = async (formData) => {
+    const errors = validateBreedForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Dữ liệu chưa hợp lệ',
+        description: errors.join('. '),
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       await api.post('/breeds', toBreedPayload(formData));

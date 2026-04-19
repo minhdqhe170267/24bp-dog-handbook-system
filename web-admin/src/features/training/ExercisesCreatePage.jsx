@@ -199,7 +199,7 @@ const ExercisesCreatePage = () => {
             ]}
           />
         </FormField>
-        <FormField label="Thời gian (phút)">
+        <FormField label="Thời gian (phút)" required>
           <FormInput type="number" min="1" max="480" step="1" value={formData.durationMinutes} onChange={(e) => updateField('durationMinutes', e.target.value)} />
         </FormField>
       </div>
