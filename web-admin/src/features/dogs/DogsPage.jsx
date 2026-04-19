@@ -20,6 +20,7 @@ import { breedService } from '../../services/breedService';
 import { dogAssignmentService } from '../../services/dogAssignmentService';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateDogForm } from '../../utils/formValidation';
 
 const statusOptions = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -267,16 +268,31 @@ const DogsPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.dogName?.trim()) {
-      toast.error('Vui lòng nhập tên chó');
-      return;
+    const ageMonthsRaw = String(formData.ageMonths ?? '').trim();
+    const ageMonths = toNullableInteger(formData.ageMonths);
+    const localErrors = [];
+
+    if (!ageMonthsRaw) {
+      localErrors.push('Tuổi theo tháng không được để trống');
+    } else if (!/^\d+$/.test(ageMonthsRaw)) {
+      localErrors.push('Tuổi theo tháng phải là số nguyên');
+    } else if (ageMonths == null || ageMonths < 0 || ageMonths > 240) {
+      localErrors.push('Tuổi theo tháng phải trong khoảng 0-240');
     }
-    if (!formData.breedId) {
-      toast.error('Vui lòng chọn giống chó');
-      return;
-    }
-    if (toNullableInteger(formData.ageMonths) == null) {
-      toast.error('Vui lòng nhập tuổi theo tháng');
+
+    const dateOfBirth = ageMonthsToDateOfBirth(ageMonths);
+    const formErrors = validateDogForm({
+      ...formData,
+      dateOfBirth,
+      breedId: formData.breedId,
+    });
+
+    const errors = [...new Set([...formErrors, ...localErrors])];
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hồ sơ chó chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 

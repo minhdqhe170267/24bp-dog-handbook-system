@@ -13,6 +13,7 @@ import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalS
 import { useAuth } from '../../hooks/useAuth';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateMedicationForm } from '../../utils/formValidation';
 
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -62,13 +63,31 @@ const MedicationsPage = () => {
 
   useEffect(() => { fetchData(0, pagination.pageSize); }, [search, status]); // eslint-disable-line
 
+  const toPayload = () => ({
+    medicationName: String(formData.medicationName || '').trim(),
+    description: String(formData.description || '').trim(),
+    dosageInstructions: String(formData.dosageInstructions || '').trim(),
+    administrationMethod: String(formData.administrationMethod || '').trim(),
+    sideEffects: String(formData.sideEffects || '').trim(),
+    contraindications: String(formData.contraindications || '').trim(),
+    storageRequirements: String(formData.storageRequirements || '').trim(),
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.medicationName) { toast.error('Vui lòng nhập tên thuốc'); return; }
+    const payload = toPayload();
+    const errors = validateMedicationForm(payload);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin thuốc chưa hợp lệ',
+        description: errors,
+      });
+      return;
+    }
     try {
       const isCreate = !editing;
-      if (editing) { await medicationService.update(editing.medicationId, formData); toast.success('Cập nhật thành công'); }
-      else { await medicationService.create(formData); toast.success('Tạo mới thành công'); }
+      if (editing) { await medicationService.update(editing.medicationId, payload); toast.success('Cập nhật thành công'); }
+      else { await medicationService.create(payload); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null);
       if (isCreate) {
         fetchData(0, pagination.pageSize);
