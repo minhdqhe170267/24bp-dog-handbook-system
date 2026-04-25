@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateExerciseForm } from '../../utils/formValidation';
 
 const difficultyOptions = [
     { value: 'all', label: 'Tất cả độ khó' },
@@ -33,7 +34,7 @@ const statusOptions = [
 const editFields = [
     { key: 'exerciseName', label: 'Tên bài tập', required: true },
     { key: 'difficultyLevel', label: 'Độ khó', type: 'select', required: true, options: [{ value: 'BASIC', label: 'Cơ bản' }, { value: 'INTERMEDIATE', label: 'Trung bình' }, { value: 'ADVANCED', label: 'Nâng cao' }] },
-    { key: 'durationMinutes', label: 'Thời gian (phút)', type: 'number' },
+    { key: 'durationMinutes', label: 'Thời gian (phút)', type: 'number', required: true },
     { key: 'description', label: 'Mô tả', type: 'textarea' },
     { key: 'instructions', label: 'Hướng dẫn', type: 'textarea' },
     { key: 'requiredEquipment', label: 'Thiết bị cần thiết' },
@@ -65,15 +66,20 @@ const ExercisesPage = () => {
     const canDelete = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
     const canPublish = user?.role === 'ADMIN' || user?.role === 'CONTENT_EDITOR';
 
-    const toExercisePayload = (formData) => ({
-        exerciseName: formData.exerciseName?.trim() || '',
-        difficultyLevel: formData.difficultyLevel || '',
-        durationMinutes: formData.durationMinutes ? Number(formData.durationMinutes) : null,
-        description: formData.description?.trim() || '',
-        instructions: formData.instructions?.trim() || '',
-        requiredEquipment: formData.requiredEquipment?.trim() || '',
-        safetyPrecautions: formData.safetyPrecautions?.trim() || '',
-    });
+    const toExercisePayload = (formData) => {
+        const parsedDuration = Number(formData.durationMinutes);
+        return {
+            exerciseName: formData.exerciseName?.trim() || '',
+            difficultyLevel: formData.difficultyLevel || '',
+            durationMinutes: formData.durationMinutes === '' || formData.durationMinutes == null
+                ? null
+                : (Number.isFinite(parsedDuration) ? parsedDuration : null),
+            description: formData.description?.trim() || '',
+            instructions: formData.instructions?.trim() || '',
+            requiredEquipment: formData.requiredEquipment?.trim() || '',
+            safetyPrecautions: formData.safetyPrecautions?.trim() || '',
+        };
+    };
 
     const fetchData = async (nextPage = page, nextPageSize = pageSize) => {
         setLoading(true);
@@ -185,6 +191,15 @@ const ExercisesPage = () => {
     };
 
     const handleEdit = async (formData) => {
+        const errors = validateExerciseForm(formData);
+        if (errors.length > 0) {
+            toast.error({
+                title: 'Dữ liệu chưa hợp lệ',
+                description: errors.join('. '),
+            });
+            return;
+        }
+
         setSaving(true);
         try { await api.put(`/exercises/${editItem.exerciseId}`, toExercisePayload(formData)); setEditItem(null); fetchData(); }
         catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật bài tập' }); }
@@ -192,6 +207,15 @@ const ExercisesPage = () => {
     };
 
     const handleCreate = async (formData) => {
+        const errors = validateExerciseForm(formData);
+        if (errors.length > 0) {
+            toast.error({
+                title: 'Dữ liệu chưa hợp lệ',
+                description: errors.join('. '),
+            });
+            return;
+        }
+
         setSaving(true);
         try {
             await api.post('/exercises', toExercisePayload(formData));

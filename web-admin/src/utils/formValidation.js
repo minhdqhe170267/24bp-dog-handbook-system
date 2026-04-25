@@ -38,6 +38,28 @@ const addNumericRange = (errors, value, label, options) => {
   }
 };
 
+const addLifespanRange = (errors, value, label) => {
+  if (isBlank(value)) return;
+  const normalized = String(value).trim();
+  if (!/^\d+$/.test(normalized)) {
+    errors.push(`${label} phải là số nguyên hợp lệ`);
+    return;
+  }
+
+  const years = Number(normalized);
+  if (!Number.isInteger(years)) {
+    errors.push(`${label} phải là số nguyên hợp lệ`);
+    return;
+  }
+  if (years < 1) {
+    errors.push(`${label} phải lớn hơn hoặc bằng 1`);
+    return;
+  }
+  if (years > 30) {
+    errors.push(`${label} phải nhỏ hơn hoặc bằng 30`);
+  }
+};
+
 const addEnumRequired = (errors, value, label) => {
   if (isBlank(value)) errors.push(`Vui lòng chọn ${label.toLowerCase()}`);
 };
@@ -51,7 +73,7 @@ export const validateBreedForm = (form = {}) => {
   addRequired(errors, form.breedName, 'Tên giống');
   addMaxLength(errors, form.breedName, 100, 'Tên giống');
   addMaxLength(errors, form.origin, 100, 'Nguồn gốc');
-  addMaxLength(errors, form.lifespanYears, 20, 'Tuổi thọ');
+  addLifespanRange(errors, form.lifespanYears, 'Tuổi thọ');
   addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');
   addMaxLength(errors, form.operationalCapabilities, SAFE_LONG_TEXT_MAX, 'Khả năng tác chiến');
   return errors;
@@ -97,6 +119,7 @@ export const validateExerciseForm = (form = {}) => {
   const errors = [];
   addRequired(errors, form.exerciseName, 'Tên bài tập');
   addEnumRequired(errors, form.difficultyLevel, 'độ khó');
+  addRequired(errors, form.durationMinutes, 'Thời gian (phút)');
   addMaxLength(errors, form.exerciseName, 200, 'Tên bài tập');
   addNumericRange(errors, form.durationMinutes, 'Thời gian (phút)', { min: 1, max: 480, integer: true });
   addMaxLength(errors, form.description, SAFE_LONG_TEXT_MAX, 'Mô tả');

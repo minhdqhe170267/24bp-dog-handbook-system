@@ -241,8 +241,13 @@ const BreedsCreatePage = () => {
           />
         </FormField>
       </div>
-      <FormField label="Tuổi thọ">
-        <FormInput maxLength={20} value={formData.lifespanYears} onChange={(e) => updateField('lifespanYears', e.target.value)} />
+      <FormField label="Tuổi thọ (năm)">
+        <FormInput
+          maxLength={2}
+          placeholder="Ví dụ: 10"
+          value={formData.lifespanYears}
+          onChange={(e) => updateField('lifespanYears', e.target.value)}
+        />
       </FormField>
       <FormField label="Mô tả">
         <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />

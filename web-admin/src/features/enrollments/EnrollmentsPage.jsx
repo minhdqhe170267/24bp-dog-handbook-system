@@ -37,6 +37,8 @@ const defaultEnrollForm = {
   notes: '',
 };
 
+const MAX_ENROLLMENT_NOTES_LENGTH = 5000;
+
 const getDateTimeParts = (value) => {
   if (!value) return null;
   const date = new Date(value);
@@ -235,9 +237,21 @@ const EnrollmentsPage = () => {
     const dogId = toPositiveInt(enrollForm.dogId);
     const roadmapId = toPositiveInt(enrollForm.roadmapId);
     const assignedTrainerId = toPositiveInt(enrollForm.assignedTrainerId);
+    const notes = String(enrollForm.notes || '').trim();
+    const validationErrors = [];
 
-    if (!dogId || !roadmapId || !assignedTrainerId) {
-      toast.error('Vui lòng chọn đầy đủ chó, lộ trình và huấn luyện viên.');
+    if (!dogId) validationErrors.push('Vui lòng chọn chó');
+    if (!roadmapId) validationErrors.push('Vui lòng chọn lộ trình huấn luyện');
+    if (!assignedTrainerId) validationErrors.push('Vui lòng chọn huấn luyện viên');
+    if (notes.length > MAX_ENROLLMENT_NOTES_LENGTH) {
+      validationErrors.push(`Ghi chú tối đa ${MAX_ENROLLMENT_NOTES_LENGTH} ký tự`);
+    }
+
+    if (validationErrors.length > 0) {
+      toast.error({
+        title: 'Thông tin ghi danh chưa hợp lệ',
+        description: validationErrors,
+      });
       return;
     }
 
@@ -247,7 +261,7 @@ const EnrollmentsPage = () => {
         dogId,
         roadmapId,
         assignedTrainerId,
-        notes: String(enrollForm.notes || '').trim() || null,
+        notes: notes || null,
       });
       toast.success('Ghi danh chó vào lộ trình thành công');
       setEnrollModalOpen(false);

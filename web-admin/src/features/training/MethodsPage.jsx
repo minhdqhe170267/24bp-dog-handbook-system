@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateMethodForm } from '../../utils/formValidation';
 
 const statusOptions = [
     { value: 'all', label: 'Tất cả trạng thái' },
@@ -168,6 +169,15 @@ const MethodsPage = () => {
     };
 
     const handleEdit = async (formData) => {
+        const errors = validateMethodForm(formData);
+        if (errors.length > 0) {
+            toast.error({
+                title: 'Dữ liệu chưa hợp lệ',
+                description: errors.join('. '),
+            });
+            return;
+        }
+
         setSaving(true);
         try { await api.put(`/training-methods/${editItem.methodId}`, toMethodPayload(formData)); setEditItem(null); fetchData(); }
         catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật phương pháp' }); }
@@ -175,6 +185,15 @@ const MethodsPage = () => {
     };
 
     const handleCreate = async (formData) => {
+        const errors = validateMethodForm(formData);
+        if (errors.length > 0) {
+            toast.error({
+                title: 'Dữ liệu chưa hợp lệ',
+                description: errors.join('. '),
+            });
+            return;
+        }
+
         setSaving(true);
         try {
             await api.post('/training-methods', toMethodPayload(formData));

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -34,6 +33,15 @@ type HomeAction = {
 };
 
 const homeActions: HomeAction[] = [
+  {
+    id: 'global-search',
+    title: 'Tìm kiếm',
+    description: 'Tìm chó, bệnh, bài tập, báo cáo, thông báo và nội dung trong mobile.',
+    icon: 'search',
+    route: '/search',
+    accent: '#1F6F4A',
+    accentSoft: '#EAF7F0',
+  },
   {
     id: 'training',
     title: 'Huấn luyện',
@@ -151,7 +159,6 @@ export default function HomeScreen() {
   const { colors, isDark } = useThemeStore();
   const { user } = useAuthStore();
 
-  const [searchText, setSearchText] = useState('');
   const [notificationCount, setNotificationCount] = useState(0);
   const [dashboard, setDashboard] = useState<TrainerDashboardStats | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -240,18 +247,6 @@ export default function HomeScreen() {
       void loadHomeData();
     }, [loadHomeData]),
   );
-
-  const filteredActions = useMemo(() => {
-    const keyword = searchText.trim().toLowerCase();
-
-    if (!keyword) {
-      return homeActions;
-    }
-
-    return homeActions.filter((item) =>
-      [item.title, item.description].some((value) => value.toLowerCase().includes(keyword)),
-    );
-  }, [searchText]);
 
   const heroTranslateY = heroProgress.interpolate({
     inputRange: [0, 1],
@@ -402,34 +397,29 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push('/search' as never)}
           style={[
             styles.searchBar,
             { backgroundColor: colors.surface, borderColor: isDark ? colors.border : '#D8E5DE' },
           ]}
         >
-          <View style={styles.searchIconWrap}>
-            <Ionicons name="search" size={16} color={dogManagementUi.brand} />
-          </View>
-          <TextInput
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="Tìm nhanh tính năng..."
-            placeholderTextColor="#8A9C90"
+          <Ionicons name="search" size={20} color={colors.textLight} />
+          <Text
             style={[
-              styles.searchInput,
+              styles.searchText,
               {
-                color: isDark ? colors.text : dogManagementUi.textStrong,
+                color: isDark ? colors.textSecondary : dogManagementUi.textNormal,
                 fontFamily: dogManagementFonts.medium,
               },
             ]}
-          />
-          {searchText.length > 0 ? (
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setSearchText('')}>
-              <Ionicons name="close-circle" size={18} color="#8A9C90" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
+            numberOfLines={1}
+          >
+            Tìm kiếm toàn bộ hệ thống...
+          </Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.textLight} />
+        </TouchableOpacity>
 
         <View style={styles.shortcutRow}>
           {quickShortcuts.map((item) => (
@@ -461,7 +451,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.actionGrid}>
-        {filteredActions.map((item, index) => (
+        {homeActions.map((item, index) => (
           <Animated.View key={item.id} style={[styles.actionCardWrap, getCardAnimatedStyle(index)]}>
             <TouchableOpacity
               activeOpacity={0.92}
@@ -845,15 +835,7 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 2,
   },
-  searchIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#EBF6F0',
-  },
-  searchInput: {
+  searchText: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',

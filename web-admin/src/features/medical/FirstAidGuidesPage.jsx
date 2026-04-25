@@ -20,6 +20,7 @@ import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalS
 import { useAuth } from '../../hooks/useAuth';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateFirstAidGuideForm } from '../../utils/formValidation';
 
 const EMPTY_FORM = {
   guideTitle: '',
@@ -113,16 +114,12 @@ const FirstAidGuidesPage = () => {
     e.preventDefault();
     const payload = toPayload();
 
-    if (!payload.guideTitle) {
-      toast.error('Vui lòng nhập tiêu đề sơ cứu');
-      return;
-    }
-    if (!payload.emergencyType) {
-      toast.error('Vui lòng nhập loại tình huống');
-      return;
-    }
-    if (!payload.immediateSteps) {
-      toast.error('Vui lòng nhập các bước xử lý ngay');
+    const errors = validateFirstAidGuideForm(payload);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin hướng dẫn sơ cứu chưa hợp lệ',
+        description: errors,
+      });
       return;
     }
 

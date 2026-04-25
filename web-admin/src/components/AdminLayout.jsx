@@ -65,7 +65,7 @@ const AdminLayout = () => {
             level={4}
             style={{ color: '#fff', margin: 0, fontSize: collapsed ? 14 : 18 }}
           >
-            {collapsed ? 'DHS' : '24BP Dog Handbook'}
+            {collapsed ? '24BP' : '24BP doghandbook'}
           </Typography.Title>
         </div>
         <Menu

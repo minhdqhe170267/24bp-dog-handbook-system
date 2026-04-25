@@ -26,7 +26,7 @@ import {
     dogManagementUi,
     formatDate,
     getAssignmentTypeMeta,
-    resolveDogImageUrl,
+    resolveDogImageUrlOrNull,
 } from '../../../src/features/dog-management/ui';
 
 type AssignmentTypeFilter = 'ALL' | AssignmentType;
@@ -352,7 +352,7 @@ export default function AssignmentListScreen() {
                 renderItem={({ item, index }) => {
                     const { dog, assignment } = item;
                     const typeMeta = getAssignmentTypeMeta(assignment.assignmentType);
-                    const imageSource = resolveDogImageUrl(dog.imageUrl, `${dog.dogId}-${dog.dogCode || dog.dogName || 'dog'}`);
+                    const imageSource = resolveDogImageUrlOrNull(dog.imageUrl);
 
                     return (
                         <Animated.View
@@ -377,8 +377,17 @@ export default function AssignmentListScreen() {
                                     },
                                 ]}
                             >
-                                <Image source={imageSource} style={styles.coverImage} contentFit="cover" />
-                                <View style={styles.cardOverlay} />
+                                {imageSource ? (
+                                    <Image source={imageSource} style={styles.coverImage} contentFit="cover" />
+                                ) : (
+                                    <View style={[styles.coverImage, styles.coverPlaceholder]}>
+                                        <Ionicons name="image-outline" size={30} color="#6E8677" />
+                                        <Text style={[styles.coverPlaceholderText, { fontFamily: dogManagementFonts.bold }]}>
+                                            Chưa có ảnh từ web-admin
+                                        </Text>
+                                    </View>
+                                )}
+                                {imageSource ? <View style={styles.cardOverlay} /> : null}
                                 <View style={styles.badgeRow}>
                                     <View style={[styles.badge, { backgroundColor: typeMeta.bg }]}>
                                         <Text style={[styles.badgeText, { color: typeMeta.text, fontFamily: dogManagementFonts.bold }]}>{typeMeta.label}</Text>
@@ -589,6 +598,17 @@ const styles = StyleSheet.create({
     coverImage: {
         width: '100%',
         height: 210,
+    },
+    coverPlaceholder: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#EAF2ED',
+    },
+    coverPlaceholderText: {
+        color: '#34513F',
+        fontSize: 12,
+        lineHeight: 16,
     },
     cardOverlay: {
         ...StyleSheet.absoluteFillObject,

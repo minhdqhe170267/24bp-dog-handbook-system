@@ -129,28 +129,24 @@ export default function MedicationListScreen() {
         );
     }
 
-    if (filtered.length === 0) {
-        return (
-            <ScreenWrapper>
-                {renderHeader()}
-                <EmptyState
-                    title="Không tìm thấy"
-                    message="Không có thuốc nào phù hợp với tìm kiếm"
-                    icon="medical-outline"
-                />
-            </ScreenWrapper>
-        );
-    }
-
     return (
         <ScreenWrapper>
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => String(item.medicationId)}
-                ListHeaderComponent={renderHeader}
+                ListHeaderComponent={renderHeader()}
                 ItemSeparatorComponent={() => <View style={{ height: spacing.sm + 2 }} />}
                 showsVerticalScrollIndicator={false}
+                keyboardDismissMode="none"
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
+                ListEmptyComponent={
+                    <EmptyState
+                        title="Không tìm thấy"
+                        message="Không có thuốc nào phù hợp với tìm kiếm"
+                        icon="medical-outline"
+                    />
+                }
                 renderItem={({ item, index }) => {
                     const method = getMethod(item.administrationMethod);
                     const pillColor = PILL_COLORS[index % PILL_COLORS.length];

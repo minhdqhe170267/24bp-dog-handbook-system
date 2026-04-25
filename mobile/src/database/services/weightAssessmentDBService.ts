@@ -15,6 +15,9 @@ export const weightAssessmentDBService = {
   getById: (localId: string): Promise<WeightAssessmentRow | null> =>
     repository.getById<WeightAssessmentRow>(TABLE, localId, ID_COL),
 
+  getByServerId: (serverId: number): Promise<WeightAssessmentRow | null> =>
+    repository.getById<WeightAssessmentRow>(TABLE, serverId, 'server_id'),
+
   getByDog: (dogId: number): Promise<WeightAssessmentRow[]> =>
     repository.getAllWhere<WeightAssessmentRow>(TABLE, 'dog_id = ?', [dogId], 'assessed_at DESC'),
 
@@ -59,6 +62,11 @@ export const weightAssessmentDBService = {
 
   getPendingSync: (): Promise<WeightAssessmentRow[]> =>
     repository.getAllWhere<WeightAssessmentRow>(TABLE, "sync_status = 'PENDING'", []),
+
+  upsertFromServer: async (records: WeightAssessmentRow[]): Promise<void> => {
+    await repository.batchUpsert(TABLE, records);
+    console.log(`[DB] Upserted ${records.length} weight assessments`);
+  },
 
   markSynced: async (localId: string, serverId: number): Promise<void> => {
     await db.runAsync(

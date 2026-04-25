@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { EmptyState } from '../../src/components/EmptyState';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
+import { SearchBar } from '../../src/components/SearchBar';
 import { borderRadius, fontSize, spacing } from '../../src/constants/theme';
 import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { contentSuggestionService } from '../../src/services/contentSuggestionService';
@@ -61,6 +63,7 @@ export default function ContentSuggestionsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('ALL');
+  const [search, setSearch] = useState('');
 
   const introProgress = useRef(new Animated.Value(0)).current;
 
@@ -99,7 +102,8 @@ export default function ContentSuggestionsScreen() {
   const summary = useMemo(() => contentSuggestionService.getSummary(items), [items]);
 
   const filteredItems = useMemo(() => {
-    switch (filter) {
+    const statusFiltered = (() => {
+      switch (filter) {
       case 'OPEN':
         return items.filter((item) => item.status === 'SUBMITTED' || item.status === 'UNDER_REVIEW');
       case 'RESPONDED':
@@ -108,14 +112,37 @@ export default function ContentSuggestionsScreen() {
         return items.filter((item) => item.status === 'IMPLEMENTED');
       default:
         return items;
+      }
+    })();
+
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) {
+      return statusFiltered;
     }
-  }, [filter, items]);
+
+    return statusFiltered.filter((item) =>
+      [
+        item.title,
+        item.description,
+        TYPE_LABELS[item.suggestionType] ?? item.suggestionType,
+        STATUS_LABELS[item.status] ?? item.status,
+        item.relatedExerciseName,
+        item.adminResponse,
+        item.reviewedByName,
+        item.trainerName,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword)),
+    );
+  }, [filter, items, search]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: isDark ? colors.background : dogManagementUi.page }]}>
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="handled"
         style={{
           opacity: introProgress,
           transform: [
@@ -146,13 +173,22 @@ export default function ContentSuggestionsScreen() {
             <TouchableOpacity style={styles.heroIconBtn} onPress={() => router.back()} activeOpacity={0.9}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.heroIconBtn}
-              onPress={() => router.push('/content-suggestions/new' as never)}
-              activeOpacity={0.9}
-            >
-              <Ionicons name="add" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={styles.heroTopActions}>
+              <GlobalSearchButton
+                size={42}
+                iconSize={20}
+                iconColor="#FFFFFF"
+                backgroundColor="rgba(255,255,255,0.15)"
+                borderColor="transparent"
+              />
+              <TouchableOpacity
+                style={styles.heroIconBtn}
+                onPress={() => router.push('/content-suggestions/new' as never)}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="add" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.heroBadge}>
@@ -180,6 +216,15 @@ export default function ContentSuggestionsScreen() {
             </View>
           </View>
         </View>
+
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Tìm góp ý, nội dung hoặc phản hồi..."
+          containerStyle={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          inputStyle={{ color: colors.text }}
+          clearAccessibilityLabel="Xóa từ khóa tìm góp ý"
+        />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((item) => {
@@ -344,6 +389,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  heroTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   heroIconBtn: {
     width: 42,
     height: 42,
@@ -403,6 +453,16 @@ const styles = StyleSheet.create({
     color: '#D7EFE0',
     fontSize: fontSize.sm,
     fontWeight: '600',
+  },
+  searchBar: {
+    marginTop: spacing.lg,
+    borderRadius: 18,
+    borderWidth: 1,
+    shadowColor: '#102218',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
   },
   filterRow: {
     gap: spacing.sm,
