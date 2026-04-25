@@ -84,8 +84,8 @@ const LoginPage = () => {
                 <Dog className="h-8 w-8 text-accent-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-primary-foreground tracking-tight">24BP DHS</h1>
-                <p className="text-sm text-primary-foreground/60">Dog Handbook System</p>
+                <h1 className="text-2xl font-bold text-primary-foreground tracking-tight">24BP doghandbook</h1>
+                <p className="text-sm text-primary-foreground/60">Web Admin</p>
               </div>
             </div>
             <h2 className="text-4xl font-extrabold text-primary-foreground leading-tight mb-4">
@@ -118,7 +118,7 @@ const LoginPage = () => {
             <div className="mx-auto h-14 w-14 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-glow">
               <Dog className="h-8 w-8 text-accent-foreground" />
             </div>
-            <h1 className="text-xl font-bold">24BP Dog Handbook</h1>
+            <h1 className="text-xl font-bold">24BP doghandbook</h1>
             <p className="text-sm text-muted-foreground">Hệ thống quản lý sổ tay chó nghiệp vụ</p>
           </div>
 
