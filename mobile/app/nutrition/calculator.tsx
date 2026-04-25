@@ -103,7 +103,7 @@ export default function RationCalculatorScreen() {
     useEffect(() => {
         const fetchBreeds = async () => {
             try {
-                const data = await breedService.getAll();
+                const data = await breedService.refreshAll('', 100, { includeMedia: false });
                 setBreeds(data.content || []);
             } catch (error) {
                 console.log('Error fetching breeds:', error);

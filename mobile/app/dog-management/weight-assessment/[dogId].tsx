@@ -360,7 +360,7 @@ export default function WeightAssessmentScreen() {
 
                 <View style={[styles.recommendationCard, { backgroundColor: alertMeta.bg, borderColor: alertMeta.bg }]}>
                     <Text style={[styles.sectionTitle, { color: alertMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                        Khuyen nghi cho nguoi phu trach
+                        Khuyến nghị cho người phụ trách
                     </Text>
                     {(assessment.recommendations || []).map((item) => (
                         <View key={item.title} style={styles.recommendationRow}>
@@ -387,9 +387,9 @@ export default function WeightAssessmentScreen() {
                 <TouchableOpacity
                     activeOpacity={0.9}
                     style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-                    onPress={() => Alert.alert('Dang chuan bi', 'Chuc nang xuat bao cao se duoc noi o buoc tiep theo cua frontend.')}
+                    onPress={() => router.push(`/dog-management/weight-records/${dog.dogId}` as any)}
                 >
-                    <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Tao bao cao danh gia</Text>
+                    <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Tạo bản ghi cân nặng</Text>
                 </TouchableOpacity>
             </View>
         </ScreenWrapper>

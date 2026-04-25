@@ -30,6 +30,7 @@ public class TrainingExerciseRequest {
     @Size(max = 5000, message = "Hướng dẫn tối đa 5000 ký tự")
     private String instructions;
 
+    @NotNull(message = "Thời lượng không được để trống")
     @Min(value = 1, message = "Thời lượng phải >= 1 phút")
     @Max(value = 480, message = "Thời lượng phải <= 480 phút")
     private Integer durationMinutes;

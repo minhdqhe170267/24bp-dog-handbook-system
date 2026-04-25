@@ -10,6 +10,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing } from '../../src/constants/theme';
 import { useAuthStore } from '../../src/stores/authStore';
@@ -222,9 +223,13 @@ export default function DogManagementHubScreen() {
                     </View>
                 </View>
                 <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.headerIcon} activeOpacity={0.85}>
-                        <Ionicons name="search" size={16} color="#647A6E" />
-                    </TouchableOpacity>
+                    <GlobalSearchButton
+                        size={34}
+                        iconSize={16}
+                        iconColor="#647A6E"
+                        backgroundColor="#EFF2F0"
+                        borderColor="transparent"
+                    />
                     <TouchableOpacity
                         style={styles.headerIcon}
                         activeOpacity={0.85}

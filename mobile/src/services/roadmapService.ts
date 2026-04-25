@@ -65,6 +65,7 @@ const toRoadmapExerciseRows = (roadmap: TrainingRoadmap): RoadmapExerciseRow[] =
     return exercises.map((item, index) => ({
         roadmap_exercise_id: -((roadmap.roadmapId * 1000) + index + 1),
         roadmap_id: roadmap.roadmapId,
+        phase_id: roadmap.roadmapId,
         exercise_id: item.exerciseId,
         exercise_order: item.exerciseOrder ?? index + 1,
         is_mandatory: item.isMandatory ? 1 : 0,

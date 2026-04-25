@@ -8,6 +8,48 @@ const ENTITY_TYPE: EntityType = 'diagnosis_record';
 
 type CreateInput = Omit<DiagnosisRecordRow, 'local_id' | 'server_id' | 'sync_status' | 'created_at' | 'updated_at'>;
 
+const buildCreatePayload = (
+  localId: string,
+  data: CreateInput,
+  now: string,
+): string =>
+  JSON.stringify({
+    localId,
+    dogId: data.dog_id,
+    trainerId: data.trainer_id,
+    selectedSymptoms: data.selected_symptoms,
+    matchedDiseaseId: data.matched_disease_id ?? null,
+    matchScore: data.match_score ?? null,
+    allResults: data.all_results ?? null,
+    actionTaken: data.action_taken ?? null,
+    diagnosedAt: data.diagnosed_at,
+    localUpdatedAt: now,
+  });
+
+const buildUpdatePayload = (
+  localId: string,
+  serverId: number | null,
+  data: Partial<DiagnosisRecordRow>,
+  now: string,
+): string => {
+  const payload: Record<string, number | string | null> = {
+    localId,
+    localUpdatedAt: now,
+  };
+
+  if (serverId != null) payload.serverId = serverId;
+  if (data.dog_id !== undefined) payload.dogId = data.dog_id;
+  if (data.trainer_id !== undefined) payload.trainerId = data.trainer_id;
+  if (data.selected_symptoms !== undefined) payload.selectedSymptoms = data.selected_symptoms;
+  if (data.matched_disease_id !== undefined) payload.matchedDiseaseId = data.matched_disease_id;
+  if (data.match_score !== undefined) payload.matchScore = data.match_score;
+  if (data.all_results !== undefined) payload.allResults = data.all_results;
+  if (data.action_taken !== undefined) payload.actionTaken = data.action_taken;
+  if (data.diagnosed_at !== undefined) payload.diagnosedAt = data.diagnosed_at;
+
+  return JSON.stringify(payload);
+};
+
 export const diagnosisRecordDBService = {
   getAll: (): Promise<DiagnosisRecordRow[]> =>
     repository.getAll<DiagnosisRecordRow>(TABLE, 'diagnosed_at DESC'),
@@ -32,7 +74,7 @@ export const diagnosisRecordDBService = {
       await db.runAsync(
         `INSERT INTO sync_queue (entity_type, entity_id, action, payload, status, created_at)
          VALUES (?, ?, 'CREATE', ?, 'PENDING', ?)`,
-        [ENTITY_TYPE, localId, JSON.stringify({ ...data, local_id: localId, created_at: now, updated_at: now }), now],
+        [ENTITY_TYPE, localId, buildCreatePayload(localId, data, now), now],
       );
     });
 
@@ -46,13 +88,18 @@ export const diagnosisRecordDBService = {
     delete (updateData as any).local_id;
     delete (updateData as any).server_id;
 
+    const existing = await repository.getById<DiagnosisRecordRow>(TABLE, localId, ID_COL);
+    if (!existing) {
+      throw new Error(`Diagnosis record not found: ${localId}`);
+    }
+
     await db.withTransactionAsync(async () => {
       await repository.update(TABLE, localId, updateData, ID_COL);
 
       await db.runAsync(
         `INSERT INTO sync_queue (entity_type, entity_id, action, payload, status, created_at)
          VALUES (?, ?, 'UPDATE', ?, 'PENDING', ?)`,
-        [ENTITY_TYPE, localId, JSON.stringify({ ...data, local_id: localId, updated_at: now }), now],
+        [ENTITY_TYPE, localId, buildUpdatePayload(localId, existing.server_id, data, now), now],
       );
     });
   },

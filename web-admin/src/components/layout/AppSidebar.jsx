@@ -151,8 +151,8 @@ const AppSidebar = () => {
                             exit={{ opacity: 0, width: 0 }}
                             transition={{ duration: 0.2 }}
                         >
-                            <h1 className="text-sm font-bold text-white truncate tracking-tight">24BP DHS</h1>
-                            <p className="text-[10px] text-white/70 truncate">Dog Handbook System</p>
+                            <h1 className="text-sm font-bold text-white truncate tracking-tight">24BP doghandbook</h1>
+                            <p className="text-[10px] text-white/70 truncate">Web Admin</p>
                         </Motion.div>
                     )}
                 </AnimatePresence>

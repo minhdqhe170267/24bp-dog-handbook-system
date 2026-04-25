@@ -1,3 +1,8 @@
+import AssignedDogDetailScreen from '../../../src/features/dog-management/AssignedDogDetailScreen';
+
+export default AssignedDogDetailScreen;
+
+/*
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
@@ -10,6 +15,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import AssignedDogDetailScreen from '../../../src/features/dog-management/AssignedDogDetailScreen';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { TrainerRestrictedState } from '../../../src/components/TrainerRestrictedState';
 import { spacing } from '../../../src/constants/theme';
@@ -29,7 +35,7 @@ import {
     formatDateTime,
     getAssignmentTypeMeta,
     getDogStatusMeta,
-    resolveDogImageUrl,
+    resolveDogImageUrlOrNull,
     stringifyWeight,
 } from '../../../src/features/dog-management/ui';
 
@@ -51,6 +57,10 @@ const ageLabel = (ageMonths?: number | null) => {
 const ensureArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value : []);
 
 export default function DogDetailScreen() {
+    return <AssignedDogDetailScreen />;
+}
+
+function LegacyDogDetailScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams<{ id: string }>();
     const { colors, isDark } = useThemeStore();
@@ -157,7 +167,7 @@ export default function DogDetailScreen() {
         );
     }
 
-    const dogImage = resolveDogImageUrl(dog.imageUrl, dog.dogId);
+    const dogImage = resolveDogImageUrlOrNull(dog.imageUrl);
 
     return (
         <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
@@ -183,8 +193,17 @@ export default function DogDetailScreen() {
                         },
                     ]}
                 >
-                    <Image source={dogImage} style={styles.heroImage} contentFit="cover" />
-                    <View style={styles.heroOverlay} />
+                    {dogImage ? (
+                        <Image source={dogImage} style={styles.heroImage} contentFit="cover" />
+                    ) : (
+                        <View style={[styles.heroImage, styles.heroPlaceholder]}>
+                            <Ionicons name="image-outline" size={36} color="#CDE6D8" />
+                            <Text style={[styles.heroPlaceholderText, { fontFamily: dogManagementFonts.bold }]}>
+                                ChÆ°a cÃ³ áº£nh tá»« web-admin
+                            </Text>
+                        </View>
+                    )}
+                    {dogImage ? <View style={styles.heroOverlay} /> : null}
                     <View style={styles.heroContent}>
                         <View style={styles.heroBadgeRow}>
                             <View style={[styles.statusChip, { backgroundColor: statusMeta.bg }]}>
@@ -374,6 +393,36 @@ export default function DogDetailScreen() {
                         </TouchableOpacity>
                     ))}
                 </View>
+
+                <View style={{ marginTop: spacing.md }}>
+                    <Text style={[styles.actionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                        Công cụ theo dõi mới
+                    </Text>
+                    <View style={styles.actionGrid}>
+                        {[
+                            { icon: 'sparkles-outline', label: 'Chẩn đoán triệu chứng', route: `/health/symptom-checker?dogId=${dog.dogId}` },
+                            { icon: 'scale-outline', label: 'Bản ghi cân nặng', route: `/dog-management/weight-records/${dog.dogId}` },
+                        ].map((item) => (
+                            <TouchableOpacity
+                                key={item.label}
+                                activeOpacity={0.88}
+                                onPress={() => router.push(item.route as any)}
+                                style={[
+                                    styles.actionCard,
+                                    {
+                                        backgroundColor: isDark ? colors.surface : dogManagementUi.surface,
+                                        borderColor: isDark ? colors.border : dogManagementUi.border,
+                                    },
+                                ]}
+                            >
+                                <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={18} color={colors.primary} />
+                                <Text style={[styles.actionLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
+                                    {item.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
             </ScrollView>
         </ScreenWrapper>
     );
@@ -417,6 +466,17 @@ const styles = StyleSheet.create({
     heroImage: {
         width: '100%',
         height: 250,
+    },
+    heroPlaceholder: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#1F5A3A',
+    },
+    heroPlaceholderText: {
+        color: '#D8EADF',
+        fontSize: 13,
+        lineHeight: 18,
     },
     heroOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -607,3 +667,4 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
 });
+*/

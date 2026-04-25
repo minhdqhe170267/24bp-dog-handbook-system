@@ -3,6 +3,7 @@ package vn.edu.fpt.doghandbook.backend.dto.request;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -50,6 +51,10 @@ public class BreedRequest {
     private BigDecimal avgHeightCm;
 
     @Size(max = 20, message = "Tuổi thọ tối đa 20 ký tự")
+    @Pattern(
+            regexp = "^\\s*\\d{1,2}\\s*$",
+            message = "Tuổi thọ phải là số năm hợp lệ, ví dụ 10"
+    )
     private String lifespanYears;
 
     @ValidEnum(enumClass = TrainabilityLevel.class, message = "Mức huấn luyện không hợp lệ")

@@ -22,8 +22,7 @@ import {
     dogManagementUi,
     getAssignmentTypeMeta,
     getDogStatusMeta,
-    pickDogBackupImage,
-    resolveDogImageUrl,
+    resolveDogImageUrlOrNull,
     stringifyWeight,
 } from '../../../src/features/dog-management/ui';
 
@@ -208,9 +207,7 @@ export default function DogListScreen() {
                         const statusMeta = getDogStatusMeta(item.status);
                         const assignmentMeta = getAssignmentTypeMeta(assignmentMap.get(item.dogId)?.assignmentType);
                         const dogKey = `${item.dogId}-${item.dogCode || item.dogName || 'dog'}`;
-                        const imageSource = imageFailedMap[dogKey]
-                            ? pickDogBackupImage(dogKey)
-                            : resolveDogImageUrl(item.imageUrl, dogKey);
+                        const imageSource = imageFailedMap[dogKey] ? null : resolveDogImageUrlOrNull(item.imageUrl);
 
                         return (
                             <TouchableOpacity
@@ -225,17 +222,23 @@ export default function DogListScreen() {
                                 ]}
                             >
                                 <View style={styles.avatarWrap}>
-                                    <Image
-                                        source={imageSource}
-                                        style={styles.avatar}
-                                        contentFit="cover"
-                                        onError={() =>
-                                            setImageFailedMap((current) => ({
-                                                ...current,
-                                                [dogKey]: true,
-                                            }))
-                                        }
-                                    />
+                                    {imageSource ? (
+                                        <Image
+                                            source={imageSource}
+                                            style={styles.avatar}
+                                            contentFit="cover"
+                                            onError={() =>
+                                                setImageFailedMap((current) => ({
+                                                    ...current,
+                                                    [dogKey]: true,
+                                                }))
+                                            }
+                                        />
+                                    ) : (
+                                        <View style={styles.avatarPlaceholder}>
+                                            <Ionicons name="image-outline" size={20} color="#6E8677" />
+                                        </View>
+                                    )}
                                 </View>
 
                                 <View style={{ flex: 1 }}>
@@ -366,6 +369,13 @@ const styles = StyleSheet.create({
     avatar: {
         width: '100%',
         height: '100%',
+    },
+    avatarPlaceholder: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#E7F0EA',
     },
     cardHeader: {
         flexDirection: 'row',

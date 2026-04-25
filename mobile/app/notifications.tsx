@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { GlobalSearchButton } from '../src/components/GlobalSearchButton';
+import { SearchBar } from '../src/components/SearchBar';
 import { ScreenWrapper } from '../src/components/ScreenWrapper';
 import { borderRadius, fontSize, spacing } from '../src/constants/theme';
 import {
@@ -367,6 +369,7 @@ export default function NotificationsInboxScreen() {
   const isInternetReachable = useNetworkStore((state) => state.isInternetReachable);
 
   const [filter, setFilter] = useState<FilterKey>('ALL');
+  const [search, setSearch] = useState('');
   const [items, setItems] = useState<NotificationFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -461,10 +464,34 @@ export default function NotificationsInboxScreen() {
     }, [loadInbox]),
   );
 
-  const filteredItems = useMemo(
-    () => items.filter((item) => matchesFilter(item, filter)),
-    [filter, items],
-  );
+  const filteredItems = useMemo(() => {
+    const statusFiltered = items.filter((item) => matchesFilter(item, filter));
+    const keyword = search.trim().toLowerCase();
+
+    if (!keyword) {
+      return statusFiltered;
+    }
+
+    return statusFiltered.filter((item) => {
+      const domainMeta = getDomainMeta(item);
+
+      return [
+        item.title,
+        item.message,
+        item.categoryLabel,
+        item.category,
+        domainMeta.label,
+        item.entityType,
+        item.senderName,
+        item.sourceLabel,
+        item.route,
+        item.isRead ? 'Đã đọc' : 'Chưa đọc',
+        formatRelativeTime(item.createdAt),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword));
+    });
+  }, [filter, items, search]);
   const groupedItems = useMemo(() => groupByDay(filteredItems), [filteredItems]);
 
   const unreadCount = remoteUnreadCount + localUnreadCount;
@@ -571,6 +598,8 @@ export default function NotificationsInboxScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="none"
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -600,6 +629,8 @@ export default function NotificationsInboxScreen() {
               Hộp thư thông minh cho thông báo hệ thống và cảnh báo phát sinh ngay trên thiết bị.
             </Text>
           </View>
+
+          <GlobalSearchButton size={44} />
         </View>
 
         <View style={[styles.heroCard, { backgroundColor: colors.primary }]}>
@@ -690,6 +721,15 @@ export default function NotificationsInboxScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Tìm thông báo, nội dung hoặc người gửi..."
+          containerStyle={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          inputStyle={{ color: colors.text }}
+          clearAccessibilityLabel="Xóa từ khóa tìm thông báo"
+        />
 
         <ScrollView
           horizontal
@@ -1179,6 +1219,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: fontSize.md,
     fontWeight: '700',
+  },
+  searchBar: {
+    marginTop: spacing.lg,
+    borderWidth: 1,
+    borderRadius: 18,
+    shadowColor: '#102F21',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
   },
   filterRow: {
     paddingTop: spacing.lg,

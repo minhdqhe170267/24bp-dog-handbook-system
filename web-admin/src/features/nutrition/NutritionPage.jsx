@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/FormComponents';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateNutritionForm } from '../../utils/formValidation';
 
 const statusOptions = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -180,6 +181,15 @@ const NutritionPage = () => {
   };
 
   const handleEdit = async (formData) => {
+    const errors = validateNutritionForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Dữ liệu chưa hợp lệ',
+        description: errors.join('. '),
+      });
+      return;
+    }
+
     setSaving(true);
     try { await api.put(`/nutrition-standards/${editItem.standardId}`, toNutritionPayload(formData)); setEditItem(null); fetchData(); }
     catch (err) { console.error('Update error:', err); toast.error(err, { title: 'Không thể cập nhật khẩu phần dinh dưỡng' }); }
@@ -187,6 +197,15 @@ const NutritionPage = () => {
   };
 
   const handleCreate = async (formData) => {
+    const errors = validateNutritionForm(formData);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Dữ liệu chưa hợp lệ',
+        description: errors.join('. '),
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       await api.post('/nutrition-standards', toNutritionPayload(formData));

@@ -14,6 +14,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getBooleanLabel, getSeverityLabel, getStatusLabel } from '../../utils/enumLabels';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
+import { validateDiseaseForm } from '../../utils/formValidation';
 
 const severityFilterOptions = [
   { value: 'all', label: 'Tất cả mức độ' },
@@ -93,13 +94,31 @@ const DiseasesPage = () => {
 
   useEffect(() => { fetchData(0, pagination.pageSize); }, [search, severityFilter, contagiousFilter, statusFilter]); // eslint-disable-line
 
+  const toPayload = () => ({
+    diseaseName: String(formData.diseaseName || '').trim(),
+    severityLevel: formData.severityLevel || null,
+    description: String(formData.description || '').trim(),
+    commonSymptoms: String(formData.commonSymptoms || '').trim(),
+    treatment: String(formData.treatment || '').trim(),
+    preventionMethods: String(formData.preventionMethods || '').trim(),
+    isContagious: Boolean(formData.isContagious),
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.diseaseName) { toast.error('Vui lòng nhập tên bệnh'); return; }
+    const payload = toPayload();
+    const errors = validateDiseaseForm(payload);
+    if (errors.length > 0) {
+      toast.error({
+        title: 'Thông tin bệnh chưa hợp lệ',
+        description: errors,
+      });
+      return;
+    }
     try {
       const isCreate = !editing;
-      if (editing) { await diseaseService.update(editing.diseaseId, formData); toast.success('Cập nhật thành công'); }
-      else { await diseaseService.create(formData); toast.success('Tạo mới thành công'); }
+      if (editing) { await diseaseService.update(editing.diseaseId, payload); toast.success('Cập nhật thành công'); }
+      else { await diseaseService.create(payload); toast.success('Tạo mới thành công'); }
       setModalOpen(false); setFormData({}); setEditing(null);
       if (isCreate) fetchData(0, pagination.pageSize);
       else fetchData(pagination.page, pagination.pageSize);
