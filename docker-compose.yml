@@ -14,7 +14,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./backend/docs/db-dumps/dhs_database-full-2026-04-01.sql:/docker-entrypoint-initdb.d/01-dhs-data.sql:ro
+      - ./backend/docs/db-dumps/dhs_database-full-2026-04-25.sql:/docker-entrypoint-initdb.d/01-dhs-data.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
