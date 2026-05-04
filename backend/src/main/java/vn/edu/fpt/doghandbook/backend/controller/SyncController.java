@@ -123,6 +123,12 @@ public class SyncController {
         return ApiResponse.success(syncService.getTrainerConflicts(trainerId));
     }
 
+    @GetMapping("/my-conflicts/resolved")
+    public ApiResponse<List<SyncConflictDetailResponse>> getMyResolvedConflicts(Authentication authentication) {
+        Integer trainerId = AuthenticationUtils.extractUserId(authentication);
+        return ApiResponse.success(syncService.getResolvedConflictsForTrainer(trainerId));
+    }
+
     private void requireAdminOrReviewer(Authentication authentication) {
         if (!AuthenticationUtils.hasRole(authentication, UserRole.ADMIN)
                 && !AuthenticationUtils.hasRole(authentication, UserRole.REVIEWER)) {

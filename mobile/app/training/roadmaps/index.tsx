@@ -21,6 +21,7 @@ import { TrainingRoadmap } from '../../../src/types/training';
 import { roadmapService } from '../../../src/services/roadmapService';
 import { normalizeStatus, statusMeta, trainingUi } from '../../../src/features/training/ui';
 import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
+import { usePublishedContentSync } from '../../../src/hooks/usePublishedContentSync';
 
 const ALL_BREEDS = 'ALL_BREEDS';
 const ALL_ROLES = 'ALL_ROLES';
@@ -73,6 +74,8 @@ export default function RoadmapListScreen() {
     useEffect(() => {
         fetchData(0, true);
     }, [fetchData]);
+
+    usePublishedContentSync(useCallback(() => fetchData(0, true), [fetchData]));
 
     const breedOptions = useMemo(() => {
         const values = new Set<string>();

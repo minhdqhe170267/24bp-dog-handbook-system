@@ -44,13 +44,14 @@ public class SecurityConfig {
 
                         .requestMatchers("/notifications/**").authenticated()
 
+                        .requestMatchers(HttpMethod.GET, "/users", "/users/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
                         .requestMatchers("/users/**").hasRole("ADMIN")
                         .requestMatchers("/audit-logs/**").hasRole("ADMIN")
                         .requestMatchers("/system-settings/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.GET, "/dogs", "/dogs/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/dogs").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/dogs/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/dogs").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+                        .requestMatchers(HttpMethod.PUT, "/dogs/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
                         .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
@@ -119,6 +120,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/health-sessions/**").hasAnyRole("ADMIN", "TRAINER")
 
+                        .requestMatchers("/sync/conflicts/**", "/sync/my-conflicts/**").hasAnyRole("ADMIN", "REVIEWER", "TRAINER")
                         .requestMatchers("/sync/**").hasAnyRole("ADMIN", "TRAINER")
 
                         .requestMatchers("/import/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")

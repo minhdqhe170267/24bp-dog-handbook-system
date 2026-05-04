@@ -1,5 +1,6 @@
 package vn.edu.fpt.doghandbook.backend.service;
 
+import org.springframework.security.core.Authentication;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthRecordRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthRecordResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -14,5 +15,5 @@ public interface HealthRecordService {
 
     HealthRecordResponse create(HealthRecordRequest request, Integer examinerId);
 
-    HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId);
+    HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId, Authentication authentication);
 }

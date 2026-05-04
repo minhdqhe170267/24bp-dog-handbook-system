@@ -1,4 +1,3 @@
-import { db } from '../index';
 import { repository } from '../repository';
 import type { TrainingMethodRow } from '../types';
 
@@ -7,13 +6,16 @@ const ID_COL = 'method_id';
 
 export const trainingMethodDBService = {
   getAll: (): Promise<TrainingMethodRow[]> =>
-    repository.getAll<TrainingMethodRow>(TABLE, 'method_name'),
+    repository.getAllWhere<TrainingMethodRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'method_name'),
 
   getById: (id: number): Promise<TrainingMethodRow | null> =>
     repository.getById<TrainingMethodRow>(TABLE, id, ID_COL),
 
   search: (keyword: string): Promise<TrainingMethodRow[]> =>
-    repository.search<TrainingMethodRow>(TABLE, ['method_name', 'description'], keyword, 'method_name'),
+    repository.raw<TrainingMethodRow>(
+      `SELECT * FROM ${TABLE} WHERE status = 'PUBLISHED' AND is_deleted = 0 AND (method_name LIKE ? OR description LIKE ?) ORDER BY method_name`,
+      [`%${keyword}%`, `%${keyword}%`],
+    ),
 
   upsertFromServer: async (records: TrainingMethodRow[]): Promise<void> => {
     await repository.batchUpsert(TABLE, records);

@@ -1,4 +1,3 @@
-import { db } from '../index';
 import { repository } from '../repository';
 import type { TrainingExerciseRow } from '../types';
 
@@ -7,19 +6,22 @@ const ID_COL = 'exercise_id';
 
 export const exerciseDBService = {
   getAll: (): Promise<TrainingExerciseRow[]> =>
-    repository.getAll<TrainingExerciseRow>(TABLE, 'exercise_name'),
+    repository.getAllWhere<TrainingExerciseRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'exercise_name'),
 
   getById: (id: number): Promise<TrainingExerciseRow | null> =>
     repository.getById<TrainingExerciseRow>(TABLE, id, ID_COL),
 
   getByMethod: (methodId: number): Promise<TrainingExerciseRow[]> =>
-    repository.getAllWhere<TrainingExerciseRow>(TABLE, 'method_id = ?', [methodId], 'exercise_name'),
+    repository.getAllWhere<TrainingExerciseRow>(TABLE, "method_id = ? AND status = 'PUBLISHED' AND is_deleted = 0", [methodId], 'exercise_name'),
 
   getByDifficulty: (level: string): Promise<TrainingExerciseRow[]> =>
-    repository.getAllWhere<TrainingExerciseRow>(TABLE, 'difficulty_level = ?', [level], 'exercise_name'),
+    repository.getAllWhere<TrainingExerciseRow>(TABLE, "difficulty_level = ? AND status = 'PUBLISHED' AND is_deleted = 0", [level], 'exercise_name'),
 
   search: (keyword: string): Promise<TrainingExerciseRow[]> =>
-    repository.search<TrainingExerciseRow>(TABLE, ['exercise_name', 'description'], keyword, 'exercise_name'),
+    repository.raw<TrainingExerciseRow>(
+      `SELECT * FROM ${TABLE} WHERE status = 'PUBLISHED' AND is_deleted = 0 AND (exercise_name LIKE ? OR description LIKE ?) ORDER BY exercise_name`,
+      [`%${keyword}%`, `%${keyword}%`],
+    ),
 
   upsertFromServer: async (records: TrainingExerciseRow[]): Promise<void> => {
     await repository.batchUpsert(TABLE, records);

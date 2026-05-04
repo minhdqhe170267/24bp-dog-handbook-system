@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { EmptyState } from '../../src/components/EmptyState';
 import { spacing, fontSize, borderRadius } from '../../src/constants/theme';
 import { medicationService } from '../../src/services/medicationService';
+import { usePublishedContent } from '../../src/hooks/usePublishedContent';
 import { Medication } from '../../src/types/medication';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -39,27 +40,14 @@ const getMethod = (method: string | undefined) => {
 const PILL_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4'];
 
 export default function MedicationListScreen() {
-    const [medications, setMedications] = useState<Medication[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const data = await medicationService.getAll();
-                setMedications(data?.content || data || []);
-            } catch (error) {
-                console.log('Error fetching medications:', error);
-                setMedications([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
+    const { data: medications, loading } = usePublishedContent<Medication>(
+        () => medicationService.getAll(),
+    );
 
     const filtered = medications.filter((item) => {
         const matchSearch =

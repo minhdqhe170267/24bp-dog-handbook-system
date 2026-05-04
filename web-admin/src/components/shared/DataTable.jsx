@@ -85,6 +85,8 @@ const DataTable = ({
         const candidates = [
             row?.id,
             row?.userId,
+            row?.recordId,
+            row?.sessionId,
             row?.dogId,
             row?.assignmentId,
             row?.contentId,
@@ -106,7 +108,7 @@ const DataTable = ({
 
     return (
         <div className="space-y-4">
-            <div className="rounded-lg border border-border/60 overflow-hidden">
+            <div className="rounded-lg border border-border/60 overflow-x-auto">
                 <table className="w-full border-collapse">
                     <thead>
                         <tr className="bg-muted/70">
@@ -114,7 +116,8 @@ const DataTable = ({
                                 <th key={col.key} className={cn(
                                     'text-left text-xs font-semibold uppercase tracking-wider text-foreground/80 dark:text-foreground/85 px-4 py-3',
                                     col.className,
-                                    col.headerClassName
+                                    col.headerClassName,
+                                    col.key === 'actions' && 'sticky right-0 z-10 bg-muted'
                                 )}>
                                     {col.header}
                                 </th>
@@ -125,13 +128,17 @@ const DataTable = ({
                         {data.map((row, i) => (
                             <motion.tr
                                 key={resolveRowKey(row, i)}
-                                className="border-t border-border/40 hover:bg-muted/30 transition-colors duration-150"
+                                className="border-t border-border/40 hover:bg-muted/30 transition-colors duration-150 group"
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.2, delay: i * 0.03 }}
                             >
                                 {columns.map((col) => (
-                                    <td key={col.key} className={cn('px-4 py-3 text-sm', col.className)}>
+                                    <td key={col.key} className={cn(
+                                        'px-4 py-3 text-sm',
+                                        col.className,
+                                        col.key === 'actions' && 'sticky right-0 z-10 bg-background group-hover:bg-muted/30'
+                                    )}>
                                         {col.render ? col.render(row) : String(row[col.key] ?? '')}
                                     </td>
                                 ))}
