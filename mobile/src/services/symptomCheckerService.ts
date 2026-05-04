@@ -3,6 +3,7 @@ import { diagnosisRecordDBService } from '../database/services';
 import { syncEngine } from '../sync/syncEngine';
 import { useAuthStore } from '../stores/authStore';
 import { isOnline } from './offlineFirst';
+import { localCheck } from './localSymptomCheckerService';
 import type { DogProfile } from '../types/dogManagement';
 import type { SymptomCheckerRequest, SymptomCheckerResult } from '../types/symptomChecker';
 
@@ -29,6 +30,9 @@ const deriveAgeMonths = (dog: DogProfile | null | undefined): number | null => {
 
 export const symptomCheckerService = {
     check: async (request: SymptomCheckerRequest): Promise<SymptomCheckerResult> => {
+        if (!isOnline()) {
+            return localCheck(request);
+        }
         const response = (await api.post('/symptom-checker/check', request)) as ApiResponse<SymptomCheckerResult>;
         return unwrapApiData(response);
     },
