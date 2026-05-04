@@ -20,6 +20,8 @@ const ROLE_ROUTES = {
         '/nutrition',
         '/medications', '/medical',
         '/suggestions',
+        '/dogs',
+        '/assignments',
     ],
     REVIEWER: [
         '/dashboard', '/',
@@ -28,6 +30,8 @@ const ROLE_ROUTES = {
         '/profile',
         '/content',
         '/approval',
+        '/sync-conflicts',
+        '/admin/sync-conflicts',
     ],
 };
 
