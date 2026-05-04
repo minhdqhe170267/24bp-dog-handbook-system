@@ -33,7 +33,6 @@ const FieldDiffRow = ({
     >
       <td className="px-3 py-2 align-top">
         <div className="font-medium text-foreground">{fieldLabel}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5">{fieldKey}</div>
       </td>
 
       <td className={cn('px-3 py-2 align-top', renderCellClass(isConflicted, 'local'))}>

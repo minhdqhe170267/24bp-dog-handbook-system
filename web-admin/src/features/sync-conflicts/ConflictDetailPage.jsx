@@ -267,7 +267,7 @@ const ConflictDetailPage = () => {
               <p className="text-sm"><span className="text-muted-foreground">Phát hiện lúc:</span> <span className="font-medium text-foreground">{formatDateTime(detail.conflictDetectedAt)}</span></p>
             </div>
             <div className="space-y-2">
-              <p className="text-sm"><span className="text-muted-foreground">Bản trainer cập nhật:</span> <span className="font-medium text-foreground">{formatDateTime(detail.localData?.updated_at || detail.localData?.updatedAt)}</span></p>
+              <p className="text-sm"><span className="text-muted-foreground">Bản trainer cập nhật:</span> <span className="font-medium text-foreground">{formatDateTime(detail.localData?.localUpdatedAt || detail.localData?.local_updated_at || detail.localData?.updated_at || detail.localData?.updatedAt)}</span></p>
               <p className="text-sm"><span className="text-muted-foreground">Bản hệ thống cập nhật:</span> <span className="font-medium text-foreground">{formatDateTime(detail.serverData?.updated_at || detail.serverData?.updatedAt)}</span></p>
               <p className="text-sm inline-flex items-center gap-2">
                 <span className="text-muted-foreground">Trạng thái:</span>
