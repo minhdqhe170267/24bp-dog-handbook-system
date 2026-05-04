@@ -255,13 +255,6 @@ const RoadmapsPage = () => {
             render: (row) => <span className="whitespace-nowrap">{row.breedName || 'Tất cả giống'}</span>,
         },
         {
-            key: 'roadmapOrder',
-            header: 'Thứ tự',
-            className: 'w-16 text-center',
-            headerClassName: 'whitespace-nowrap text-center',
-            render: (row) => row.roadmapOrder ?? 1,
-        },
-        {
             key: 'totalPhases',
             header: 'Giai đoạn',
             className: 'w-20 text-center',

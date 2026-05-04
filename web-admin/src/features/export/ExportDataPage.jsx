@@ -306,11 +306,6 @@ const ExportDataPage = () => {
       toast.error('Vui lòng chọn loại dữ liệu để export');
       return;
     }
-    if (isDataPreviewStale) {
-      toast.warning('Vui lòng bấm "Xem trước" trước khi export để kiểm tra đúng dữ liệu.');
-      return;
-    }
-
     setExportLoading(true);
     try {
       if (exportFormat === 'pdf') {
@@ -331,11 +326,6 @@ const ExportDataPage = () => {
       toast.error('Vui lòng chọn huấn luyện viên để xuất báo cáo theo trainer');
       return;
     }
-    if (isReportPreviewStale) {
-      toast.warning('Vui lòng bấm "Xem trước báo cáo" trước khi export.');
-      return;
-    }
-
     setReportLoading(true);
     try {
       const params = buildReportParams();
@@ -447,16 +437,10 @@ const ExportDataPage = () => {
                 <Eye className="h-4 w-4" />
                 Xem trước
               </Button>
-              <Button onClick={handleExportData} loading={exportLoading} disabled={!canExportData || isDataPreviewStale}>
+              <Button onClick={handleExportData} loading={exportLoading} disabled={!canExportData}>
                 {exportFormat === 'pdf' ? 'Xuất PDF' : 'Xuất Excel'}
               </Button>
             </div>
-
-            {isDataPreviewStale ? (
-              <p className="text-xs text-amber-600 dark:text-amber-300">
-                Bạn đã thay đổi điều kiện. Vui lòng xem trước lại trước khi export.
-              </p>
-            ) : null}
 
           </div>
         </div>
@@ -567,16 +551,10 @@ const ExportDataPage = () => {
                 <Eye className="h-4 w-4" />
                 Xem trước báo cáo
               </Button>
-              <Button onClick={handleExportReport} loading={reportLoading} disabled={!canExportReport || isReportPreviewStale}>
+              <Button onClick={handleExportReport} loading={reportLoading} disabled={!canExportReport}>
                 Xuất báo cáo PDF
               </Button>
             </div>
-
-            {isReportPreviewStale ? (
-              <p className="text-xs text-amber-600 dark:text-amber-300">
-                Bạn đã thay đổi điều kiện. Vui lòng xem trước báo cáo lại trước khi export.
-              </p>
-            ) : null}
 
           </div>
         </div>
@@ -592,7 +570,7 @@ const ExportDataPage = () => {
             <Button variant="outline" onClick={() => setIsDataPreviewModalOpen(false)}>
               Đóng
             </Button>
-            <Button onClick={handleExportData} loading={exportLoading} disabled={!canExportData || isDataPreviewStale}>
+            <Button onClick={handleExportData} loading={exportLoading} disabled={!canExportData}>
               {exportFormat === 'pdf' ? 'Xuất PDF' : 'Xuất Excel'}
             </Button>
           </>
@@ -664,7 +642,7 @@ const ExportDataPage = () => {
             <Button variant="outline" onClick={() => setIsReportPreviewModalOpen(false)}>
               Đóng
             </Button>
-            <Button onClick={handleExportReport} loading={reportLoading} disabled={!canExportReport || isReportPreviewStale}>
+            <Button onClick={handleExportReport} loading={reportLoading} disabled={!canExportReport}>
               Xuất báo cáo PDF
             </Button>
           </>

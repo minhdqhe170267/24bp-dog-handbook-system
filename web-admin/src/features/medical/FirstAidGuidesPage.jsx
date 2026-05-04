@@ -9,6 +9,7 @@ import {
   Modal,
   FormField,
   FormInput,
+  FormSelect,
   FormTextarea,
   Button,
   ConfirmDialog,
@@ -21,6 +22,42 @@ import { useAuth } from '../../hooks/useAuth';
 import { sortByNewest } from '../../utils/sortByNewest';
 import { fetchAllPages, paginateRows } from '../../utils/clientPagination';
 import { validateFirstAidGuideForm } from '../../utils/formValidation';
+
+const EMERGENCY_TYPE_VI = {
+  // English enum values → Vietnamese
+  BLOAT: 'Trướng bụng', SEIZURE: 'Co giật', FRACTURE: 'Gãy xương',
+  HEATSTROKE: 'Say nắng', HEAT_STROKE: 'Say nắng', WOUND: 'Vết thương hở',
+  POISONING: 'Ngộ độc', CHOKING: 'Hóc nghẹn', BLEEDING: 'Chảy máu',
+  BURN: 'Bỏng', DEHYDRATION: 'Mất nước', CARDIAC: 'Tim mạch',
+  RESPIRATORY: 'Hô hấp', TRAUMA: 'Chấn thương', ENVIRONMENT: 'Môi trường',
+  INJURY: 'Chấn thương', TOXIC: 'Ngộ độc', DIARRHEA: 'Tiêu chảy',
+  // Common English words
+  'Heat Stroke': 'Say nắng', 'Burn': 'Bỏng', 'Toxic': 'Ngộ độc',
+  'Environment': 'Môi trường', 'Injury': 'Chấn thương', 'Dehydration': 'Mất nước',
+  'Cardiac': 'Tim mạch', 'Seizure': 'Co giật', 'Fracture': 'Gãy xương',
+  'Wound': 'Vết thương hở', 'Bleeding': 'Chảy máu', 'Poisoning': 'Ngộ độc',
+  'Choking': 'Hóc nghẹn', 'Bloat': 'Trướng bụng',
+};
+
+const getEmergencyTypeLabel = (value) => {
+  if (!value) return '—';
+  return EMERGENCY_TYPE_VI[value] || EMERGENCY_TYPE_VI[value.toUpperCase()] || value;
+};
+
+const EMERGENCY_TYPE_OPTIONS = [
+  { value: 'Ngộ độc', label: 'Ngộ độc' },
+  { value: 'Chấn thương', label: 'Chấn thương' },
+  { value: 'Hô hấp', label: 'Hô hấp' },
+  { value: 'Cấp cứu', label: 'Cấp cứu' },
+  { value: 'Môi trường', label: 'Môi trường' },
+  { value: 'Bỏng', label: 'Bỏng' },
+  { value: 'Say nắng', label: 'Say nắng' },
+  { value: 'Co giật', label: 'Co giật' },
+  { value: 'Hóc nghẹn', label: 'Hóc nghẹn' },
+  { value: 'Chảy máu', label: 'Chảy máu' },
+  { value: 'Mất nước', label: 'Mất nước' },
+  { value: 'Tim mạch', label: 'Tim mạch' },
+];
 
 const EMPTY_FORM = {
   guideTitle: '',
@@ -249,7 +286,17 @@ const FirstAidGuidesPage = () => {
       header: 'Tiêu đề',
       render: (row) => <span className="font-medium text-foreground">{row.guideTitle}</span>,
     },
-    { key: 'emergencyType', header: 'Loại tình huống' },
+    {
+      key: 'emergencyType',
+      header: 'Loại tình huống',
+      className: 'w-36',
+      headerClassName: 'whitespace-nowrap',
+      render: (row) => row.emergencyType ? (
+        <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-accent/10 text-accent whitespace-nowrap">
+          {getEmergencyTypeLabel(row.emergencyType)}
+        </span>
+      ) : '—',
+    },
     {
       key: 'status',
       header: 'Trạng thái',
@@ -357,11 +404,11 @@ const FirstAidGuidesPage = () => {
           </FormField>
 
           <FormField label="Loại tình huống" required>
-            <FormInput
-              maxLength={100}
-              placeholder="VD: Heat Stroke"
+            <FormSelect
               value={formData.emergencyType}
               onChange={(e) => updateField('emergencyType', e.target.value)}
+              options={EMERGENCY_TYPE_OPTIONS}
+              placeholder="-- Chọn loại tình huống --"
             />
           </FormField>
 
