@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { EmptyState } from '../../src/components/EmptyState';
 import { spacing, fontSize, borderRadius } from '../../src/constants/theme';
 import { firstAidService } from '../../src/services/firstAidService';
+import { usePublishedContent } from '../../src/hooks/usePublishedContent';
 import { FirstAidGuide } from '../../src/types/firstAid';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -37,27 +38,14 @@ const getCategory = (emergencyType: string) => {
 };
 
 export default function FirstAidListScreen() {
-    const [guides, setGuides] = useState<FirstAidGuide[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const data = await firstAidService.getAll();
-                setGuides(data?.content || data || []);
-            } catch (error) {
-                console.log('Error fetching first aid guides:', error);
-                setGuides([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
+    const { data: guides, loading } = usePublishedContent<FirstAidGuide>(
+        () => firstAidService.getAll(),
+    );
 
     const filtered = guides.filter((item) => {
         const matchSearch =
