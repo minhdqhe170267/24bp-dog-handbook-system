@@ -28,22 +28,22 @@ import { DogProfile } from '../../../src/types/dogManagement';
 import { dogManagementFonts, dogManagementUi } from '../../../src/features/dog-management/ui';
 
 const appetiteOptions = [
-  { label: 'Binh thuong', value: 'NORMAL' },
-  { label: 'Tang', value: 'INCREASED' },
-  { label: 'Giam', value: 'DECREASED' },
-  { label: 'Bo an', value: 'NONE' },
+  { label: 'Bình thường', value: 'NORMAL' },
+  { label: 'Tăng', value: 'INCREASED' },
+  { label: 'Giảm', value: 'DECREASED' },
+  { label: 'Bỏ ăn', value: 'NONE' },
 ];
 
 const activityOptions = [
-  { label: 'Rat it', value: 'VERY_LOW' },
-  { label: 'Binh thuong', value: 'NORMAL' },
-  { label: 'Tang dong', value: 'HYPERACTIVE' },
+  { label: 'Rất ít', value: 'VERY_LOW' },
+  { label: 'Bình thường', value: 'NORMAL' },
+  { label: 'Tăng động', value: 'HYPERACTIVE' },
 ];
 
 const fecesOptions = [
-  { label: 'Binh thuong', value: 'NORMAL' },
-  { label: 'Bat thuong', value: 'ABNORMAL' },
-  { label: 'Co mau', value: 'BLOOD_PRESENT' },
+  { label: 'Bình thường', value: 'NORMAL' },
+  { label: 'Bất thường', value: 'ABNORMAL' },
+  { label: 'Có máu', value: 'BLOOD_PRESENT' },
 ];
 
 export default function NewHealthRecordScreen() {
@@ -153,33 +153,33 @@ export default function NewHealthRecordScreen() {
   );
 
   const weightError = validateNumberField(weightKg, {
-    label: 'Can nang',
+    label: 'Cân nặng',
     min: 0,
     max: 200,
   });
   const temperatureError = validateNumberField(temperatureC, {
-    label: 'Nhiet do',
+    label: 'Nhiệt độ',
     min: 35,
     max: 43,
   });
   const nextCheckupDateError = validateDateField(nextCheckupDate, {
-    label: 'Ngay tai kham',
+    label: 'Ngày tái khám',
     mustBeTodayOrFuture: !isEditing,
   });
   const observedSymptomsError = validateTextField(observedSymptoms, {
-    label: 'Trieu chung quan sat',
+    label: 'Triệu chứng quan sát',
     maxLength: 5000,
   });
   const diagnosisError = validateTextField(diagnosis, {
-    label: 'Chan doan',
+    label: 'Chẩn đoán',
     maxLength: 5000,
   });
   const treatmentError = validateTextField(treatmentGiven, {
-    label: 'Dieu tri / xu tri',
+    label: 'Điều trị / xử trí',
     maxLength: 5000,
   });
   const notesError = validateTextField(notes, {
-    label: 'Ghi chu them',
+    label: 'Ghi chú thêm',
     maxLength: 5000,
   });
 
@@ -196,13 +196,13 @@ export default function NewHealthRecordScreen() {
 
   const submit = async () => {
     if (!selectedDogId) {
-      Alert.alert('Thieu thong tin', 'Vui long chon cho can kham.');
+      Alert.alert('Thiếu thông tin', 'Vui lòng chọn chó cần khám.');
       return;
     }
 
     if (!canSubmit) {
       Alert.alert(
-        'Bieu mau chua hop le',
+        'Biểu mẫu chưa hợp lệ',
         weightError ||
           temperatureError ||
           nextCheckupDateError ||
@@ -210,7 +210,7 @@ export default function NewHealthRecordScreen() {
           diagnosisError ||
           treatmentError ||
           notesError ||
-          'Vui long kiem tra lai thong tin ho so kham.',
+          'Vui lòng kiểm tra lại thông tin hồ sơ khám.',
       );
       return;
     }
@@ -237,11 +237,11 @@ export default function NewHealthRecordScreen() {
           : await healthRecordService.create(payload);
 
       Alert.alert(
-        'Thanh cong',
-        isEditing ? 'Da cap nhat ho so kham.' : 'Da luu ho so kham moi.',
+        'Thành công',
+        isEditing ? 'Đã cập nhật hồ sơ khám.' : 'Đã lưu hồ sơ khám mới.',
         [
           {
-            text: 'OK',
+            text: 'Đồng ý',
             onPress: () =>
               router.replace(`/dog-management/health-records/${String(saved.recordId)}` as any),
           },
@@ -249,11 +249,11 @@ export default function NewHealthRecordScreen() {
       );
     } catch (error: any) {
       Alert.alert(
-        isEditing ? 'Khong the cap nhat' : 'Khong the luu',
+        isEditing ? 'Không thể cập nhật' : 'Không thể lưu',
         error?.message ||
           (isEditing
-            ? 'Da co loi xay ra khi cap nhat ho so kham.'
-            : 'Da co loi xay ra khi luu ho so kham.'),
+            ? 'Đã có lỗi xảy ra khi cập nhật hồ sơ khám.'
+            : 'Đã có lỗi xảy ra khi lưu hồ sơ khám.'),
       );
     } finally {
       setSaving(false);
@@ -277,14 +277,14 @@ export default function NewHealthRecordScreen() {
     return (
       <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
         <TrainerRestrictedState
-          title={isEditing ? 'Khong the chinh sua ho so nay' : 'Khong the tao ho so cho cho nay'}
+          title={isEditing ? 'Không thể chỉnh sửa hồ sơ này' : 'Không thể tạo hồ sơ cho chó này'}
           description={
             isEditing
-              ? 'Ho so kham dang chon thuoc ve cho ngoai pham vi duoc phan cong cho ban.'
-              : 'Ban chi co the tao ho so suc khoe cho nhung cho dang duoc phan cong cho minh.'
+              ? 'Hồ sơ khám đang chọn thuộc về chó ngoài phạm vi được phân công cho bạn.'
+              : 'Bạn chỉ có thể tạo hồ sơ sức khỏe cho những chó đang được phân công cho mình.'
           }
           onPrimaryPress={() => router.replace('/dog-management/health-records' as any)}
-          secondaryLabel="Quay lai"
+          secondaryLabel="Quay lại"
           onSecondaryPress={() => router.back()}
         />
       </ScreenWrapper>
@@ -295,10 +295,10 @@ export default function NewHealthRecordScreen() {
     return (
       <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
         <TrainerRestrictedState
-          title="Chua co cho trong pham vi phu trach"
-          description="Ban can duoc phan cong it nhat mot cho truoc khi tao ho so suc khoe moi."
+          title="Chưa có chó trong phạm vi phụ trách"
+          description="Bạn cần được phân công ít nhất một chó trước khi tạo hồ sơ sức khỏe mới."
           onPrimaryPress={() => router.replace('/dog-management/dogs' as any)}
-          secondaryLabel="Quay lai"
+          secondaryLabel="Quay lại"
           onSecondaryPress={() => router.back()}
         />
       </ScreenWrapper>
@@ -312,7 +312,7 @@ export default function NewHealthRecordScreen() {
           <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-          {isEditing ? 'Chinh sua kham' : 'Ghi nhan kham'}
+          {isEditing ? 'Chỉnh sửa khám' : 'Ghi nhận khám'}
         </Text>
         <View style={styles.iconSpacer} />
       </View>
@@ -320,30 +320,30 @@ export default function NewHealthRecordScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroCard}>
           <Text style={[styles.heroOverline, { fontFamily: dogManagementFonts.bold }]}>
-            {isEditing ? 'CHINH SUA HO SO' : 'FORM KHAM'}
+            {isEditing ? 'CHỈNH SỬA HỒ SƠ' : 'BIỂU MẪU KHÁM'}
           </Text>
           <Text style={[styles.heroTitle, { fontFamily: dogManagementFonts.bold }]}>
-            {isEditing ? 'Cap nhat ho so suc khoe' : 'Tao ho so suc khoe moi'}
+            {isEditing ? 'Cập nhật hồ sơ sức khỏe' : 'Tạo hồ sơ sức khỏe mới'}
           </Text>
           <Text style={[styles.heroSubtitle, { fontFamily: dogManagementFonts.medium }]}>
             {isEditing
-              ? 'Cap nhat sinh hieu, trieu chung va ke hoach tai kham ngay tren ho so da co.'
-              : 'Ghi nhan sinh hieu, quan sat lam sang va moc tai kham voi du lieu khop backend ngay tu luc nhap.'}
+              ? 'Cập nhật sinh hiệu, triệu chứng và kế hoạch tái khám ngay trên hồ sơ đã có.'
+              : 'Ghi nhận sinh hiệu, quan sát lâm sàng và mốc tái khám bằng dữ liệu khớp với hệ thống ngay từ lúc nhập.'}
           </Text>
           <View style={styles.heroPill}>
             <Text style={[styles.heroPillText, { fontFamily: dogManagementFonts.bold }]}>
-              {selectedDog ? `${selectedDog.dogName || selectedDog.dogCode}` : 'Chua chon cho'}
+              {selectedDog ? `${selectedDog.dogName || selectedDog.dogCode}` : 'Chưa chọn chó'}
             </Text>
           </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Thong tin cho</Text>
+          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Thông tin chó</Text>
           {isEditing ? (
             <View style={[styles.lockedDogCard, { backgroundColor: isDark ? colors.background : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border }]}>
               <Ionicons name="lock-closed-outline" size={16} color={colors.primary} />
               <Text style={[styles.lockedDogText, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                {selectedDog ? `${selectedDog.dogName || selectedDog.dogCode}` : 'Chua chon cho'}
+                {selectedDog ? `${selectedDog.dogName || selectedDog.dogCode}` : 'Chưa chọn chó'}
               </Text>
             </View>
           ) : (
@@ -373,18 +373,18 @@ export default function NewHealthRecordScreen() {
           )}
           <Text style={[styles.helperText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
             {isEditing
-              ? 'Cho duoc giu nguyen theo ho so dang chinh sua.'
+              ? 'Chó được giữ nguyên theo hồ sơ đang chỉnh sửa.'
               : selectedDog
-                ? `${selectedDog.dogCode} • ${selectedDog.breedName || 'Chua ro giong'}`
-                : 'Chua chon cho'}
+                ? `${selectedDog.dogCode} • ${selectedDog.breedName || 'Chưa rõ giống'}`
+                : 'Chưa chọn chó.'}
           </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Sinh hieu</Text>
+          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Sinh hiệu</Text>
           <View style={styles.inlineRow}>
             <View style={styles.fieldCol}>
-              <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Can nang (kg)</Text>
+              <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Cân nặng (kg)</Text>
               <TextInput
                 value={weightKg}
                 onChangeText={setWeightKg}
@@ -397,7 +397,7 @@ export default function NewHealthRecordScreen() {
             </View>
 
             <View style={styles.fieldCol}>
-              <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Nhiet do (°C)</Text>
+              <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Nhiệt độ (°C)</Text>
               <TextInput
                 value={temperatureC}
                 onChangeText={setTemperatureC}
@@ -412,11 +412,11 @@ export default function NewHealthRecordScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Quan sat lam sang</Text>
+          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Quan sát lâm sàng</Text>
           {[
-            { title: 'Muc an uong', options: appetiteOptions, value: appetiteLevel, setValue: setAppetiteLevel },
-            { title: 'Muc van dong', options: activityOptions, value: activityLevel, setValue: setActivityLevel },
-            { title: 'Trang thai phan', options: fecesOptions, value: fecesStatus, setValue: setFecesStatus },
+            { title: 'Mức ăn uống', options: appetiteOptions, value: appetiteLevel, setValue: setAppetiteLevel },
+            { title: 'Mức vận động', options: activityOptions, value: activityLevel, setValue: setActivityLevel },
+            { title: 'Trạng thái phân', options: fecesOptions, value: fecesStatus, setValue: setFecesStatus },
           ].map((group) => (
             <View key={group.title} style={styles.groupBlock}>
               <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>{group.title}</Text>
@@ -451,7 +451,7 @@ export default function NewHealthRecordScreen() {
             onChangeText={setObservedSymptoms}
             multiline
             textAlignVertical="top"
-            placeholder="Mo ta trieu chung quan sat duoc..."
+            placeholder="Mô tả triệu chứng quan sát được..."
             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
             style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border, fontFamily: dogManagementFonts.medium }]}
             maxLength={5000}
@@ -465,14 +465,14 @@ export default function NewHealthRecordScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: isDark ? colors.surface : dogManagementUi.surface, borderColor: isDark ? colors.border : dogManagementUi.border }]}>
-          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Ket luan va xu tri</Text>
-          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Chan doan</Text>
+          <Text style={[styles.cardLabel, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>Kết luận và xử trí</Text>
+          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Chẩn đoán</Text>
           <TextInput
             value={diagnosis}
             onChangeText={setDiagnosis}
             multiline
             textAlignVertical="top"
-            placeholder="Chan doan..."
+            placeholder="Nhập chẩn đoán..."
             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
             style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border, fontFamily: dogManagementFonts.medium }]}
             maxLength={5000}
@@ -484,13 +484,13 @@ export default function NewHealthRecordScreen() {
           </View>
           {renderError(diagnosisError)}
 
-          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Dieu tri / xu tri</Text>
+          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Điều trị / xử trí</Text>
           <TextInput
             value={treatmentGiven}
             onChangeText={setTreatmentGiven}
             multiline
             textAlignVertical="top"
-            placeholder="Huong xu tri hoac dieu tri..."
+            placeholder="Hướng xử trí hoặc điều trị..."
             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
             style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border, fontFamily: dogManagementFonts.medium }]}
             maxLength={5000}
@@ -502,7 +502,7 @@ export default function NewHealthRecordScreen() {
           </View>
           {renderError(treatmentError)}
 
-          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Ngay tai kham</Text>
+          <Text style={[styles.inputLabel, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Ngày tái khám</Text>
           <TextInput
             value={nextCheckupDate}
             onChangeText={setNextCheckupDate}
@@ -513,13 +513,13 @@ export default function NewHealthRecordScreen() {
           />
           {renderError(nextCheckupDateError)}
 
-          <Text style={[styles.inputLabel, { marginTop: 12, color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Ghi chu them</Text>
+          <Text style={[styles.inputLabel, { marginTop: 12, color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>Ghi chú thêm</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
             multiline
             textAlignVertical="top"
-            placeholder="Ghi chu them..."
+            placeholder="Ghi chú thêm..."
             placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
             style={[styles.textArea, { color: isDark ? colors.text : dogManagementUi.textStrong, backgroundColor: isDark ? colors.background : '#F8FBF9', borderColor: isDark ? colors.border : dogManagementUi.border, fontFamily: dogManagementFonts.medium }]}
             maxLength={5000}
@@ -541,7 +541,7 @@ export default function NewHealthRecordScreen() {
             <>
               <Ionicons name="save-outline" size={18} color="#FFFFFF" />
               <Text style={[styles.saveButtonText, { fontFamily: dogManagementFonts.bold }]}>
-                {isEditing ? 'Luu thay doi' : 'Luu ho so kham'}
+                {isEditing ? 'Lưu thay đổi' : 'Lưu hồ sơ khám'}
               </Text>
             </>
           )}

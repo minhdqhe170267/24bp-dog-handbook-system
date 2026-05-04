@@ -84,14 +84,40 @@ export const buildTrainingInstructionSteps = (instructions: string | null | unde
   return [toInstructionStep(normalized, 0)];
 };
 
+export const getTrainingVideoThumbnailUrl = (videoUrl: string | null | undefined): string | null => {
+  const trimmed = videoUrl?.trim();
+  if (!trimmed || !/^https?:\/\//i.test(trimmed)) {
+    return null;
+  }
+
+  const cloudinaryVideoMarker = '/video/upload/';
+  const markerIndex = trimmed.indexOf(cloudinaryVideoMarker);
+  if (markerIndex < 0) {
+    return null;
+  }
+
+  const beforeUpload = trimmed.slice(0, markerIndex + cloudinaryVideoMarker.length);
+  const afterUpload = trimmed.slice(markerIndex + cloudinaryVideoMarker.length);
+  const thumbnailPath = afterUpload.replace(/\.(mp4|mov|m4v|webm)(\?.*)?$/i, '.jpg$2');
+
+  return `${beforeUpload}so_0/${thumbnailPath}`;
+};
+
 export const pickTrainingCoverImage = (
   seed: number | string | null | undefined,
   mediaUrls?: string | null,
+  imageUrl?: string | null,
+  videoUrl?: string | null,
 ): string => {
+  const directImage = imageUrl?.trim();
+  if (directImage && /^https?:\/\//i.test(directImage)) {
+    return directImage;
+  }
+
   const firstImage = parseMediaUrls(mediaUrls)
     .find((item) => /^https?:\/\//i.test(item) && !/\.mp4(?:$|\?)/i.test(item));
 
-  return firstImage || pickTrainingImage(seed);
+  return firstImage || getTrainingVideoThumbnailUrl(videoUrl) || pickTrainingImage(seed);
 };
 
 export const useTrainingEntrance = (duration = 620) => {

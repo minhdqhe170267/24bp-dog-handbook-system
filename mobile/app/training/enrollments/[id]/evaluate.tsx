@@ -39,8 +39,8 @@ const STATUS_OPTIONS: {
 }[] = [
     { key: 'NOT_STARTED', title: 'Chưa bắt đầu', subtitle: 'Đưa bài tập về trạng thái ban đầu.', icon: 'radio-button-off-outline' },
     { key: 'IN_PROGRESS', title: 'Đang thực hiện', subtitle: 'Lưu trạng thái đang luyện và ghi chú tạm thời.', icon: 'play-outline' },
-    { key: 'COMPLETED', title: 'Hoàn thành', subtitle: 'Bài tập đã xong và có kết quả follow-up.', icon: 'checkmark-circle-outline' },
-    { key: 'SKIPPED', title: 'Bỏ qua', subtitle: 'Không thực hiện trong phase hiện tại.', icon: 'play-skip-forward-outline' },
+    { key: 'COMPLETED', title: 'Hoàn thành', subtitle: 'Bài tập đã xong và có kết quả đánh giá.', icon: 'checkmark-circle-outline' },
+    { key: 'SKIPPED', title: 'Bỏ qua', subtitle: 'Không thực hiện trong giai đoạn hiện tại.', icon: 'play-skip-forward-outline' },
 ];
 
 const NOTE_SUGGESTIONS = [
@@ -68,7 +68,6 @@ export default function EnrollmentEvaluateScreen() {
     const [detail, setLocalDetail] = useState<TrainingEnrollmentDetail | null>(null);
     const [selectedProgressId, setSelectedProgressId] = useState<number | null>(null);
     const [status, setStatus] = useState<EnrollmentExerciseStatus>('IN_PROGRESS');
-    const [scoreInput, setScoreInput] = useState('');
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -119,19 +118,8 @@ export default function EnrollmentEvaluateScreen() {
 
         const normalizedStatus = normalizeEnrollmentExerciseStatus(selectedExercise.status);
         setStatus(normalizedStatus === 'UNKNOWN' ? 'IN_PROGRESS' : normalizedStatus);
-        setScoreInput(
-            selectedExercise.score == null || Number.isNaN(selectedExercise.score)
-                ? ''
-                : String(selectedExercise.score),
-        );
         setNotes(selectedExercise.trainerNotes || '');
     }, [selectedExercise]);
-
-    useEffect(() => {
-        if (status === 'NOT_STARTED') {
-            setScoreInput('');
-        }
-    }, [status]);
 
     const selectedStatusMeta = enrollmentExerciseStatusMeta[normalizeEnrollmentExerciseStatus(status)];
 
@@ -141,23 +129,11 @@ export default function EnrollmentEvaluateScreen() {
             return;
         }
 
-        const trimmedScore = scoreInput.trim();
-        const hasScore = trimmedScore.length > 0;
-        const numericScore = hasScore ? Number(trimmedScore) : undefined;
-
-        if (hasScore && (numericScore == null || Number.isNaN(numericScore) || numericScore < 0 || numericScore > 10)) {
-            Alert.alert('Điểm chưa hợp lệ', 'Điểm đánh giá phải nằm trong khoảng 0 đến 10.');
-            return;
-        }
-
         const payload: EvaluateEnrollmentExercisePayload = {
             progressId: selectedExercise.progressId,
             status,
         };
 
-        if (status !== 'NOT_STARTED' && numericScore != null) {
-            payload.score = numericScore;
-        }
         if (notes.trim()) {
             payload.trainerNotes = notes.trim();
         }
@@ -169,7 +145,7 @@ export default function EnrollmentEvaluateScreen() {
             applyExercisePatch(enrollmentId, payload);
             router.replace(`/training/enrollments/${enrollmentId}` as any);
         } catch (error: any) {
-            Alert.alert('Không thể lưu follow-up', error?.message || 'Hệ thống từ chối yêu cầu này.');
+            Alert.alert('Không thể lưu đánh giá', error?.message || 'Hệ thống từ chối yêu cầu này.');
         } finally {
             setSaving(false);
         }
@@ -190,7 +166,7 @@ export default function EnrollmentEvaluateScreen() {
             <ScreenWrapper>
                 <View style={styles.centered}>
                     <Text style={[styles.emptyText, { color: colors.text }]}>
-                        Không tìm thấy bài tập để follow-up.
+                        Không tìm thấy bài tập để đánh giá.
                     </Text>
                 </View>
             </ScreenWrapper>
@@ -205,7 +181,7 @@ export default function EnrollmentEvaluateScreen() {
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Follow-up bài tập
+                        Đánh giá bài tập
                     </Text>
                     <View style={styles.iconButton}>
                         <Ionicons name="sparkles-outline" size={20} color={colors.primary} />
@@ -221,13 +197,13 @@ export default function EnrollmentEvaluateScreen() {
                         </View>
                         <Text style={styles.heroExerciseName}>{selectedExercise.exerciseName}</Text>
                         <Text style={styles.heroMeta}>{detail.summary.specialtyName || 'Chương trình huấn luyện'}</Text>
-                        <Text style={styles.heroMeta}>{`${selectedExercise.roadmapName} • ${selectedExercise.phaseName || `Phase ${selectedExercise.phaseOrder || 1}`}`}</Text>
+                        <Text style={styles.heroMeta}>{`${selectedExercise.roadmapName} • ${selectedExercise.phaseName || `Giai đoạn ${selectedExercise.phaseOrder || 1}`}`}</Text>
                         <Text style={styles.heroMeta}>{formatTrainingRole(selectedExercise.targetRole)}</Text>
                     </View>
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn bài tập trong program</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn bài tập trong chương trình</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.exercisePickerRow}>
                         {exercises.map((exercise) => {
                             const active = exercise.progressId === selectedProgressId;
@@ -250,7 +226,7 @@ export default function EnrollmentEvaluateScreen() {
                                         {exercise.exerciseName}
                                     </Text>
                                     <Text style={[styles.exercisePickerSubtitle, { color: active ? '#E6F1EA' : isDark ? colors.textSecondary : trainingUi.textNormal }]} numberOfLines={2}>
-                                        {`${exercise.roadmapName} • ${exercise.phaseName || `Phase ${exercise.phaseOrder || 1}`}`}
+                                        {`${exercise.roadmapName} • ${exercise.phaseName || `Giai đoạn ${exercise.phaseOrder || 1}`}`}
                                     </Text>
                                     <View style={[styles.exercisePickerMeta, { backgroundColor: active ? 'rgba(255,255,255,0.18)' : meta.bg }]}>
                                         <Text style={[styles.exercisePickerMetaText, { color: active ? '#FFFFFF' : meta.text }]}>{meta.label}</Text>
@@ -262,7 +238,7 @@ export default function EnrollmentEvaluateScreen() {
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Trạng thái follow-up</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Trạng thái đánh giá</Text>
                     <View style={styles.statusGrid}>
                         {STATUS_OPTIONS.map((option) => {
                             const active = status === option.key;
@@ -293,46 +269,13 @@ export default function EnrollmentEvaluateScreen() {
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Điểm và ghi chú</Text>
-                    <View style={styles.scoreRow}>
-                        {[5, 7, 8.5, 10].map((preset) => (
-                            <TouchableOpacity
-                                key={preset}
-                                activeOpacity={0.88}
-                                disabled={status === 'NOT_STARTED'}
-                                onPress={() => setScoreInput(String(preset))}
-                                style={[
-                                    styles.scoreChip,
-                                    {
-                                        opacity: status === 'NOT_STARTED' ? 0.45 : 1,
-                                        backgroundColor: scoreInput === String(preset) ? colors.primary : isDark ? colors.background : '#EEF4F0',
-                                        borderColor: scoreInput === String(preset) ? colors.primary : isDark ? colors.border : '#D8E5DD',
-                                    },
-                                ]}
-                            >
-                                <Text style={[styles.scoreChipText, { color: scoreInput === String(preset) ? '#FFFFFF' : isDark ? colors.text : trainingUi.textStrong }]}>
-                                    {preset}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-
-                    <TextInput
-                        value={scoreInput}
-                        onChangeText={setScoreInput}
-                        editable={status !== 'NOT_STARTED'}
-                        keyboardType="decimal-pad"
-                        placeholder={status === 'NOT_STARTED' ? 'Điểm bị khóa khi chưa bắt đầu.' : 'Nhập điểm từ 0 đến 10.'}
-                        placeholderTextColor={isDark ? colors.textLight : trainingUi.textMuted}
-                        style={[styles.scoreInput, { color: isDark ? colors.text : trainingUi.textStrong, backgroundColor: isDark ? colors.background : '#F6FAF7', borderColor: isDark ? colors.border : '#DDE8E1' }]}
-                    />
-
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Ghi chú</Text>
                     <TextInput
                         value={notes}
                         onChangeText={setNotes}
                         multiline
                         textAlignVertical="top"
-                        placeholder="Thêm ghi chú evaluator: mức độ ổn định, điểm cần lặp lại, bối cảnh bài tập..."
+                        placeholder="Thêm ghi chú đánh giá: mức độ ổn định, điểm cần lặp lại, bối cảnh bài tập..."
                         placeholderTextColor={isDark ? colors.textLight : trainingUi.textMuted}
                         style={[styles.notesInput, { color: isDark ? colors.text : trainingUi.textStrong, backgroundColor: isDark ? colors.background : '#F6FAF7', borderColor: isDark ? colors.border : '#DDE8E1' }]}
                     />
@@ -353,7 +296,7 @@ export default function EnrollmentEvaluateScreen() {
 
                 <TouchableOpacity style={[styles.submitButton, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} activeOpacity={0.9} disabled={saving} onPress={onSubmit}>
                     {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="save-outline" size={18} color="#FFFFFF" />}
-                    <Text style={styles.submitButtonText}>{saving ? 'Đang lưu...' : 'Lưu follow-up'}</Text>
+                    <Text style={styles.submitButtonText}>{saving ? 'Đang lưu...' : 'Lưu đánh giá'}</Text>
                 </TouchableOpacity>
             </ScrollView>
         </ScreenWrapper>
@@ -387,10 +330,6 @@ const styles = StyleSheet.create({
     statusOption: { borderWidth: 1, borderRadius: 18, padding: spacing.sm + 2 },
     statusOptionTitle: { marginTop: 6, fontSize: 14, fontWeight: '800' },
     statusOptionSubtitle: { marginTop: 4, fontSize: 12, lineHeight: 17, fontWeight: '500' },
-    scoreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
-    scoreChip: { minWidth: 58, minHeight: 36, borderWidth: 1, borderRadius: borderRadius.full, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
-    scoreChipText: { fontSize: 13, fontWeight: '800' },
-    scoreInput: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: spacing.md, fontSize: fontSize.md, fontWeight: '600', marginBottom: spacing.sm },
     notesInput: { minHeight: 132, borderWidth: 1, borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, fontSize: fontSize.md, lineHeight: 20, fontWeight: '500' },
     noteSuggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
     noteSuggestionChip: { borderWidth: 1, borderRadius: borderRadius.full, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '100%' },

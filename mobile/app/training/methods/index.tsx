@@ -160,9 +160,6 @@ export default function MethodListScreen() {
                     <View style={styles.introTextWrap}>
                         <Text style={[styles.introEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>PHƯƠNG PHÁP</Text>
                         <Text style={[styles.introTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Khung tư duy huấn luyện theo tình huống</Text>
-                        <Text style={[styles.introSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Chọn nhanh phương pháp phù hợp rồi đi tiếp sang các bài tập và bước chi tiết liên quan.
-                        </Text>
                     </View>
                     <View style={[styles.introCountPill, { backgroundColor: colors.primary }]}>
                         <Text style={styles.introCountValue}>{filteredItems.length}</Text>
@@ -304,12 +301,6 @@ const styles = StyleSheet.create({
         fontSize: 22,
         lineHeight: 28,
         fontWeight: '800',
-    },
-    introSubtitle: {
-        marginTop: spacing.xs,
-        fontSize: 13,
-        lineHeight: 19,
-        fontWeight: '500',
     },
     introCountPill: {
         minWidth: 74,
