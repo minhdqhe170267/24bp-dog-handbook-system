@@ -1,5 +1,6 @@
 import api, { ApiResponse, PageResponse, unwrapApiData } from './api';
 import { offlineFirstRead, toPageResponse } from './offlineFirst';
+import { withEntityMediaImage, withPageEntityMediaImages } from './entityMediaService';
 import { exerciseDBService } from '../database/services';
 import { rowToApi, apiToRow, EXERCISE_COLS } from './mappers';
 import { atlasTrainingMock } from '../features/training/mockEnrollment';
@@ -17,7 +18,11 @@ export const exerciseService = {
                 } else {
                     rows = await exerciseDBService.getAll();
                 }
-                return toPageResponse(rows.map((r) => rowToApi<TrainingExercise>(r)));
+                return withPageEntityMediaImages(
+                    toPageResponse(rows.map((r) => rowToApi<TrainingExercise>(r))),
+                    'TRAINING_EXERCISE',
+                    (item) => item.exerciseId,
+                );
             },
             remoteFetch: async () => {
                 const res = (await api.get('/exercises', {
@@ -28,7 +33,7 @@ export const exerciseService = {
                         difficulty: difficulty || undefined,
                     },
                 })) as ApiResponse<PageResponse<TrainingExercise>>;
-                return unwrapApiData(res);
+                return withPageEntityMediaImages(unwrapApiData(res), 'TRAINING_EXERCISE', (item) => item.exerciseId);
             },
             saveToLocal: async (data) => {
                 const rows = data.content.map((e) => apiToRow(e, EXERCISE_COLS));
@@ -43,11 +48,14 @@ export const exerciseService = {
             : offlineFirstRead<TrainingExercise>({
                 localFetch: async () => {
                     const row = await exerciseDBService.getById(id);
-                    return row ? rowToApi<TrainingExercise>(row) : (null as any);
+                    const exercise = row ? rowToApi<TrainingExercise>(row) : null;
+                    return exercise
+                        ? withEntityMediaImage(exercise, 'TRAINING_EXERCISE', (item) => item.exerciseId)
+                        : (null as any);
                 },
                 remoteFetch: async () => {
                     const res = (await api.get(`/exercises/${id}`)) as ApiResponse<TrainingExercise>;
-                    return unwrapApiData(res);
+                    return withEntityMediaImage(unwrapApiData(res), 'TRAINING_EXERCISE', (item) => item.exerciseId);
                 },
                 saveToLocal: async (exercise) => {
                     await exerciseDBService.upsertFromServer([apiToRow(exercise, EXERCISE_COLS)] as any);
@@ -59,13 +67,17 @@ export const exerciseService = {
         offlineFirstRead<PageResponse<TrainingExercise>>({
             localFetch: async () => {
                 const rows = await exerciseDBService.getByDifficulty(difficulty);
-                return toPageResponse(rows.map((r) => rowToApi<TrainingExercise>(r)));
+                return withPageEntityMediaImages(
+                    toPageResponse(rows.map((r) => rowToApi<TrainingExercise>(r))),
+                    'TRAINING_EXERCISE',
+                    (item) => item.exerciseId,
+                );
             },
             remoteFetch: async () => {
                 const res = (await api.get('/exercises', {
                     params: { difficulty },
                 })) as ApiResponse<PageResponse<TrainingExercise>>;
-                return unwrapApiData(res);
+                return withPageEntityMediaImages(unwrapApiData(res), 'TRAINING_EXERCISE', (item) => item.exerciseId);
             },
             saveToLocal: async (data) => {
                 const rows = data.content.map((e) => apiToRow(e, EXERCISE_COLS));

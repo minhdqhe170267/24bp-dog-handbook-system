@@ -10,8 +10,8 @@ import { borderRadius, fontSize, spacing } from '../../../src/constants/theme';
 import { type TrainingRoadmap } from '../../../src/types/training';
 import { roadmapService } from '../../../src/services/roadmapService';
 import { normalizeRoadmapPhases } from '../../../src/features/training/progress';
-import { normalizeStatus, pickTrainingImage, statusMeta, trainingUi } from '../../../src/features/training/ui';
-import { useTrainingEntrance } from '../../../src/features/training/presentation';
+import { normalizeStatus, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 export default function RoadmapDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -124,7 +124,7 @@ export default function RoadmapDetailScreen() {
                 </View>
 
                 <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Image source={pickTrainingImage(roadmap.roadmapId)} style={styles.heroImage} contentFit="cover" />
+                    <Image source={pickTrainingCoverImage(roadmap.roadmapId, null, roadmap.imageUrl, roadmap.videoUrl)} style={styles.heroImage} contentFit="cover" />
                     <View style={styles.heroOverlay} />
                     <Animated.View style={[styles.heroOrb, { transform: [{ translateY: roadmapTranslate }] }]} />
                     <View style={styles.heroContent}>
@@ -256,7 +256,7 @@ export default function RoadmapDetailScreen() {
                                                 onPress={() => router.push(`/training/exercises/${exercise.exerciseId}` as any)}
                                                 activeOpacity={0.88}
                                             >
-                                                <Image source={pickTrainingImage(exercise.exerciseId)} style={styles.exerciseThumb} contentFit="cover" />
+                                                <Image source={pickTrainingCoverImage(exercise.exerciseId, null, exercise.imageUrl, exercise.videoUrl)} style={styles.exerciseThumb} contentFit="cover" />
                                                 <View style={styles.exerciseContent}>
                                                     <Text style={[styles.exerciseName, { color: isDark ? colors.text : trainingUi.textStrong }]}>
                                                         {exercise.exerciseName}

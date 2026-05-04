@@ -10,6 +10,8 @@ export interface TrainingExercise {
     safetyPrecautions: string | null;
     requiredEquipment: string | null;
     mediaUrls: string | null;
+    imageUrl?: string | null;
+    videoUrl?: string | null;
     status: string | null;
     createdByName?: string | null;
     createdAt?: string | null;
@@ -23,6 +25,8 @@ export interface TrainingMethod {
     advantages: string | null;
     disadvantages: string | null;
     instructions: string | null;
+    imageUrl?: string | null;
+    videoUrl?: string | null;
     status: string | null;
     createdByName?: string | null;
     createdAt?: string | null;
@@ -34,6 +38,8 @@ export interface RoadmapExerciseItem {
     exerciseName: string;
     exerciseOrder: number;
     isMandatory: boolean;
+    imageUrl?: string | null;
+    videoUrl?: string | null;
 }
 
 export interface TrainingRoadmap {
@@ -54,6 +60,8 @@ export interface TrainingRoadmap {
     phaseObjectives: string | null;
     assessmentCriteria: string | null;
     totalPhases?: number | null;
+    imageUrl?: string | null;
+    videoUrl?: string | null;
     status: string | null;
     exercises?: RoadmapExerciseItem[];
     phases?: TrainingRoadmapPhaseItem[];

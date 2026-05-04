@@ -100,8 +100,6 @@ export default function ExerciseListScreen() {
     const renderCard = ({ item }: { item: TrainingExercise }) => {
         const difficultyKey = normalizeDifficulty(item.difficultyLevel);
         const difficultyStyle = difficultyMeta[difficultyKey];
-        const durationLabel = item.durationMinutes ? `${item.durationMinutes} phút` : 'Chưa rõ';
-
         return (
             <View>
             <TouchableOpacity
@@ -116,15 +114,11 @@ export default function ExerciseListScreen() {
                 onPress={() => router.push(`/training/exercises/${item.exerciseId}` as any)}
             >
                 <View style={styles.coverWrap}>
-                    <Image source={pickTrainingCoverImage(item.exerciseId, item.mediaUrls)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={pickTrainingCoverImage(item.exerciseId, item.mediaUrls, item.imageUrl, item.videoUrl)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.coverOverlay} />
                     <View style={styles.badgeRow}>
                         <View style={[styles.diffBadge, { backgroundColor: difficultyStyle.bg, borderColor: difficultyStyle.border }]}>
                             <Text style={[styles.diffBadgeText, { color: difficultyStyle.text }]}>{difficultyStyle.label}</Text>
-                        </View>
-                        <View style={styles.timeBadge}>
-                            <Ionicons name="time" size={12} color="#FFFFFF" />
-                            <Text style={styles.timeBadgeText}>{durationLabel}</Text>
                         </View>
                     </View>
 
@@ -404,20 +398,6 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '800',
         letterSpacing: 0.4,
-    },
-    timeBadge: {
-        backgroundColor: 'rgba(12, 18, 15, 0.56)',
-        borderRadius: borderRadius.full,
-        paddingHorizontal: 10,
-        minHeight: 26,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    timeBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
     },
     playCircle: {
         alignSelf: 'center',

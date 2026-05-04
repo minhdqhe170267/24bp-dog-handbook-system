@@ -50,16 +50,6 @@ const normalizeOptionalString = (value: string) => {
     return trimmed.length > 0 ? trimmed : null;
 };
 
-const normalizeOptionalNumber = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) ? parsed : null;
-};
-
 export default function ReportFormScreen() {
     const router = useRouter();
     const { dogId, editId } = useLocalSearchParams<{ dogId?: string; editId?: string }>();
@@ -74,7 +64,6 @@ export default function ReportFormScreen() {
     const [reportDate, setReportDate] = useState(toDateInput());
     const [content, setContent] = useState('');
     const [phaseName, setPhaseName] = useState('');
-    const [score, setScore] = useState('');
     const [nextAction, setNextAction] = useState('');
     const [metadataExtras, setMetadataExtras] = useState<Record<string, unknown>>({});
     const [loading, setLoading] = useState(true);
@@ -110,18 +99,18 @@ export default function ReportFormScreen() {
 
                 const metadataObject = parseMetadataObject(detail.metadata);
                 if (metadataObject) {
-                    const { phase, phaseName: phaseLabel, score: rawScore, nextAction: rawNextAction, ...rest } = metadataObject;
+                    const { phase, phaseName: phaseLabel, nextAction: rawNextAction, ...rest } = metadataObject;
+                    const sanitizedRest = { ...rest };
+                    delete sanitizedRest.score;
                     setPhaseName(typeof phase === 'string'
                         ? phase
                         : typeof phaseLabel === 'string'
                             ? phaseLabel
                             : '');
-                    setScore(rawScore == null ? '' : String(rawScore));
                     setNextAction(typeof rawNextAction === 'string' ? rawNextAction : '');
-                    setMetadataExtras(rest);
+                    setMetadataExtras(sanitizedRest);
                 } else {
                     setPhaseName('');
-                    setScore('');
                     setNextAction('');
                     setMetadataExtras({});
                 }
@@ -169,7 +158,7 @@ export default function ReportFormScreen() {
         [dogOptions, selectedDogId],
     );
 
-    const hasFriendlyMetadata = Boolean(phaseName.trim() || score.trim() || nextAction.trim());
+    const hasFriendlyMetadata = Boolean(phaseName.trim() || nextAction.trim());
 
     const validate = () => {
         if (!selectedDogId) {
@@ -184,9 +173,6 @@ export default function ReportFormScreen() {
         if (!content.trim() && !hasFriendlyMetadata) {
             return '\u0043\u1ea7n c\u00f3 \u00edt nh\u1ea5t n\u1ed9i dung ch\u00ednh ho\u1eb7c th\u00f4ng tin b\u1ed5 sung.';
         }
-        if (score.trim() && normalizeOptionalNumber(score) == null) {
-            return '\u0110i\u1ec3m s\u1ed1 c\u1ea7n l\u00e0 m\u1ed9t gi\u00e1 tr\u1ecb s\u1ed1 h\u1ee3p l\u1ec7.';
-        }
         return null;
     };
 
@@ -199,7 +185,6 @@ export default function ReportFormScreen() {
 
         const metadataPayload: Record<string, unknown> = { ...metadataExtras };
         const normalizedPhase = normalizeOptionalString(phaseName);
-        const normalizedScore = normalizeOptionalNumber(score);
         const normalizedNextAction = normalizeOptionalString(nextAction);
 
         if (normalizedPhase) {
@@ -209,11 +194,7 @@ export default function ReportFormScreen() {
             delete metadataPayload.phaseName;
         }
 
-        if (normalizedScore != null) {
-            metadataPayload.score = normalizedScore;
-        } else {
-            delete metadataPayload.score;
-        }
+        delete metadataPayload.score;
 
         if (normalizedNextAction) {
             metadataPayload.nextAction = normalizedNextAction;
@@ -399,22 +380,11 @@ export default function ReportFormScreen() {
 
                         <View style={styles.sectionCard}>
                             <Text style={styles.sectionTitle}>{'\u0054h\u00f4ng tin b\u1ed5 sung'}</Text>
-                            <Text style={styles.sectionHint}>
-                                {'\u0043\u00e1c tr\u01b0\u1eddng n\u00e0y s\u1ebd \u0111\u01b0\u1ee3c app t\u1ef1 \u0111\u1ed9ng \u0111\u00f3ng g\u00f3i th\u00e0nh metadata, b\u1ea1n kh\u00f4ng c\u1ea7n nh\u1eadp JSON th\u00f4.'}
-                            </Text>
 
                             <Text style={styles.fieldLabel}>{'\u0047iai \u0111o\u1ea1n / n\u1ed9i dung ph\u1ee5'}</Text>
                             <TextInput
                                 value={phaseName}
                                 onChangeText={setPhaseName}
-                                style={styles.input}
-                            />
-
-                            <Text style={styles.fieldLabel}>{'\u0110i\u1ec3m s\u1ed1 (t\u00f9y ch\u1ecdn)'}</Text>
-                            <TextInput
-                                value={score}
-                                onChangeText={setScore}
-                                keyboardType="decimal-pad"
                                 style={styles.input}
                             />
 

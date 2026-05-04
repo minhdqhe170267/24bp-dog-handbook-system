@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../src/components/ScreenWrapper';
 import { useThemeStore } from '../../../src/stores/themeStore';
@@ -22,6 +21,7 @@ import {
     trainingUi,
 } from '../../../src/features/training/ui';
 import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
+import { hasTrainingVideo, TrainingMediaSurface } from '../../../src/features/training/TrainingMediaSurface';
 
 const resolveProgressStatus = (value: string | null | undefined) => {
     const normalized = String(value || '').toUpperCase();
@@ -107,9 +107,10 @@ export default function ExerciseDetailScreen() {
     const difficultyStyle = useMemo(() => difficultyMeta[normalizeDifficulty(exercise?.difficultyLevel)], [exercise?.difficultyLevel]);
     const statusStyle = useMemo(() => statusMeta[normalizeStatus(exercise?.status)], [exercise?.status]);
     const coverImage = useMemo(
-        () => pickTrainingCoverImage(exercise?.exerciseId, exercise?.mediaUrls),
-        [exercise?.exerciseId, exercise?.mediaUrls],
+        () => pickTrainingCoverImage(exercise?.exerciseId, exercise?.mediaUrls, exercise?.imageUrl, exercise?.videoUrl),
+        [exercise?.exerciseId, exercise?.mediaUrls, exercise?.imageUrl, exercise?.videoUrl],
     );
+    const hasVideo = hasTrainingVideo(exercise?.videoUrl);
 
     if (loading) {
         return (
@@ -137,7 +138,6 @@ export default function ExerciseDetailScreen() {
 
     const safety = splitToBullets(exercise.safetyPrecautions);
     const tools = parseToolItems(exercise.requiredEquipment);
-    const durationLabel = exercise.durationMinutes ? `${exercise.durationMinutes} phút` : 'Chưa rõ';
     const progressStatus = activeEnrollmentId
         ? remoteProgressStatus
         : progressByExercise[exercise.exerciseId]?.status || 'NOT_STARTED';
@@ -266,8 +266,13 @@ export default function ExerciseDetailScreen() {
                 </View>
 
                 <View style={styles.mediaCard}>
-                    <Image source={coverImage} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                    <View style={styles.mediaOverlay} />
+                    <TrainingMediaSurface
+                        imageUrl={coverImage}
+                        videoUrl={exercise.videoUrl}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                    />
+                    <View style={styles.mediaOverlay} pointerEvents="none" />
                     <View style={styles.mediaBadgeRow}>
                         {exercise.methodName ? (
                             <View style={styles.mediaBadge}>
@@ -284,13 +289,11 @@ export default function ExerciseDetailScreen() {
                             <Text style={styles.mediaBadgeText}>{`${Math.max(instructionSteps.length, 1)} bước`}</Text>
                         </View>
                     </View>
-                    <View style={styles.playCircle}>
-                        <Ionicons name="play" size={22} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.mediaTimeRow}>
-                        <Text style={styles.mediaTime}>0:12</Text>
-                        <Text style={styles.mediaTime}>03:48</Text>
-                    </View>
+                    {!hasVideo ? (
+                        <View style={styles.playCircle}>
+                            <Ionicons name="play" size={22} color="#FFFFFF" />
+                        </View>
+                    ) : null}
                 </View>
 
                 <View>
@@ -304,10 +307,6 @@ export default function ExerciseDetailScreen() {
                         </View>
                         <View style={[styles.tagPill, { backgroundColor: statusStyle.bg, borderColor: 'transparent' }]}>
                             <Text style={[styles.tagPillText, { color: statusStyle.text }]}>{statusStyle.label}</Text>
-                        </View>
-                        <View style={[styles.tagPill, { backgroundColor: '#E3F0FF', borderColor: 'transparent' }]}>
-                            <Ionicons name="time" size={12} color="#0E5DA8" />
-                            <Text style={[styles.tagPillText, { color: '#0E5DA8', marginLeft: 4 }]}>{durationLabel}</Text>
                         </View>
                         <View style={[styles.tagPill, { backgroundColor: progressMeta.bg, borderColor: 'transparent' }]}>
                             <Ionicons name={progressMeta.icon} size={12} color={progressMeta.color} />
@@ -717,20 +716,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1,
-    },
-    mediaTimeRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        zIndex: 1,
-    },
-    mediaTime: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: borderRadius.full,
     },
     exerciseName: {
         fontSize: 28,

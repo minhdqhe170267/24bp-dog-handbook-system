@@ -395,8 +395,6 @@ export default function AssignedDogDetailScreen() {
         { label: 'Chiều cao', value: formatNumber(dog.heightCm, 'cm'), icon: 'resize-outline', tint: '#E3F0FF' },
         { label: 'Màu lông', value: display(dog.color), icon: 'color-palette-outline', tint: '#FFF2D8' },
         { label: 'Microchip', value: display(dog.microchipId), icon: 'hardware-chip-outline', tint: '#F2EFE8' },
-        { label: 'Ngày tạo', value: formatDateTime(dog.createdAt), icon: 'add-circle-outline', tint: '#EAF1FF', wide: true },
-        { label: 'Cập nhật gần nhất', value: formatDateTime(dog.updatedAt), icon: 'sync-outline', tint: '#E8F7EE', wide: true },
     ];
 
     const assignmentItems: InfoItem[] = [
@@ -407,7 +405,6 @@ export default function AssignedDogDetailScreen() {
         { label: 'Trạng thái', value: assignmentStatusLabel(assignment), icon: 'pulse-outline', tint: '#E8F7EE' },
         { label: 'Bắt đầu', value: formatDate(assignment?.startDate), icon: 'play-circle-outline', tint: '#EAF1FF' },
         { label: 'Kết thúc', value: formatDate(assignment?.endDate), icon: 'stop-circle-outline', tint: '#FFE6E6' },
-        { label: 'Ghi chú phân công', value: display(assignment?.notes), icon: 'document-text-outline', tint: '#F2EFE8', wide: true },
     ];
 
     const actions: ActionItem[] = [

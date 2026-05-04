@@ -19,8 +19,8 @@ import { useThemeStore } from '../../../src/stores/themeStore';
 import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { TrainingRoadmap } from '../../../src/types/training';
 import { roadmapService } from '../../../src/services/roadmapService';
-import { normalizeStatus, pickTrainingImage, statusMeta, trainingUi } from '../../../src/features/training/ui';
-import { useTrainingEntrance } from '../../../src/features/training/presentation';
+import { normalizeStatus, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 const ALL_BREEDS = 'ALL_BREEDS';
 const ALL_ROLES = 'ALL_ROLES';
@@ -378,7 +378,7 @@ export default function RoadmapListScreen() {
 
                 <View style={styles.bottomRow}>
                     <View style={styles.avatarStack}>
-                        <Image source={pickTrainingImage(item.roadmapId)} style={styles.avatar} contentFit="cover" />
+                        <Image source={pickTrainingCoverImage(item.roadmapId, null, item.imageUrl, item.videoUrl)} style={styles.avatar} contentFit="cover" />
                         <View style={[styles.avatarCount, { backgroundColor: colors.primary }]}>
                             <Text style={styles.avatarCountText}>+{Math.max(item.phaseOrder || 1, 1)}</Text>
                         </View>

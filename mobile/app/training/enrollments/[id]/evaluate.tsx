@@ -68,7 +68,6 @@ export default function EnrollmentEvaluateScreen() {
     const [detail, setLocalDetail] = useState<TrainingEnrollmentDetail | null>(null);
     const [selectedProgressId, setSelectedProgressId] = useState<number | null>(null);
     const [status, setStatus] = useState<EnrollmentExerciseStatus>('IN_PROGRESS');
-    const [scoreInput, setScoreInput] = useState('');
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -119,19 +118,8 @@ export default function EnrollmentEvaluateScreen() {
 
         const normalizedStatus = normalizeEnrollmentExerciseStatus(selectedExercise.status);
         setStatus(normalizedStatus === 'UNKNOWN' ? 'IN_PROGRESS' : normalizedStatus);
-        setScoreInput(
-            selectedExercise.score == null || Number.isNaN(selectedExercise.score)
-                ? ''
-                : String(selectedExercise.score),
-        );
         setNotes(selectedExercise.trainerNotes || '');
     }, [selectedExercise]);
-
-    useEffect(() => {
-        if (status === 'NOT_STARTED') {
-            setScoreInput('');
-        }
-    }, [status]);
 
     const selectedStatusMeta = enrollmentExerciseStatusMeta[normalizeEnrollmentExerciseStatus(status)];
 
@@ -141,23 +129,11 @@ export default function EnrollmentEvaluateScreen() {
             return;
         }
 
-        const trimmedScore = scoreInput.trim();
-        const hasScore = trimmedScore.length > 0;
-        const numericScore = hasScore ? Number(trimmedScore) : undefined;
-
-        if (hasScore && (numericScore == null || Number.isNaN(numericScore) || numericScore < 0 || numericScore > 10)) {
-            Alert.alert('Điểm chưa hợp lệ', 'Điểm đánh giá phải nằm trong khoảng 0 đến 10.');
-            return;
-        }
-
         const payload: EvaluateEnrollmentExercisePayload = {
             progressId: selectedExercise.progressId,
             status,
         };
 
-        if (status !== 'NOT_STARTED' && numericScore != null) {
-            payload.score = numericScore;
-        }
         if (notes.trim()) {
             payload.trainerNotes = notes.trim();
         }
@@ -293,40 +269,7 @@ export default function EnrollmentEvaluateScreen() {
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Điểm và ghi chú</Text>
-                    <View style={styles.scoreRow}>
-                        {[5, 7, 8.5, 10].map((preset) => (
-                            <TouchableOpacity
-                                key={preset}
-                                activeOpacity={0.88}
-                                disabled={status === 'NOT_STARTED'}
-                                onPress={() => setScoreInput(String(preset))}
-                                style={[
-                                    styles.scoreChip,
-                                    {
-                                        opacity: status === 'NOT_STARTED' ? 0.45 : 1,
-                                        backgroundColor: scoreInput === String(preset) ? colors.primary : isDark ? colors.background : '#EEF4F0',
-                                        borderColor: scoreInput === String(preset) ? colors.primary : isDark ? colors.border : '#D8E5DD',
-                                    },
-                                ]}
-                            >
-                                <Text style={[styles.scoreChipText, { color: scoreInput === String(preset) ? '#FFFFFF' : isDark ? colors.text : trainingUi.textStrong }]}>
-                                    {preset}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-
-                    <TextInput
-                        value={scoreInput}
-                        onChangeText={setScoreInput}
-                        editable={status !== 'NOT_STARTED'}
-                        keyboardType="decimal-pad"
-                        placeholder={status === 'NOT_STARTED' ? 'Điểm bị khóa khi chưa bắt đầu.' : 'Nhập điểm từ 0 đến 10.'}
-                        placeholderTextColor={isDark ? colors.textLight : trainingUi.textMuted}
-                        style={[styles.scoreInput, { color: isDark ? colors.text : trainingUi.textStrong, backgroundColor: isDark ? colors.background : '#F6FAF7', borderColor: isDark ? colors.border : '#DDE8E1' }]}
-                    />
-
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Ghi chú</Text>
                     <TextInput
                         value={notes}
                         onChangeText={setNotes}
@@ -387,10 +330,6 @@ const styles = StyleSheet.create({
     statusOption: { borderWidth: 1, borderRadius: 18, padding: spacing.sm + 2 },
     statusOptionTitle: { marginTop: 6, fontSize: 14, fontWeight: '800' },
     statusOptionSubtitle: { marginTop: 4, fontSize: 12, lineHeight: 17, fontWeight: '500' },
-    scoreRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
-    scoreChip: { minWidth: 58, minHeight: 36, borderWidth: 1, borderRadius: borderRadius.full, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 },
-    scoreChipText: { fontSize: 13, fontWeight: '800' },
-    scoreInput: { minHeight: 48, borderWidth: 1, borderRadius: 16, paddingHorizontal: spacing.md, fontSize: fontSize.md, fontWeight: '600', marginBottom: spacing.sm },
     notesInput: { minHeight: 132, borderWidth: 1, borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, fontSize: fontSize.md, lineHeight: 20, fontWeight: '500' },
     noteSuggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
     noteSuggestionChip: { borderWidth: 1, borderRadius: borderRadius.full, paddingHorizontal: 12, paddingVertical: 8, maxWidth: '100%' },
