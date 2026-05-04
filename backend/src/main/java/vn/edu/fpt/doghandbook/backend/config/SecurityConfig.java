@@ -52,7 +52,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/dogs", "/dogs/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/dogs").hasAnyRole("ADMIN", "CONTENT_EDITOR")
                         .requestMatchers(HttpMethod.PUT, "/dogs/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
-                        .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/dogs/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
                         .requestMatchers(HttpMethod.DELETE, "/field-notes/**").hasAnyRole("ADMIN", "TRAINER")
                         .requestMatchers(HttpMethod.DELETE, "/media/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
@@ -63,6 +63,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/training-specialties/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
 
+                        .requestMatchers(HttpMethod.DELETE, "/assignments/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
+                        .requestMatchers(HttpMethod.DELETE, "/roadmaps/**").hasAnyRole("ADMIN", "CONTENT_EDITOR")
                         .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.POST, "/breeds/compare").authenticated()
