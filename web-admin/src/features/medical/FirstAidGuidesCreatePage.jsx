@@ -2,13 +2,28 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CreateFormPage from '../../components/shared/CreateFormPage';
 import EntityMediaSection from '../../components/shared/EntityMediaSection';
-import { FormField, FormInput, FormTextarea } from '../../components/ui/FormComponents';
+import { FormField, FormInput, FormSelect, FormTextarea } from '../../components/ui/FormComponents';
 import { useToast } from '../../components/ui/Toast';
 import { firstAidGuideService } from '../../services/firstAidGuideService';
 import { approvalService, APPROVAL_ENTITY_TYPES } from '../../services/approvalService';
 import { useAuth } from '../../hooks/useAuth';
 import { getStatusLabel } from '../../utils/enumLabels';
 import { validateFirstAidGuideForm } from '../../utils/formValidation';
+
+const EMERGENCY_TYPE_OPTIONS = [
+  { value: 'Ngộ độc', label: 'Ngộ độc' },
+  { value: 'Chấn thương', label: 'Chấn thương' },
+  { value: 'Hô hấp', label: 'Hô hấp' },
+  { value: 'Cấp cứu', label: 'Cấp cứu' },
+  { value: 'Môi trường', label: 'Môi trường' },
+  { value: 'Bỏng', label: 'Bỏng' },
+  { value: 'Say nắng', label: 'Say nắng' },
+  { value: 'Co giật', label: 'Co giật' },
+  { value: 'Hóc nghẹn', label: 'Hóc nghẹn' },
+  { value: 'Chảy máu', label: 'Chảy máu' },
+  { value: 'Mất nước', label: 'Mất nước' },
+  { value: 'Tim mạch', label: 'Tim mạch' },
+];
 
 const defaultForm = {
   guideTitle: '',
@@ -191,7 +206,12 @@ const FirstAidGuidesCreatePage = () => {
         <FormInput maxLength={200} value={formData.guideTitle} onChange={(e) => updateField('guideTitle', e.target.value)} />
       </FormField>
       <FormField label="Loại tình huống" required>
-        <FormInput maxLength={100} value={formData.emergencyType} onChange={(e) => updateField('emergencyType', e.target.value)} />
+        <FormSelect
+          value={formData.emergencyType}
+          onChange={(e) => updateField('emergencyType', e.target.value)}
+          options={EMERGENCY_TYPE_OPTIONS}
+          placeholder="-- Chọn loại tình huống --"
+        />
       </FormField>
       <FormField label="Mô tả">
         <FormTextarea maxLength={255} rows={3} value={formData.description} onChange={(e) => updateField('description', e.target.value)} />

@@ -7,18 +7,18 @@ const ID_COL = 'breed_id';
 
 export const breedDBService = {
   getAll: (): Promise<DogBreedRow[]> =>
-    repository.getAllWhere<DogBreedRow>(TABLE, 'is_deleted = 0', [], 'breed_name'),
+    repository.getAllWhere<DogBreedRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'breed_name'),
 
   getById: (id: number): Promise<DogBreedRow | null> =>
     db.getFirstAsync<DogBreedRow>(
-      `SELECT * FROM ${TABLE} WHERE ${ID_COL} = ? AND is_deleted = 0`,
+      `SELECT * FROM ${TABLE} WHERE ${ID_COL} = ? AND status = 'PUBLISHED' AND is_deleted = 0`,
       [id],
     ),
 
   search: (keyword: string): Promise<DogBreedRow[]> =>
     db.getAllAsync<DogBreedRow>(
       `SELECT * FROM ${TABLE}
-       WHERE is_deleted = 0
+       WHERE status = 'PUBLISHED' AND is_deleted = 0
        AND (breed_name LIKE ? OR description LIKE ? OR origin LIKE ?)
        ORDER BY breed_name`,
       [`%${keyword}%`, `%${keyword}%`, `%${keyword}%`],

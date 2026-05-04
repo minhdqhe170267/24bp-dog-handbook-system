@@ -31,6 +31,7 @@ import ApprovalPage from '../features/approval/ApprovalPage';
 import SuggestionsPage from '../features/suggestions/SuggestionsPage';
 import DogsPage from '../features/dogs/DogsPage';
 import DogsCreatePage from '../features/dogs/DogsCreatePage';
+import DogHealthProfilePage from '../features/dogs/DogHealthProfilePage';
 import DogAssignmentsPage from '../features/assignments/DogAssignmentsPage';
 import DogAssignmentsCreatePage from '../features/assignments/DogAssignmentsCreatePage';
 import ProfilePage from '../features/profile/ProfilePage';
@@ -101,6 +102,7 @@ const router = createBrowserRouter([
       { path: 'dogs', element: <DogsPage /> },
       { path: 'dogs/create', element: <DogsCreatePage /> },
       { path: 'dogs/:id/edit', element: <DogsCreatePage /> },
+      { path: 'dogs/:id/health', element: <DogHealthProfilePage /> },
       { path: 'assignments', element: <DogAssignmentsPage /> },
       { path: 'assignments/create', element: <DogAssignmentsCreatePage /> },
       { path: 'assignments/:id/edit', element: <DogAssignmentsCreatePage /> },

@@ -24,8 +24,8 @@ const allNavItems = [
     {
         label: 'Quản lý chó', icon: Dog, children: [
             { label: 'Giống chó', href: '/breeds', icon: Dog, roles: ['ADMIN', 'CONTENT_EDITOR'] },
-            { label: 'Hồ sơ chó', href: '/dogs', icon: Dog, roles: ['ADMIN'] },
-            { label: 'Phân công chó', href: '/assignments', icon: UserCheck, roles: ['ADMIN'] },
+            { label: 'Hồ sơ chó', href: '/dogs', icon: Dog, roles: ['ADMIN', 'CONTENT_EDITOR'] },
+            { label: 'Phân công chó', href: '/assignments', icon: UserCheck, roles: ['ADMIN', 'CONTENT_EDITOR'] },
         ]
     },
     {
@@ -50,7 +50,7 @@ const allNavItems = [
         label: 'Xung đột đồng bộ',
         icon: AlertTriangle,
         href: '/sync-conflicts',
-        roles: ['ADMIN'],
+        roles: ['ADMIN', 'REVIEWER'],
         badgeKey: 'syncConflictPending',
     },
     {
@@ -81,7 +81,7 @@ const AppSidebar = () => {
     const location = useLocation();
     const { user } = useAuth();
     const navItems = useMemo(() => filterByRole(allNavItems, user?.role), [user?.role]);
-    const canSeeConflictMenu = user?.role === 'ADMIN';
+    const canSeeConflictMenu = user?.role === 'ADMIN' || user?.role === 'REVIEWER';
     const visibleSyncConflictPendingCount = canSeeConflictMenu ? syncConflictPendingCount : 0;
 
     useEffect(() => {

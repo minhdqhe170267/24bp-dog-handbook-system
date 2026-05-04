@@ -258,6 +258,28 @@ CREATE TABLE IF NOT EXISTS nutrition_standard (
 CREATE INDEX IF NOT EXISTS idx_nutrition_breed ON nutrition_standard(breed_id);
 CREATE INDEX IF NOT EXISTS idx_nutrition_updated_at ON nutrition_standard(updated_at);
 
+-- ─── disease_medication_mapping ──────────────────────────────
+CREATE TABLE IF NOT EXISTS disease_medication_mapping (
+  mapping_id    INTEGER PRIMARY KEY,
+  disease_id    INTEGER NOT NULL REFERENCES disease(disease_id),
+  medication_id INTEGER NOT NULL REFERENCES medication(medication_id),
+  priority      INTEGER NOT NULL DEFAULT 1,
+  notes         TEXT,
+  _sync_version INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_dmm_disease ON disease_medication_mapping(disease_id);
+
+-- ─── disease_first_aid_mapping ────────────────────────────────
+CREATE TABLE IF NOT EXISTS disease_first_aid_mapping (
+  mapping_id INTEGER PRIMARY KEY,
+  disease_id INTEGER NOT NULL REFERENCES disease(disease_id),
+  guide_id   INTEGER NOT NULL REFERENCES first_aid_guide(guide_id),
+  priority   INTEGER NOT NULL DEFAULT 1,
+  notes      TEXT,
+  _sync_version INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_dfam_disease ON disease_first_aid_mapping(disease_id);
+
 -- ─── content ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS content (
   content_id    INTEGER PRIMARY KEY,
@@ -618,6 +640,8 @@ const SYNCABLE_TABLES = [
   'content',
   'dog_profile',
   'dog_assignment',
+  'disease_medication_mapping',
+  'disease_first_aid_mapping',
 ] as const;
 
 const SEED_SYNC_METADATA = SYNCABLE_TABLES

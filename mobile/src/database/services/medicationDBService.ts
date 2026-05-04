@@ -7,13 +7,18 @@ const ID_COL = 'medication_id';
 
 export const medicationDBService = {
   getAll: (): Promise<MedicationRow[]> =>
-    repository.getAll<MedicationRow>(TABLE, 'medication_name'),
+    repository.getAllWhere<MedicationRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'medication_name'),
 
   getById: (id: number): Promise<MedicationRow | null> =>
     repository.getById<MedicationRow>(TABLE, id, ID_COL),
 
-  search: (keyword: string): Promise<MedicationRow[]> =>
-    repository.search<MedicationRow>(TABLE, ['medication_name', 'description'], keyword, 'medication_name'),
+  search: (keyword: string): Promise<MedicationRow[]> => {
+    const like = `%${keyword}%`;
+    return repository.raw<MedicationRow>(
+      `SELECT * FROM ${TABLE} WHERE status = 'PUBLISHED' AND is_deleted = 0 AND (medication_name LIKE ? OR description LIKE ?) ORDER BY medication_name`,
+      [like, like],
+    );
+  },
 
   upsertFromServer: async (records: MedicationRow[]): Promise<void> => {
     await repository.batchUpsert(TABLE, records);

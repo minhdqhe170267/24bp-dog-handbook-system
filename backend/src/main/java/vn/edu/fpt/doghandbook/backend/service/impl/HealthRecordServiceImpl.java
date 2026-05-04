@@ -5,9 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
+import vn.edu.fpt.doghandbook.backend.util.AuthenticationUtils;
 import vn.edu.fpt.doghandbook.backend.dto.request.HealthRecordRequest;
 import vn.edu.fpt.doghandbook.backend.dto.response.HealthRecordResponse;
 import vn.edu.fpt.doghandbook.backend.dto.response.PageResponse;
@@ -19,6 +21,7 @@ import vn.edu.fpt.doghandbook.backend.entity.enums.AppetiteLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.ConflictStatus;
 import vn.edu.fpt.doghandbook.backend.entity.enums.DogActivityLevel;
 import vn.edu.fpt.doghandbook.backend.entity.enums.FecesStatus;
+import vn.edu.fpt.doghandbook.backend.entity.enums.UserRole;
 import vn.edu.fpt.doghandbook.backend.exception.BadRequestException;
 import vn.edu.fpt.doghandbook.backend.exception.ResourceNotFoundException;
 import vn.edu.fpt.doghandbook.backend.exception.SyncConflictException;
@@ -132,11 +135,12 @@ public class HealthRecordServiceImpl implements HealthRecordService {
 
     @Override
     @Transactional
-    public HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId) {
+    public HealthRecordResponse update(Integer recordId, HealthRecordRequest request, Integer examinerId, Authentication authentication) {
         HealthRecord record = healthRecordRepository.findByRecordIdAndIsDeletedFalse(recordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Health record not found with id: " + recordId));
 
-        if (!record.getExaminer().getUserId().equals(examinerId)) {
+        boolean isAdmin = AuthenticationUtils.hasRole(authentication, UserRole.ADMIN);
+        if (!isAdmin && !record.getExaminer().getUserId().equals(examinerId)) {
             throw new BadRequestException("Không có quyền chỉnh sửa hồ sơ sức khỏe này");
         }
 

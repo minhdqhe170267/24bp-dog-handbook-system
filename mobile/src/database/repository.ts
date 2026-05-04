@@ -1,5 +1,16 @@
 import { db } from './index';
 
+// Cache PK column per table to avoid repeated PRAGMA calls
+const pkColumnCache = new Map<string, string>();
+
+const getPkColumn = (table: string): string => {
+  if (pkColumnCache.has(table)) return pkColumnCache.get(table)!;
+  const info = db.getAllSync<{ name: string; pk: number }>(`PRAGMA table_info(${table})`);
+  const pk = info.find((c) => c.pk === 1)?.name ?? 'id';
+  pkColumnCache.set(table, pk);
+  return pk;
+};
+
 // ──────────────────────────────────────────────────────────────
 // UUID helper (no external dependency)
 // ──────────────────────────────────────────────────────────────
@@ -52,17 +63,38 @@ export const repository = {
     return result.lastInsertRowId;
   },
 
-  /** Batch upsert using INSERT OR REPLACE inside a transaction */
+  /**
+   * Batch upsert using INSERT ... ON CONFLICT DO UPDATE SET.
+   *
+   * Unlike INSERT OR REPLACE (which does DELETE + INSERT and zeros out
+   * columns not in the record), this only updates the columns present in
+   * the incoming record — preserving any existing data in other columns.
+   * This is safe for partial delta records sent by the server.
+   */
   batchUpsert: async (table: string, records: Record<string, any>[]): Promise<void> => {
     if (records.length === 0) return;
+    const pkCol = getPkColumn(table);
     await db.withTransactionAsync(async () => {
       for (const record of records) {
         const keys = Object.keys(record);
         const placeholders = keys.map(() => '?').join(', ');
-        await db.runAsync(
-          `INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
-          Object.values(record),
-        );
+        const values = Object.values(record);
+        const nonPkKeys = keys.filter((k) => k !== pkCol);
+
+        if (nonPkKeys.length > 0) {
+          const updateClause = nonPkKeys.map((k) => `${k} = excluded.${k}`).join(', ');
+          await db.runAsync(
+            `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})
+             ON CONFLICT(${pkCol}) DO UPDATE SET ${updateClause}`,
+            values,
+          );
+        } else {
+          // Record only contains the PK — just ensure the row exists
+          await db.runAsync(
+            `INSERT OR IGNORE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`,
+            values,
+          );
+        }
       }
     });
   },

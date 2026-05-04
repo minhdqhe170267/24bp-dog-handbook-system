@@ -22,4 +22,6 @@ public interface SyncConflictLogRepository extends JpaRepository<SyncConflictLog
     long countByStatus(ConflictStatus status);
 
     Optional<SyncConflictLog> findByLocalIdAndStatus(String localId, ConflictStatus status);
+
+    List<SyncConflictLog> findByTrainerIdAndStatusIn(Integer trainerId, List<ConflictStatus> statuses);
 }

@@ -4,6 +4,8 @@ export { developmentStageDBService } from './developmentStageDBService';
 export { diseaseDBService } from './diseaseDBService';
 export { symptomDBService } from './symptomDBService';
 export { diseaseSymptomMappingDBService } from './diseaseSymptomMappingDBService';
+export { diseaseMedicationMappingDBService } from './diseaseMedicationMappingDBService';
+export { diseaseFirstAidMappingDBService } from './diseaseFirstAidMappingDBService';
 export { medicationDBService } from './medicationDBService';
 export { firstAidDBService } from './firstAidDBService';
 export { trainingMethodDBService } from './trainingMethodDBService';

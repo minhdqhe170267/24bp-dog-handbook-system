@@ -1,4 +1,3 @@
-import { db } from '../index';
 import { repository } from '../repository';
 import type { NutritionStandardRow } from '../types';
 
@@ -7,16 +6,19 @@ const ID_COL = 'standard_id';
 
 export const nutritionDBService = {
   getAll: (): Promise<NutritionStandardRow[]> =>
-    repository.getAll<NutritionStandardRow>(TABLE, 'ration_name'),
+    repository.getAllWhere<NutritionStandardRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'ration_name'),
 
   getById: (id: number): Promise<NutritionStandardRow | null> =>
     repository.getById<NutritionStandardRow>(TABLE, id, ID_COL),
 
   getByBreed: (breedId: number): Promise<NutritionStandardRow[]> =>
-    repository.getAllWhere<NutritionStandardRow>(TABLE, 'breed_id = ?', [breedId], 'ration_name'),
+    repository.getAllWhere<NutritionStandardRow>(TABLE, "breed_id = ? AND status = 'PUBLISHED' AND is_deleted = 0", [breedId], 'ration_name'),
 
   search: (keyword: string): Promise<NutritionStandardRow[]> =>
-    repository.search<NutritionStandardRow>(TABLE, ['ration_name', 'description'], keyword, 'ration_name'),
+    repository.raw<NutritionStandardRow>(
+      `SELECT * FROM ${TABLE} WHERE status = 'PUBLISHED' AND is_deleted = 0 AND (ration_name LIKE ? OR description LIKE ?) ORDER BY ration_name`,
+      [`%${keyword}%`, `%${keyword}%`],
+    ),
 
   upsertFromServer: async (records: NutritionStandardRow[]): Promise<void> => {
     await repository.batchUpsert(TABLE, records);

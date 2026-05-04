@@ -23,6 +23,8 @@ import { dogManagementUi } from '../../src/features/dog-management/ui';
 import { breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
 import { Breed } from '../../src/types/breed';
+import { useSyncStore } from '../../src/stores/syncStore';
+import { isOnline } from '../../src/services/offlineFirst';
 
 type CategoryKey = 'all' | 'nghiep_vu' | 'tuan_tra' | 'phat_hien' | 'cuu_ho';
 
@@ -138,6 +140,9 @@ export default function BreedsScreen() {
   const listProgress = useRef(new Animated.Value(0)).current;
   const hasLoadedRef = useRef(false);
 
+  const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
+  const syncNow = useSyncStore((s) => s.syncNow);
+
   const loadBreeds = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
     if (mode === 'refresh') {
       setRefreshing(true);
@@ -162,8 +167,21 @@ export default function BreedsScreen() {
       const mode = hasLoadedRef.current ? 'silent' : 'initial';
       hasLoadedRef.current = true;
       void loadBreeds(mode);
-    }, [loadBreeds]),
+      if (isOnline()) {
+        syncNow().catch(() => {});
+      }
+    }, [loadBreeds, syncNow]),
   );
+
+  // Re-fetch after sync completes so status changes are reflected immediately
+  const syncInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!syncInitializedRef.current) {
+      syncInitializedRef.current = true;
+      return;
+    }
+    void loadBreeds('silent');
+  }, [lastSyncAt, loadBreeds]);
 
   useEffect(() => {
     heroProgress.setValue(0);
