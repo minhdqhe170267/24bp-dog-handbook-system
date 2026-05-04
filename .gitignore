@@ -30,3 +30,12 @@ diagrams/mobile_package_diagram.xml
 diagrams/mobile-package-diagram.puml
 diagrams/webcms_package_diagram.xml
 diagrams/webcms-package-diagram.puml
+
+# Local caches / temporary artifacts
+.gradle-user/
+mobile/.npm-cache/
+mobile/*.tgz
+
+# Local draft docs
+docs/mobile-*.md
+docs/mobile-*.html
