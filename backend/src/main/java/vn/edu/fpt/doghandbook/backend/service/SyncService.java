@@ -40,4 +40,6 @@ public interface SyncService {
     long getPendingConflictCount();
 
     List<SyncConflictListResponse> getTrainerConflicts(Integer trainerId);
+
+    List<SyncConflictDetailResponse> getResolvedConflictsForTrainer(Integer trainerId);
 }

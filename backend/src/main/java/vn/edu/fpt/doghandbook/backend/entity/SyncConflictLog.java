@@ -1,6 +1,7 @@
 package vn.edu.fpt.doghandbook.backend.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -10,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import vn.edu.fpt.doghandbook.backend.converter.ResolutionTypeConverter;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -57,7 +59,7 @@ public class SyncConflictLog {
     @Column(name = "status", nullable = false, length = 20)
     private ConflictStatus status = ConflictStatus.PENDING;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = ResolutionTypeConverter.class)
     @Column(name = "resolution_type", length = 20)
     private ResolutionType resolutionType;
 
