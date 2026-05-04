@@ -84,7 +84,7 @@ export default function LoginScreen() {
                         <Text style={[styles.appName, { color: colors.primary }]}>DHS</Text>
                         <Text style={[styles.appTitle, { color: colors.textSecondary }]}>Dog Handbook System</Text>
                         <Text style={[styles.appSubtitle, { color: colors.textLight }]}>
-                            He thong So tay Cho nghiep vu
+                            Hệ thống Sổ tay Chó nghiệp vụ
                         </Text>
                     </View>
 
@@ -92,15 +92,15 @@ export default function LoginScreen() {
                         <View style={[styles.offlineBanner, { backgroundColor: colors.warning ?? '#FFF3CD' }]}>
                             <Ionicons name="cloud-offline-outline" size={18} color="#856404" />
                             <Text style={styles.offlineBannerText}>
-                                Dang o che do ngoai tuyen. Chi dang nhap duoc voi tai khoan da luu.
+                                Đang ở chế độ ngoại tuyến. Chỉ đăng nhập được với tài khoản đã lưu.
                             </Text>
                         </View>
                     )}
 
                     <Card style={styles.formCard}>
                         <Input
-                            label="Ten dang nhap"
-                            placeholder="Nhap ten dang nhap"
+                            label="Tên đăng nhập"
+                            placeholder="Nhập tên đăng nhập"
                             value={username}
                             onChangeText={setUsername}
                             leftIcon="person-outline"
@@ -108,8 +108,8 @@ export default function LoginScreen() {
                         />
                         <View style={{ height: spacing.md }} />
                         <Input
-                            label="Mat khau"
-                            placeholder="Nhap mat khau"
+                            label="Mật khẩu"
+                            placeholder="Nhập mật khẩu"
                             value={password}
                             onChangeText={setPassword}
                             leftIcon="lock-closed-outline"
@@ -121,7 +121,7 @@ export default function LoginScreen() {
                         ) : null}
                         <View style={{ height: spacing.lg }} />
                         <Button
-                            title={isOnline ? 'DANG NHAP' : 'DANG NHAP NGOAI TUYEN'}
+                            title={isOnline ? 'ĐĂNG NHẬP' : 'ĐĂNG NHẬP NGOẠI TUYẾN'}
                             variant="primary"
                             onPress={() => handleLogin()}
                             loading={isLoading}
@@ -129,16 +129,8 @@ export default function LoginScreen() {
                         />
                     </Card>
 
-                    {isOnline && (
-                        <Button
-                            title="Dang nhap nhanh trainer01"
-                            variant="outline"
-                            onPress={handleQuickLogin}
-                            style={{ marginTop: spacing.md }}
-                        />
-                    )}
 
-                    <Text style={[styles.version, { color: colors.textLight }]}>Phien ban 1.0.0</Text>
+                    <Text style={[styles.version, { color: colors.textLight }]}>Phiên bản 1.0.0</Text>
                 </View>
             </KeyboardAvoidingView>
         </ScreenWrapper>
