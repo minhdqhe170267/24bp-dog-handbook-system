@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { GlobalSearchButton } from '../../src/components/GlobalSearchButton';
 import { ScreenWrapper } from '../../src/components/ScreenWrapper';
 import { spacing, borderRadius } from '../../src/constants/theme';
 import { useThemeStore } from '../../src/stores/themeStore';
+import { useSyncStore } from '../../src/stores/syncStore';
+import { isOnline } from '../../src/services/offlineFirst';
 import {
     formatProgressPercent,
     formatTrainingRole,
@@ -95,6 +97,28 @@ export default function TrainingHubScreen() {
     const [enrollmentCount, setEnrollmentCount] = useState(0);
     const [activeEnrollmentCount, setActiveEnrollmentCount] = useState(0);
 
+    // Sync trigger: re-fetch featured roadmap when sync completes
+    const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
+    const syncNow = useSyncStore((s) => s.syncNow);
+    const [syncTick, setSyncTick] = useState(0);
+    const syncInitializedRef = useRef(false);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (isOnline()) {
+                syncNow().catch(() => {});
+            }
+        }, [syncNow]),
+    );
+
+    useEffect(() => {
+        if (!syncInitializedRef.current) {
+            syncInitializedRef.current = true;
+            return;
+        }
+        setSyncTick((t) => t + 1);
+    }, [lastSyncAt]);
+
     useEffect(() => {
         orbFloat.setValue(0);
         const animation = Animated.loop(
@@ -169,7 +193,7 @@ export default function TrainingHubScreen() {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [syncTick]);
 
     const featuredRoadmapTitle = featuredRoadmap?.roadmapName || 'Lộ trình huấn luyện nổi bật';
     const featuredRoadmapMeta = useMemo(() => {

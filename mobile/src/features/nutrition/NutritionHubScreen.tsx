@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { spacing, fontSize, borderRadius } from '../../constants/theme';
 import { nutritionService } from '../../services/nutritionService';
 import { NutritionStandard } from '../../types/nutrition';
 import { useThemeStore } from '../../stores/themeStore';
+import { usePublishedContent } from '../../hooks/usePublishedContent';
 
 const ACTIVITY_FILTERS = [
     { key: 'all', label: 'Tất cả' },
@@ -32,40 +33,14 @@ type Props = {
 };
 
 export function NutritionHubScreen({ showBackButton = false }: Props) {
-    const [standards, setStandards] = useState<NutritionStandard[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState<(typeof ACTIVITY_FILTERS)[number]['key']>('all');
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
 
-    useEffect(() => {
-        let mounted = true;
-
-        const fetchData = async () => {
-            try {
-                const data = await nutritionService.getAll();
-                if (mounted) {
-                    setStandards(data?.content || data || []);
-                }
-            } catch (error) {
-                console.log('[NUTRITION_UI] Error fetching nutrition:', error);
-                if (mounted) {
-                    setStandards([]);
-                }
-            } finally {
-                if (mounted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchData();
-
-        return () => {
-            mounted = false;
-        };
-    }, []);
+    const { data: standards, loading } = usePublishedContent<NutritionStandard>(
+        () => nutritionService.getAll(),
+    );
 
     const filtered = standards.filter((item) => {
         const matchSearch =
