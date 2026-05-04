@@ -173,7 +173,7 @@ export const healthRecordDBService = {
       await db.runAsync(
         `INSERT INTO sync_queue (entity_type, entity_id, action, payload, status, created_at)
          VALUES (?, ?, 'UPDATE', ?, 'PENDING', ?)`,
-        [ENTITY_TYPE, localId, buildUpdatePayload(existing.server_id, data, now), now],
+        [ENTITY_TYPE, localId, buildUpdatePayload(existing.server_id, data, existing.updated_at ?? now), now],
       );
     });
 
@@ -216,6 +216,52 @@ export const healthRecordDBService = {
         const existing = existingRows[0] ?? null;
 
         if (existing && existing.sync_status !== 'SYNCED') {
+          // Conflict: local has pending/failed changes but server sent a different version.
+          // Design: show admin's (server) version on mobile while conflict is pending resolution.
+          const conflictNow = new Date().toISOString();
+
+          await db.runAsync(
+            `UPDATE ${TABLE} SET
+              examination_date = ?, weight_kg = ?, temperature_c = ?, feces_status = ?,
+              appetite_level = ?, activity_level = ?, observed_symptoms = ?, diagnosis = ?,
+              treatment_given = ?, next_checkup_date = ?, notes = ?,
+              sync_status = 'CONFLICT', updated_at = ?
+             WHERE ${ID_COL} = ?`,
+            [
+              record.examination_date,
+              record.weight_kg ?? null,
+              record.temperature_c ?? null,
+              record.feces_status ?? null,
+              record.appetite_level ?? null,
+              record.activity_level ?? null,
+              record.observed_symptoms ?? null,
+              record.diagnosis ?? null,
+              record.treatment_given ?? null,
+              record.next_checkup_date ?? null,
+              record.notes ?? null,
+              record.updated_at ?? conflictNow,
+              existing.local_id,
+            ],
+          );
+
+          // Log conflict locally (skip if already logged and still pending)
+          const existingLog = await db.getFirstAsync<{ id: number }>(
+            `SELECT id FROM sync_conflict_log WHERE entity_type = ? AND entity_id = ? AND status = 'PENDING'`,
+            [ENTITY_TYPE, existing.local_id],
+          );
+          if (!existingLog) {
+            await db.runAsync(
+              `INSERT INTO sync_conflict_log (entity_type, entity_id, local_data, server_data, status, created_at)
+               VALUES (?, ?, ?, ?, 'PENDING', ?)`,
+              [
+                ENTITY_TYPE,
+                existing.local_id,
+                JSON.stringify(existing),
+                JSON.stringify(record),
+                conflictNow,
+              ],
+            );
+          }
           continue;
         }
 
@@ -271,6 +317,67 @@ export const healthRecordDBService = {
         }
       }
     });
+  },
+
+  applyConflictResolution: async (
+    localId: string,
+    finalData: Record<string, unknown>,
+  ): Promise<void> => {
+    const existing = await repository.getById<HealthRecordRow>(TABLE, localId, ID_COL);
+    if (!existing) return;
+
+    const now = new Date().toISOString();
+    const get = (key: string) => finalData[key] ?? null;
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `UPDATE ${TABLE} SET
+          examination_date = COALESCE(?, examination_date),
+          weight_kg = ?,
+          temperature_c = ?,
+          feces_status = ?,
+          appetite_level = ?,
+          activity_level = ?,
+          observed_symptoms = ?,
+          diagnosis = ?,
+          treatment_given = ?,
+          next_checkup_date = ?,
+          notes = ?,
+          sync_status = 'SYNCED',
+          updated_at = ?
+         WHERE ${ID_COL} = ?`,
+        [
+          get('examinationDate') ?? get('examination_date'),
+          get('weightKg') ?? get('weight_kg'),
+          get('temperatureC') ?? get('temperature_c'),
+          get('fecesStatus') ?? get('feces_status'),
+          get('appetiteLevel') ?? get('appetite_level'),
+          get('activityLevel') ?? get('activity_level'),
+          get('observedSymptoms') ?? get('observed_symptoms'),
+          get('diagnosis'),
+          get('treatmentGiven') ?? get('treatment_given'),
+          get('nextCheckupDate') ?? get('next_checkup_date'),
+          get('notes'),
+          now,
+          localId,
+        ],
+      );
+
+      // Clear pending sync queue entries for this record
+      await db.runAsync(
+        `DELETE FROM sync_queue WHERE entity_type = ? AND entity_id = ?`,
+        [ENTITY_TYPE, localId],
+      );
+
+      // Mark conflict log as resolved
+      await db.runAsync(
+        `UPDATE sync_conflict_log SET status = 'RESOLVED', resolved_at = ?
+         WHERE entity_type = ? AND entity_id = ? AND status = 'PENDING'`,
+        [now, ENTITY_TYPE, localId],
+      );
+    });
+
+    console.log(`[DB] Health record conflict resolved: ${localId}`);
   },
 
   getPendingSync: (): Promise<HealthRecordRow[]> =>

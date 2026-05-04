@@ -125,13 +125,6 @@ const SpecialtiesPage = () => {
       render: (row) => row.specialtyName || '—',
     },
     {
-      key: 'version',
-      header: 'Version',
-      className: 'w-24 text-center',
-      headerClassName: 'whitespace-nowrap text-center',
-      render: (row) => row.version ?? 1,
-    },
-    {
       key: 'status',
       header: 'Trạng thái',
       className: 'w-32',

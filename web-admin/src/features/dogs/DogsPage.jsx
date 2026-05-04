@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, HeartPulse, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
 import DataTable from '../../components/shared/DataTable';
 import StatusBadge from '../../components/shared/StatusBadge';
@@ -371,6 +371,9 @@ const DogsPage = () => {
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => openDetail(row)} title="Xem chi tiết">
             <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/dogs/${row.dogId}/health`)} title="Hồ sơ sức khỏe">
+            <HeartPulse className="h-4 w-4 text-rose-500" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)} title="Sửa">
             <Pencil className="h-4 w-4" />

@@ -57,7 +57,7 @@ public class HealthRecordController {
             Authentication authentication) {
         Integer examinerId = AuthenticationUtils.extractUserId(authentication);
         return ApiResponse.success(
-                healthRecordService.update(id, request, examinerId),
+                healthRecordService.update(id, request, examinerId, authentication),
                 "Cập nhật hồ sơ sức khỏe thành công"
         );
     }

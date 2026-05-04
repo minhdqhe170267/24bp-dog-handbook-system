@@ -49,7 +49,7 @@ export default function TrainingSpecialtyDetailScreen() {
         try {
             setDetail(await trainingSpecialtyService.getDetail(Number(id)));
         } catch (error) {
-            console.log('[SPECIALTY] Failed to load detail:', error);
+            console.log('[CHUYÊN NGÀNH] Không tải được chi tiết:', error);
             setDetail(null);
         } finally {
             setLoading(false);
@@ -139,7 +139,7 @@ export default function TrainingSpecialtyDetailScreen() {
 
                     <Text style={styles.heroTitle}>{detail.specialtyName}</Text>
                     <Text style={styles.heroSubtitle}>
-                        {detail.description || 'Chuyên ngành này nhóm các lộ trình và chương trình trainer đang có thể theo dõi trên thiết bị.'}
+                        {detail.description || 'Chuyên ngành này nhóm các lộ trình và chương trình huấn luyện viên đang có thể theo dõi trên thiết bị.'}
                     </Text>
                 </View>
 
@@ -179,8 +179,8 @@ export default function TrainingSpecialtyDetailScreen() {
                 </View>
 
                 <View style={styles.sectionCard}>
-                    <Text style={styles.sectionEyebrow}>Chương trình trainer đang theo</Text>
-                    <Text style={styles.sectionTitle}>Các enrollment thuộc chuyên ngành này</Text>
+                    <Text style={styles.sectionEyebrow}>Chương trình đang theo dõi</Text>
+                    <Text style={styles.sectionTitle}>Các chương trình thuộc chuyên ngành này</Text>
                     {detail.enrollments.length === 0 ? (
                         <Text style={styles.sectionBody}>Chưa có chương trình nào đang theo dưới chuyên ngành này.</Text>
                     ) : (

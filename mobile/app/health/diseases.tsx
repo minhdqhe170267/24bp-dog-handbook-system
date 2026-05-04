@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { LoadingSpinner } from '../../src/components/LoadingSpinner';
 import { EmptyState } from '../../src/components/EmptyState';
 import { spacing, fontSize, borderRadius } from '../../src/constants/theme';
 import { diseaseService } from '../../src/services/diseaseService';
+import { usePublishedContent } from '../../src/hooks/usePublishedContent';
 import { Disease } from '../../src/types/disease';
 import { useThemeStore } from '../../src/stores/themeStore';
 
@@ -27,27 +28,14 @@ const SEVERITY_CONFIG: Record<string, { bg: string; bgDark: string; text: string
 };
 
 export default function DiseaseListScreen() {
-    const [diseases, setDiseases] = useState<Disease[]>([]);
-    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const data = await diseaseService.getAll();
-                setDiseases(data?.content || data || []);
-            } catch (error) {
-                console.log('Error fetching diseases:', error);
-                setDiseases([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
+    const { data: diseases, loading } = usePublishedContent<Disease>(
+        () => diseaseService.getAll(),
+    );
 
     const filtered = diseases.filter((item) => {
         const matchSearch =

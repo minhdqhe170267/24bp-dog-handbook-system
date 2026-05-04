@@ -229,6 +229,24 @@ export interface TrainingRoadmapRow {
   _sync_version: number;
 }
 
+export interface DiseaseMedicationMappingRow {
+  mapping_id: number;
+  disease_id: number;
+  medication_id: number;
+  priority: number;
+  notes: string | null;
+  _sync_version: number;
+}
+
+export interface DiseaseFirstAidMappingRow {
+  mapping_id: number;
+  disease_id: number;
+  guide_id: number;
+  priority: number;
+  notes: string | null;
+  _sync_version: number;
+}
+
 export interface RoadmapExerciseRow {
   roadmap_exercise_id: number;
   roadmap_id: number;

@@ -31,7 +31,35 @@ const addColumnIfMissing = (
  */
 const migrations: Migration[] = [
   // All columns from previous migrations (v2-v5) are now in CREATE TABLE statements in schema.ts
-  // Next migration should use version: 6
+  {
+    version: 6,
+    description: 'Add disease_medication_mapping and disease_first_aid_mapping tables',
+    run: (db) => {
+      db.execSync(`
+        CREATE TABLE IF NOT EXISTS disease_medication_mapping (
+          mapping_id    INTEGER PRIMARY KEY,
+          disease_id    INTEGER NOT NULL REFERENCES disease(disease_id),
+          medication_id INTEGER NOT NULL REFERENCES medication(medication_id),
+          priority      INTEGER NOT NULL DEFAULT 1,
+          notes         TEXT,
+          _sync_version INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_dmm_disease ON disease_medication_mapping(disease_id);
+
+        CREATE TABLE IF NOT EXISTS disease_first_aid_mapping (
+          mapping_id INTEGER PRIMARY KEY,
+          disease_id INTEGER NOT NULL REFERENCES disease(disease_id),
+          guide_id   INTEGER NOT NULL REFERENCES first_aid_guide(guide_id),
+          priority   INTEGER NOT NULL DEFAULT 1,
+          notes      TEXT,
+          _sync_version INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_dfam_disease ON disease_first_aid_mapping(disease_id);
+      `);
+      db.execSync(`INSERT OR IGNORE INTO sync_metadata (table_name, last_sync_at, record_count, sync_status) VALUES ('disease_medication_mapping', NULL, 0, 'NEVER');`);
+      db.execSync(`INSERT OR IGNORE INTO sync_metadata (table_name, last_sync_at, record_count, sync_status) VALUES ('disease_first_aid_mapping', NULL, 0, 'NEVER');`);
+    },
+  },
 ];
 
 /**

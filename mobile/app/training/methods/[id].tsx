@@ -8,8 +8,8 @@ import { ThemeColors, useThemeStore } from '../../../src/stores/themeStore';
 import { spacing, borderRadius, fontSize } from '../../../src/constants/theme';
 import { trainingMethodService } from '../../../src/services/trainingMethodService';
 import { TrainingMethod } from '../../../src/types/training';
-import { normalizeStatus, pickTrainingImage, splitToBullets, statusMeta, trainingUi } from '../../../src/features/training/ui';
-import { buildTrainingInstructionSteps, useTrainingEntrance } from '../../../src/features/training/presentation';
+import { normalizeStatus, splitToBullets, statusMeta, trainingUi } from '../../../src/features/training/ui';
+import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
 
 const STEP_PREFIX_PATTERN = /^(?:b|b(?:uoc|ước)|step)\s*\d+\s*(?:[:.)-]\s*)?/i;
 
@@ -115,7 +115,7 @@ export default function MethodDetailScreen() {
                 </View>
 
                 <View style={styles.heroCard}>
-                    <Image source={pickTrainingImage(method.methodId)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={pickTrainingCoverImage(method.methodId, null, method.imageUrl, method.videoUrl)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.heroOverlay} />
                     <View style={styles.heroBadge}>
                         <Text style={styles.heroBadgeText}>PHƯƠNG PHÁP HUẤN LUYỆN</Text>

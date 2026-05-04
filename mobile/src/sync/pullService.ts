@@ -1,10 +1,13 @@
 import apiClient from '../services/api';
 import { db } from '../database';
+import { healthRecordDBService } from '../database/services/healthRecordDBService';
 import { breedDBService } from '../database/services/breedDBService';
 import { contentDBService } from '../database/services/contentDBService';
 import { developmentStageDBService } from '../database/services/developmentStageDBService';
 import { diseaseDBService } from '../database/services/diseaseDBService';
 import { diseaseSymptomMappingDBService } from '../database/services/diseaseSymptomMappingDBService';
+import { diseaseMedicationMappingDBService } from '../database/services/diseaseMedicationMappingDBService';
+import { diseaseFirstAidMappingDBService } from '../database/services/diseaseFirstAidMappingDBService';
 import { dogAssignmentDBService } from '../database/services/dogAssignmentDBService';
 import { dogProfileDBService } from '../database/services/dogProfileDBService';
 import { exerciseDBService } from '../database/services/exerciseDBService';
@@ -50,7 +53,12 @@ const toSnakeCaseRecord = (
   return result;
 };
 
-const JUNCTION_TABLES = new Set(['disease_symptom_mapping', 'roadmap_exercise']);
+const JUNCTION_TABLES = new Set([
+  'disease_symptom_mapping',
+  'roadmap_exercise',
+  'disease_medication_mapping',
+  'disease_first_aid_mapping',
+]);
 
 const TABLES_WITH_BREED_REFERENCE = new Set([
   'development_stage',
@@ -86,6 +94,8 @@ const PULL_KEY_TO_TABLE: Record<string, PullTableConfig> = {
     dbService: diseaseSymptomMappingDBService,
   },
   roadmapExercises: { table: 'roadmap_exercise', dbService: roadmapExerciseDBService },
+  diseaseMedicationMappings: { table: 'disease_medication_mapping', dbService: diseaseMedicationMappingDBService },
+  diseaseFirstAidMappings: { table: 'disease_first_aid_mapping', dbService: diseaseFirstAidMappingDBService },
 };
 
 const PULL_KEYS = Object.keys(PULL_KEY_TO_TABLE);
@@ -314,14 +324,14 @@ export const pullServerUpdates = async (onProgress?: ProgressCallback): Promise<
 
         const disableForeignKeys = JUNCTION_TABLES.has(table);
         if (disableForeignKeys) {
-          db.execSync('PRAGMA foreign_keys = OFF;');
+          await db.runAsync('PRAGMA foreign_keys = OFF;');
         }
 
         try {
           await dbService.upsertFromServer(records);
         } finally {
           if (disableForeignKeys) {
-            db.execSync('PRAGMA foreign_keys = ON;');
+            await db.runAsync('PRAGMA foreign_keys = ON;');
           }
         }
       }
@@ -343,6 +353,57 @@ export const pullServerUpdates = async (onProgress?: ProgressCallback): Promise<
     if (!(serverKey in PULL_KEY_TO_TABLE)) {
       console.warn(`[SYNC:PULL] Unknown key from server: "${serverKey}" - skipping`);
     }
+  }
+
+  // Apply any resolved/dismissed conflicts from admin
+  try {
+    const conflictRes = (await apiClient.get('/sync/my-conflicts/resolved')) as {
+      data?: { data?: Array<Record<string, unknown>> };
+    };
+    const resolved = conflictRes?.data?.data ?? [];
+
+    for (const conflict of resolved) {
+      const localId = conflict.localId as string | undefined;
+      if (!localId) continue;
+
+      const resolutionType = (conflict.resolutionType as string | undefined) ?? '';
+      const status = (conflict.status as string | undefined) ?? '';
+
+      // KEEP_SERVER (DISMISSED) or MERGED → apply final data to local record
+      const isMerged = resolutionType === 'MERGED';
+      const isKeepServer = resolutionType === 'KEEP_SERVER' || status === 'DISMISSED';
+
+      if (isMerged && conflict.mergedData) {
+        await healthRecordDBService.applyConflictResolution(
+          localId,
+          conflict.mergedData as Record<string, unknown>,
+        );
+      } else if (isKeepServer && conflict.serverData) {
+        await healthRecordDBService.applyConflictResolution(
+          localId,
+          conflict.serverData as Record<string, unknown>,
+        );
+      } else if (resolutionType === 'KEEP_LOCAL') {
+        // Trainer version wins – just mark as SYNCED and clear conflict
+        const now = new Date().toISOString();
+        await db.runAsync(
+          `UPDATE health_record SET sync_status = 'SYNCED', updated_at = ? WHERE local_id = ?`,
+          [now, localId],
+        );
+        await db.runAsync(
+          `UPDATE sync_conflict_log SET status = 'RESOLVED', resolved_at = ?
+           WHERE entity_type = 'health_record' AND entity_id = ? AND status = 'PENDING'`,
+          [now, localId],
+        );
+      }
+    }
+
+    if (resolved.length > 0) {
+      console.log(`[SYNC:PULL] Applied ${resolved.length} resolved conflict(s)`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[SYNC:PULL] Could not apply resolved conflicts:', msg);
   }
 
   return { tables: results };

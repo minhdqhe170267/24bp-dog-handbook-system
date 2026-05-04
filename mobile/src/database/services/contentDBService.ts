@@ -7,16 +7,21 @@ const ID_COL = 'content_id';
 
 export const contentDBService = {
   getAll: (): Promise<ContentRow[]> =>
-    repository.getAll<ContentRow>(TABLE, 'updated_at DESC'),
+    repository.getAllWhere<ContentRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0", [], 'updated_at DESC'),
 
   getById: (id: number): Promise<ContentRow | null> =>
     repository.getById<ContentRow>(TABLE, id, ID_COL),
 
   getByType: (contentType: string): Promise<ContentRow[]> =>
-    repository.getAllWhere<ContentRow>(TABLE, 'content_type = ?', [contentType], 'updated_at DESC'),
+    repository.getAllWhere<ContentRow>(TABLE, "status = 'PUBLISHED' AND is_deleted = 0 AND content_type = ?", [contentType], 'updated_at DESC'),
 
-  search: (keyword: string): Promise<ContentRow[]> =>
-    repository.search<ContentRow>(TABLE, ['title', 'body', 'summary'], keyword, 'updated_at DESC'),
+  search: (keyword: string): Promise<ContentRow[]> => {
+    const like = `%${keyword}%`;
+    return repository.raw<ContentRow>(
+      `SELECT * FROM ${TABLE} WHERE status = 'PUBLISHED' AND is_deleted = 0 AND (title LIKE ? OR body LIKE ? OR summary LIKE ?) ORDER BY updated_at DESC`,
+      [like, like, like],
+    );
+  },
 
   upsertFromServer: async (records: ContentRow[]): Promise<void> => {
     await repository.batchUpsert(TABLE, records);

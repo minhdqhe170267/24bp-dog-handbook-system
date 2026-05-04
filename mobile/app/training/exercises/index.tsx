@@ -20,6 +20,7 @@ import { exerciseService } from '../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../src/types/training';
 import { difficultyMeta, normalizeDifficulty, trainingUi } from '../../../src/features/training/ui';
 import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
+import { usePublishedContentSync } from '../../../src/hooks/usePublishedContentSync';
 
 type DifficultyFilter = 'ALL' | 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
 
@@ -75,6 +76,8 @@ export default function ExerciseListScreen() {
         fetchData(0, true);
     }, [fetchData]);
 
+    usePublishedContentSync(useCallback(() => fetchData(0, true), [fetchData]));
+
     const filteredItems = useMemo(() => {
         if (difficultyFilter === 'ALL') {
             return items;
@@ -100,8 +103,6 @@ export default function ExerciseListScreen() {
     const renderCard = ({ item }: { item: TrainingExercise }) => {
         const difficultyKey = normalizeDifficulty(item.difficultyLevel);
         const difficultyStyle = difficultyMeta[difficultyKey];
-        const durationLabel = item.durationMinutes ? `${item.durationMinutes} phút` : 'Chưa rõ';
-
         return (
             <View>
             <TouchableOpacity
@@ -116,15 +117,11 @@ export default function ExerciseListScreen() {
                 onPress={() => router.push(`/training/exercises/${item.exerciseId}` as any)}
             >
                 <View style={styles.coverWrap}>
-                    <Image source={pickTrainingCoverImage(item.exerciseId, item.mediaUrls)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={pickTrainingCoverImage(item.exerciseId, item.mediaUrls, item.imageUrl, item.videoUrl)} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     <View style={styles.coverOverlay} />
                     <View style={styles.badgeRow}>
                         <View style={[styles.diffBadge, { backgroundColor: difficultyStyle.bg, borderColor: difficultyStyle.border }]}>
                             <Text style={[styles.diffBadgeText, { color: difficultyStyle.text }]}>{difficultyStyle.label}</Text>
-                        </View>
-                        <View style={styles.timeBadge}>
-                            <Ionicons name="time" size={12} color="#FFFFFF" />
-                            <Text style={styles.timeBadgeText}>{durationLabel}</Text>
                         </View>
                     </View>
 
@@ -171,9 +168,6 @@ export default function ExerciseListScreen() {
                     <View style={styles.introTextWrap}>
                         <Text style={[styles.introEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>PHÒNG BÀI TẬP</Text>
                         <Text style={[styles.introTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Tách bài tập theo từng mục tiêu và mức độ</Text>
-                        <Text style={[styles.introSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Mỗi bài tập giữ ảnh riêng, bước hướng dẫn riêng và có thể mở nhanh sang từng step chi tiết.
-                        </Text>
                     </View>
                     <View style={[styles.introBadge, { backgroundColor: colors.primary }]}>
                         <Text style={styles.introBadgeText}>{filteredItems.length}</Text>
@@ -315,12 +309,6 @@ const styles = StyleSheet.create({
         lineHeight: 28,
         fontWeight: '800',
     },
-    introSubtitle: {
-        marginTop: spacing.xs,
-        fontSize: 13,
-        lineHeight: 19,
-        fontWeight: '500',
-    },
     introBadge: {
         minWidth: 74,
         borderRadius: 22,
@@ -404,20 +392,6 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '800',
         letterSpacing: 0.4,
-    },
-    timeBadge: {
-        backgroundColor: 'rgba(12, 18, 15, 0.56)',
-        borderRadius: borderRadius.full,
-        paddingHorizontal: 10,
-        minHeight: 26,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    timeBadgeText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '700',
     },
     playCircle: {
         alignSelf: 'center',

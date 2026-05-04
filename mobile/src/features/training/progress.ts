@@ -30,6 +30,8 @@ export type TrainingRoadmapPhaseView = {
         exerciseName: string;
         exerciseOrder: number;
         isMandatory: boolean;
+        imageUrl?: string | null;
+        videoUrl?: string | null;
     }[];
 };
 
