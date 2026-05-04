@@ -19,6 +19,7 @@ import { trainingMethodService } from '../../../src/services/trainingMethodServi
 import { TrainingMethod } from '../../../src/types/training';
 import { normalizeStatus, statusMeta, trainingUi } from '../../../src/features/training/ui';
 import { useTrainingEntrance } from '../../../src/features/training/presentation';
+import { usePublishedContentSync } from '../../../src/hooks/usePublishedContentSync';
 
 type MethodStatusFilter = 'ALL' | 'PUBLISHED' | 'DRAFT';
 
@@ -71,6 +72,8 @@ export default function MethodListScreen() {
     useEffect(() => {
         fetchData(0, true);
     }, [fetchData]);
+
+    usePublishedContentSync(useCallback(() => fetchData(0, true), [fetchData]));
 
     const filteredItems = useMemo(() => {
         if (statusFilter === 'ALL') {

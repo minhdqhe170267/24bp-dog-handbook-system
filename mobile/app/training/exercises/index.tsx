@@ -20,6 +20,7 @@ import { exerciseService } from '../../../src/services/exerciseService';
 import { TrainingExercise } from '../../../src/types/training';
 import { difficultyMeta, normalizeDifficulty, trainingUi } from '../../../src/features/training/ui';
 import { pickTrainingCoverImage, useTrainingEntrance } from '../../../src/features/training/presentation';
+import { usePublishedContentSync } from '../../../src/hooks/usePublishedContentSync';
 
 type DifficultyFilter = 'ALL' | 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
 
@@ -74,6 +75,8 @@ export default function ExerciseListScreen() {
     useEffect(() => {
         fetchData(0, true);
     }, [fetchData]);
+
+    usePublishedContentSync(useCallback(() => fetchData(0, true), [fetchData]));
 
     const filteredItems = useMemo(() => {
         if (difficultyFilter === 'ALL') {
