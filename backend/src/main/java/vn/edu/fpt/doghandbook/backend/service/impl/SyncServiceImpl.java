@@ -1101,6 +1101,16 @@ public class SyncServiceImpl implements SyncService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<SyncConflictDetailResponse> getResolvedConflictsForTrainer(Integer trainerId) {
+        return syncConflictLogRepository
+                .findByTrainerIdAndStatusIn(trainerId, List.of(ConflictStatus.RESOLVED, ConflictStatus.DISMISSED))
+                .stream()
+                .map(this::toConflictDetailResponse)
+                .toList();
+    }
+
     // ── Conflict Resolution Helpers ──
 
     private void applyDataToEntity(String entityType, Integer entityId, Map<String, Object> data) {
@@ -1194,6 +1204,26 @@ public class SyncServiceImpl implements SyncService {
         }
     }
 
+    /**
+     * Normalize a value for comparison: convert numeric types to BigDecimal so that
+     * 36 (Integer) and 36.0 (Double/BigDecimal) are treated as equal.
+     */
+    private Object normalizeForCompare(Object value) {
+        if (value instanceof Number num) {
+            try {
+                return new java.math.BigDecimal(num.toString()).stripTrailingZeros();
+            } catch (Exception e) {
+                return value;
+            }
+        }
+        return value;
+    }
+
+    private boolean valuesEqual(Object a, Object b) {
+        if (Objects.equals(a, b)) return true;
+        return Objects.equals(normalizeForCompare(a), normalizeForCompare(b));
+    }
+
     private int countConflictedFields(String localDataJson, String serverDataJson) {
         try {
             Map<String, Object> local = parseJsonToMap(localDataJson);
@@ -1203,7 +1233,7 @@ public class SyncServiceImpl implements SyncService {
             allKeys.addAll(server.keySet());
             int count = 0;
             for (String key : allKeys) {
-                if (!Objects.equals(local.get(key), server.get(key))) {
+                if (!valuesEqual(local.get(key), server.get(key))) {
                     count++;
                 }
             }
@@ -1222,7 +1252,7 @@ public class SyncServiceImpl implements SyncService {
             allKeys.addAll(server.keySet());
             List<String> conflicted = new ArrayList<>();
             for (String key : allKeys) {
-                if (!Objects.equals(local.get(key), server.get(key))) {
+                if (!valuesEqual(local.get(key), server.get(key))) {
                     conflicted.add(key);
                 }
             }
