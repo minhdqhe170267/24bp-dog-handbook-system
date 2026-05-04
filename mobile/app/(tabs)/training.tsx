@@ -12,41 +12,38 @@ import { isOnline } from '../../src/services/offlineFirst';
 import {
     formatProgressPercent,
     formatTrainingRole,
-    pickTrainingImage,
     trainingImages,
     trainingUi,
 } from '../../src/features/training/ui';
-import { useTrainingEntrance } from '../../src/features/training/presentation';
+import { getTrainingVideoThumbnailUrl, pickTrainingCoverImage, useTrainingEntrance } from '../../src/features/training/presentation';
 import { roadmapService } from '../../src/services/roadmapService';
+import { exerciseService } from '../../src/services/exerciseService';
 import { enrollmentService } from '../../src/services/enrollmentService';
+import { trainingMethodService } from '../../src/services/trainingMethodService';
 import type { TrainingEnrollmentSummary, TrainingRoadmap } from '../../src/types/training';
 
 const collections = [
     {
         key: 'specialties',
         title: '\u0043huy\u00ean ng\u00e0nh',
-        subtitle: '\u0054heo d\u00f5i specialty, roadmap li\u00ean quan v\u00e0 c\u00e1c program \u0111ang v\u1eadn h\u00e0nh.',
         image: trainingImages.specialties,
         route: '/training/specialties',
     },
     {
         key: 'methods',
         title: 'Phương pháp',
-        subtitle: 'Khung huấn luyện khoa học cho chó nghiệp vụ.',
         image: trainingImages.methods,
         route: '/training/methods',
     },
     {
         key: 'exercises',
         title: 'Bài tập',
-        subtitle: 'Kỹ thuật theo từng tình huống thực chiến.',
         image: trainingImages.exercises,
         route: '/training/exercises',
     },
     {
         key: 'roadmaps',
         title: 'Lộ trình',
-        subtitle: 'Thư viện roadmap và cấu trúc phase của từng specialty.',
         image: trainingImages.roadmaps,
         route: '/training/roadmaps',
     },
@@ -84,6 +81,11 @@ const sortProgramSummaries = (items: TrainingEnrollmentSummary[]) => {
     });
 };
 
+const getFirstMediaCoverUrl = (items: { imageUrl?: string | null; videoUrl?: string | null }[] = []) => {
+    const mediaItem = items.find((item) => !!item.imageUrl?.trim() || !!getTrainingVideoThumbnailUrl(item.videoUrl));
+    return mediaItem?.imageUrl?.trim() || getTrainingVideoThumbnailUrl(mediaItem?.videoUrl) || null;
+};
+
 export default function TrainingHubScreen() {
     const router = useRouter();
     const { colors, isDark } = useThemeStore();
@@ -96,6 +98,7 @@ export default function TrainingHubScreen() {
     const [loadingEnrollment, setLoadingEnrollment] = useState(true);
     const [enrollmentCount, setEnrollmentCount] = useState(0);
     const [activeEnrollmentCount, setActiveEnrollmentCount] = useState(0);
+    const [collectionImages, setCollectionImages] = useState<Record<string, string>>({});
 
     // Sync trigger: re-fetch featured roadmap when sync completes
     const lastSyncAt = useSyncStore((s) => s.lastSyncAt);
@@ -195,6 +198,58 @@ export default function TrainingHubScreen() {
         };
     }, [syncTick]);
 
+    useEffect(() => {
+        let mounted = true;
+
+        const fetchCollectionImages = async () => {
+            const [methodsResult, exercisesResult, roadmapsResult] = await Promise.allSettled([
+                trainingMethodService.getAll(0, 1),
+                exerciseService.getAll(0, 1),
+                roadmapService.getAll(0, 1),
+            ]);
+
+            if (!mounted) {
+                return;
+            }
+
+            const nextImages: Record<string, string> = {};
+            if (methodsResult.status === 'fulfilled') {
+                const imageUrl = getFirstMediaCoverUrl(methodsResult.value.content);
+                if (imageUrl) {
+                    nextImages.methods = imageUrl;
+                }
+            }
+            if (exercisesResult.status === 'fulfilled') {
+                const imageUrl = getFirstMediaCoverUrl(exercisesResult.value.content);
+                if (imageUrl) {
+                    nextImages.exercises = imageUrl;
+                }
+            }
+            if (roadmapsResult.status === 'fulfilled') {
+                const imageUrl = getFirstMediaCoverUrl(roadmapsResult.value.content);
+                if (imageUrl) {
+                    nextImages.roadmaps = imageUrl;
+                }
+            }
+
+            setCollectionImages(nextImages);
+        };
+
+        void fetchCollectionImages();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const visibleCollections = useMemo(
+        () => collections.map((item) => ({
+            ...item,
+            image: collectionImages[item.key] || item.image,
+        })),
+        [collectionImages],
+    );
+
     const featuredRoadmapTitle = featuredRoadmap?.roadmapName || 'Lộ trình huấn luyện nổi bật';
     const featuredRoadmapMeta = useMemo(() => {
         if (loadingRoadmap) {
@@ -262,10 +317,6 @@ export default function TrainingHubScreen() {
                                 Huấn luyện
                             </Text>
                             <Text style={[styles.heroAccent, { color: colors.primary }]}>chó nghiệp vụ</Text>
-                            <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                                Theo dõi program theo specialty, roadmap hiện tại, phase đang chạy và các bản ghi follow-up
-                                huấn luyện trong một hub trực quan, hiện đại và bám sát backend mới.
-                            </Text>
                         </View>
                         <GlobalSearchButton size={42} />
                     </View>
@@ -283,7 +334,7 @@ export default function TrainingHubScreen() {
                     onPress={() => router.push(featuredRoadmap ? `/training/roadmaps/${featuredRoadmap.roadmapId}` as any : '/training/roadmaps' as any)}
                 >
                     <Image
-                        source={featuredRoadmap ? pickTrainingImage(featuredRoadmap.roadmapId) : trainingImages.hero}
+                        source={featuredRoadmap ? pickTrainingCoverImage(featuredRoadmap.roadmapId, null, featuredRoadmap.imageUrl, featuredRoadmap.videoUrl) : trainingImages.hero}
                         style={StyleSheet.absoluteFillObject}
                         contentFit="cover"
                     />
@@ -352,7 +403,7 @@ export default function TrainingHubScreen() {
                 </Text>
 
                 <View style={styles.collectionList}>
-                    {collections.map((item, index) => (
+                    {visibleCollections.map((item, index) => (
                         <TouchableOpacity
                             key={item.key}
                             activeOpacity={0.88}
@@ -364,7 +415,6 @@ export default function TrainingHubScreen() {
                             <View style={styles.collectionContent}>
                                 <View>
                                     <Text style={styles.collectionTitle}>{item.title}</Text>
-                                    <Text style={styles.collectionSubtitle}>{item.subtitle}</Text>
                                 </View>
                                 <View style={styles.chevronCircle}>
                                     <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -434,13 +484,6 @@ const styles = StyleSheet.create({
         fontSize: 34,
         lineHeight: 38,
         fontWeight: '900',
-    },
-    heroSubtitle: {
-        marginTop: spacing.sm,
-        fontSize: 14,
-        lineHeight: 21,
-        fontWeight: '500',
-        maxWidth: '94%',
     },
     statStrip: {
         flexDirection: 'row',
@@ -606,14 +649,6 @@ const styles = StyleSheet.create({
         fontSize: 24,
         lineHeight: 28,
         fontWeight: '800',
-    },
-    collectionSubtitle: {
-        marginTop: spacing.xs,
-        color: '#E6F1EA',
-        fontSize: 13,
-        lineHeight: 18,
-        fontWeight: '600',
-        maxWidth: '82%',
     },
     chevronCircle: {
         alignSelf: 'flex-end',

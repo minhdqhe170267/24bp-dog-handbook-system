@@ -45,30 +45,30 @@ const COPY = {
     back: 'Quay lại',
     notFound: 'Không tìm thấy chương trình huấn luyện này.',
     cannotLoad: 'Không thể tải chi tiết chương trình.',
-    currentRoadmap: 'Roadmap hiện tại',
-    currentPhase: 'Phase hiện tại',
-    trainer: 'Trainer phụ trách',
+    currentRoadmap: 'Lộ trình hiện tại',
+    currentPhase: 'Giai đoạn hiện tại',
+    trainer: 'Huấn luyện viên phụ trách',
     totalProgress: 'Tiến độ toàn chương trình',
     exercisesDone: 'Bài tập hoàn tất',
-    roadmaps: 'Roadmap',
-    phases: 'Phase',
-    nextFollowUp: 'Follow-up tiếp theo',
+    roadmaps: 'Lộ trình',
+    phases: 'Giai đoạn',
+    nextFollowUp: 'Đánh giá tiếp theo',
     nextFollowUpHint:
-        'Backend mới đang theo mô hình specialty -> roadmap -> phase -> bài tập. Bạn có thể mở bài tập để luyện trực tiếp hoặc vào form follow-up để lưu điểm và ghi chú.',
+        'Dữ liệu mới đang theo mô hình chuyên ngành -> lộ trình -> giai đoạn -> bài tập. Bạn có thể mở bài tập để luyện trực tiếp hoặc vào biểu mẫu đánh giá để lưu điểm và ghi chú.',
     openExercise: 'Mở bài tập',
-    evaluate: 'Follow-up ngay',
+    evaluate: 'Đánh giá ngay',
     programControl: 'Điều phối chương trình',
     programControlHint:
-        'Chỉnh trạng thái và ghi chú ở cấp chương trình khi cần tạm dừng, rút chương trình, hoặc bổ sung ghi chú tổng quát cho specialty đang theo.',
+        'Chỉnh trạng thái và ghi chú ở cấp chương trình khi cần tạm dừng, rút chương trình, hoặc bổ sung ghi chú tổng quát cho chuyên ngành đang theo.',
     openProgramControl: 'Cập nhật chương trình',
     noProgramNotes: 'Chưa có ghi chú chương trình.',
-    roadmapProgress: 'Tiến độ theo từng roadmap',
-    noExercises: 'Roadmap này chưa có bài tập.',
-    noPrograms: 'Chương trình chưa có roadmap hiển thị.',
+    roadmapProgress: 'Tiến độ theo từng lộ trình',
+    noExercises: 'Lộ trình này chưa có bài tập.',
+    noPrograms: 'Chương trình chưa có lộ trình hiển thị.',
     startedAt: 'Bắt đầu',
     lastUpdate: 'Cập nhật gần nhất',
     score: 'Điểm',
-    noNotes: 'Chưa có ghi chú follow-up.',
+    noNotes: 'Chưa có ghi chú đánh giá.',
 } as const;
 
 const formatDateTime = (value: string | null | undefined) => {
@@ -263,10 +263,10 @@ export default function EnrollmentDetailScreen() {
                             </View>
                         </View>
                         <Text style={styles.heroTitle}>{summary.specialtyName || 'Chương trình huấn luyện'}</Text>
-                        <Text style={styles.heroSubtitle}>{summary.trainerName || 'Trainer chưa cập nhật'}</Text>
+                        <Text style={styles.heroSubtitle}>{summary.trainerName || 'Huấn luyện viên chưa cập nhật'}</Text>
                         <View style={styles.heroMetaWrap}>
-                            <MetaPill colors={colors} isDark={isDark} icon="map-outline" label={`${COPY.currentRoadmap}: ${summary.currentRoadmapName || 'Chưa vào roadmap'}`} />
-                            <MetaPill colors={colors} isDark={isDark} icon="flag-outline" label={`${COPY.currentPhase}: ${summary.currentPhaseName || 'Chưa vào phase'}`} />
+                            <MetaPill colors={colors} isDark={isDark} icon="map-outline" label={`${COPY.currentRoadmap}: ${summary.currentRoadmapName || 'Chưa vào lộ trình'}`} />
+                            <MetaPill colors={colors} isDark={isDark} icon="flag-outline" label={`${COPY.currentPhase}: ${summary.currentPhaseName || 'Chưa vào giai đoạn'}`} />
                         </View>
                         <View style={styles.progressHeader}>
                             <Text style={styles.progressLabel}>{COPY.totalProgress}</Text>
@@ -312,7 +312,7 @@ export default function EnrollmentDetailScreen() {
                     {nextExercise ? (
                         <View style={[styles.nextExerciseCard, { backgroundColor: isDark ? colors.background : '#FFFFFF', borderColor: isDark ? colors.border : '#DCE7E0' }]}>
                             <Text style={[styles.nextExerciseTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>{nextExercise.exerciseName}</Text>
-                            <Text style={[styles.nextExerciseMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>{`${nextExercise.roadmapName} • ${nextExercise.phaseName || `Phase ${nextExercise.phaseOrder || 1}`}`}</Text>
+                            <Text style={[styles.nextExerciseMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>{`${nextExercise.roadmapName} • ${nextExercise.phaseName || `Giai đoạn ${nextExercise.phaseOrder || 1}`}`}</Text>
                             <View style={styles.actionRow}>
                                 <TouchableOpacity style={[styles.primaryAction, styles.actionPrimary, { backgroundColor: colors.primary }]} activeOpacity={0.9} onPress={() => router.push(`/training/enrollments/${summary.enrollmentId}/evaluate?progressId=${nextExercise.progressId}` as any)}>
                                     <Ionicons name="sparkles-outline" size={16} color="#FFFFFF" />
@@ -350,10 +350,10 @@ export default function EnrollmentDetailScreen() {
             <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.background : trainingUi.page }]}>
                 <TouchableOpacity style={[styles.bottomPrimary, { backgroundColor: colors.primary }]} activeOpacity={0.9} onPress={() => router.push(`/training/enrollments/${summary.enrollmentId}/program` as any)}>
                     <Ionicons name="construct-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.bottomPrimaryText}>Điều phối program</Text>
+                    <Text style={styles.bottomPrimaryText}>Điều phối chương trình</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.bottomSecondary, { backgroundColor: isDark ? colors.surface : '#EEF4F0', borderColor: isDark ? colors.border : '#D8E5DD' }]} activeOpacity={0.9} onPress={() => router.push(`/training/enrollments/${summary.enrollmentId}/evaluate${nextExercise ? `?progressId=${nextExercise.progressId}` : ''}` as any)}>
-                    <Text style={[styles.bottomSecondaryText, { color: isDark ? colors.text : trainingUi.textStrong }]}>Follow-up</Text>
+                    <Text style={[styles.bottomSecondaryText, { color: isDark ? colors.text : trainingUi.textStrong }]}>Đánh giá</Text>
                 </TouchableOpacity>
             </View>
         </ScreenWrapper>
@@ -452,7 +452,7 @@ function RoadmapCard({
                 <View style={styles.roadmapTopRow}>
                     <View style={styles.roadmapTitleWrap}>
                         <Text style={[styles.roadmapEyebrow, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
-                            {`ROADMAP ${roadmap.roadmapOrder || orderIndex + 1}`}
+                            {`LỘ TRÌNH ${roadmap.roadmapOrder || orderIndex + 1}`}
                         </Text>
                         <Text style={[styles.roadmapTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
                             {roadmap.roadmapName}
@@ -468,12 +468,12 @@ function RoadmapCard({
 
                 <View style={styles.roadmapMetricRow}>
                     <InfoBadge colors={colors} icon="albums-outline" isDark={isDark} label={`${completedExercises}/${totalExercises} hoàn tất`} />
-                    <InfoBadge colors={colors} icon="flag-outline" isDark={isDark} label={`Phase ${roadmapHeadline.currentPhaseOrder || 1}`} />
+                    <InfoBadge colors={colors} icon="flag-outline" isDark={isDark} label={`Giai đoạn ${roadmapHeadline.currentPhaseOrder || 1}`} />
                     <InfoBadge colors={colors} icon="time-outline" isDark={isDark} label={`${COPY.startedAt}: ${formatDateTime(roadmap.startedAt)}`} />
                 </View>
 
                 <View style={styles.roadmapProgressHeader}>
-                    <Text style={[styles.roadmapProgressLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Tiến độ roadmap</Text>
+                    <Text style={[styles.roadmapProgressLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>Tiến độ lộ trình</Text>
                     <Text style={[styles.roadmapProgressValue, { color: colors.primary }]}>{formatProgressPercent(roadmapProgress)}</Text>
                 </View>
                 <View style={[styles.phaseTrack, { backgroundColor: isDark ? colors.background : '#E4ECE6' }]}>
@@ -492,10 +492,10 @@ function RoadmapCard({
                                 <View style={styles.phaseHeader}>
                                     <View style={styles.phaseTitleWrap}>
                                         <Text style={[styles.phaseEyebrow, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
-                                            {isCurrentPhase ? 'PHASE HIỆN TẠI' : `PHASE ${phase.phaseOrder || phaseIndex + 1}`}
+                                            {isCurrentPhase ? 'GIAI ĐOẠN HIỆN TẠI' : `GIAI ĐOẠN ${phase.phaseOrder || phaseIndex + 1}`}
                                         </Text>
                                         <Text style={[styles.phaseTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                                            {phase.phaseName || `Phase ${phase.phaseOrder || phaseIndex + 1}`}
+                                            {phase.phaseName || `Giai đoạn ${phase.phaseOrder || phaseIndex + 1}`}
                                         </Text>
                                     </View>
                                     <Text style={[styles.phasePercent, { color: colors.primary }]}>{formatProgressPercent(phaseProgress)}</Text>

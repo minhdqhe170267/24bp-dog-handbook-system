@@ -1,14 +1,42 @@
 import api, { ApiResponse, PageResponse, unwrapApiData } from './api';
 import { offlineFirstRead, isOnline, toPageResponse } from './offlineFirst';
+import { withEntityMediaImage, withEntityMediaImages, withPageEntityMediaImages } from './entityMediaService';
 import { exerciseDBService, roadmapDBService, roadmapExerciseDBService } from '../database/services';
 import { atlasTrainingMock } from '../features/training/mockEnrollment';
 import { rowToApi, apiToRow, ROADMAP_COLS } from './mappers';
-import type { TrainingRoadmap } from '../types/training';
+import type { RoadmapExerciseItem, TrainingRoadmap } from '../types/training';
 import type { RoadmapExerciseRow } from '../database/types';
+
+const enrichRoadmapExerciseMedia = (exercises: RoadmapExerciseItem[] = []): Promise<RoadmapExerciseItem[]> =>
+    withEntityMediaImages(exercises, 'TRAINING_EXERCISE', (item) => item.exerciseId);
+
+const enrichRoadmapMedia = async (roadmap: TrainingRoadmap): Promise<TrainingRoadmap> => {
+    const enrichedRoadmap = await withEntityMediaImage(roadmap, 'TRAINING_ROADMAP', (item) => item.roadmapId);
+    const exercises = roadmap.exercises
+        ? await enrichRoadmapExerciseMedia(roadmap.exercises)
+        : roadmap.exercises;
+    const phases = roadmap.phases
+        ? await Promise.all(
+            roadmap.phases.map(async (phase) => ({
+                ...phase,
+                exercises: await enrichRoadmapExerciseMedia(phase.exercises ?? []),
+            })),
+        )
+        : roadmap.phases;
+
+    return {
+        ...enrichedRoadmap,
+        exercises,
+        phases,
+    };
+};
+
+const enrichRoadmapPageWithMedia = (page: PageResponse<TrainingRoadmap>): Promise<PageResponse<TrainingRoadmap>> =>
+    withPageEntityMediaImages(page, 'TRAINING_ROADMAP', (item) => item.roadmapId);
 
 const fetchRemoteRoadmapDetail = async (id: number): Promise<TrainingRoadmap> => {
     const res = await api.get(`/roadmaps/${id}`);
-    return unwrapApiData(res as unknown as ApiResponse<TrainingRoadmap>);
+    return enrichRoadmapMedia(unwrapApiData(res as unknown as ApiResponse<TrainingRoadmap>));
 };
 
 const buildLocalRoadmapDetail = async (id: number): Promise<TrainingRoadmap | null> => {
@@ -55,6 +83,8 @@ const buildLocalRoadmapDetail = async (id: number): Promise<TrainingRoadmap | nu
             exerciseName: exerciseNameMap.get(item.exercise_id) || `Bai tap #${item.exercise_id}`,
             exerciseOrder: item.exercise_order,
             isMandatory: item.is_mandatory === 1,
+            imageUrl: null,
+            videoUrl: null,
         })),
     };
 };
@@ -89,13 +119,13 @@ export const roadmapService = {
         offlineFirstRead<PageResponse<TrainingRoadmap>>({
             localFetch: async () => {
                 const rows = await roadmapDBService.getAll();
-                return toPageResponse(rows.map((r) => rowToApi<TrainingRoadmap>(r)));
+                return enrichRoadmapPageWithMedia(toPageResponse(rows.map((r) => rowToApi<TrainingRoadmap>(r))));
             },
             remoteFetch: async () => {
                 const res = (await api.get('/roadmaps', {
                     params: { page, size },
                 })) as ApiResponse<PageResponse<TrainingRoadmap>>;
-                return unwrapApiData(res);
+                return enrichRoadmapPageWithMedia(unwrapApiData(res));
             },
             saveToLocal: async (data) => {
                 const rows = data.content.map((r) => apiToRow(r, ROADMAP_COLS));
@@ -127,7 +157,7 @@ export const roadmapService = {
                         .catch((err) => console.warn(`[OFFLINE] roadmap:${id}: background refresh failed`, err));
                 }
 
-                return localData;
+                return enrichRoadmapMedia(localData);
             }
         } catch (err) {
             console.warn(`[OFFLINE] roadmap:${id}: local read failed`, err);
@@ -143,7 +173,7 @@ export const roadmapService = {
         const fallbackLocal = await buildLocalRoadmapDetail(id);
         if (fallbackLocal) {
             console.warn(`[OFFLINE] roadmap:${id}: serving partial local detail`);
-            return fallbackLocal;
+            return enrichRoadmapMedia(fallbackLocal);
         }
 
         console.warn(`[OFFLINE] roadmap:${id}: offline and no local data`);

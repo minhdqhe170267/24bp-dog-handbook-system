@@ -31,9 +31,9 @@ const STATUS_OPTIONS: {
     icon: keyof typeof Ionicons.glyphMap;
 }[] = [
     { key: 'ENROLLED', title: 'Đã ghi danh', subtitle: 'Chương trình đã được gán nhưng chưa bắt đầu rõ rệt.', icon: 'albums-outline' },
-    { key: 'IN_PROGRESS', title: 'Đang huấn luyện', subtitle: 'Trainer đang actively follow-up các roadmap và phase.', icon: 'play-outline' },
+    { key: 'IN_PROGRESS', title: 'Đang huấn luyện', subtitle: 'Huấn luyện viên đang chủ động đánh giá các lộ trình và giai đoạn.', icon: 'play-outline' },
     { key: 'SUSPENDED', title: 'Tạm dừng', subtitle: 'Tạm ngưng để xử lý điều kiện thực địa hoặc sức khỏe.', icon: 'pause-outline' },
-    { key: 'WITHDRAWN', title: 'Rút chương trình', subtitle: 'Dừng hẳn specialty này khỏi lộ trình hiện tại.', icon: 'exit-outline' },
+    { key: 'WITHDRAWN', title: 'Rút chương trình', subtitle: 'Dừng hẳn chuyên ngành này khỏi lộ trình hiện tại.', icon: 'exit-outline' },
     { key: 'COMPLETED', title: 'Hoàn thành', subtitle: 'Chỉ hợp lệ khi chương trình đã đạt 100%.', icon: 'checkmark-circle-outline' },
 ];
 
@@ -96,7 +96,7 @@ export default function ProgramControlScreen() {
             setSummary(summary);
             router.back();
         } catch (error: any) {
-            Alert.alert('Không thể cập nhật chương trình', error?.message || 'Backend từ chối yêu cầu này.');
+            Alert.alert('Không thể cập nhật chương trình', error?.message || 'Máy chủ từ chối yêu cầu này.');
         } finally {
             setSaving(false);
         }
@@ -120,7 +120,7 @@ export default function ProgramControlScreen() {
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Điều phối program
+                        Điều phối chương trình
                     </Text>
                     <View style={styles.iconButton}>
                         <Ionicons name="construct-outline" size={20} color={colors.primary} />
@@ -129,13 +129,13 @@ export default function ProgramControlScreen() {
 
                 <View style={[styles.heroCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
                     <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
-                        PROGRAM STATUS
+                        TRẠNG THÁI CHƯƠNG TRÌNH
                     </Text>
                     <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
                         {detail.summary.specialtyName || 'Chương trình huấn luyện'}
                     </Text>
                     <Text style={[styles.heroMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                        {detail.summary.dogName} • {detail.summary.trainerName || 'Trainer chưa cập nhật'}
+                        {detail.summary.dogName} • {detail.summary.trainerName || 'Huấn luyện viên chưa cập nhật'}
                     </Text>
                     <View style={styles.progressRow}>
                         <Text style={[styles.progressLabel, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
@@ -193,7 +193,7 @@ export default function ProgramControlScreen() {
                         onChangeText={setNotes}
                         multiline
                         textAlignVertical="top"
-                        placeholder="Ghi chú tổng quát cho specialty/program: lý do tạm dừng, điều kiện thực địa, nhận xét toàn giai đoạn..."
+                        placeholder="Ghi chú tổng quát cho chuyên ngành/chương trình: lý do tạm dừng, điều kiện thực địa, nhận xét toàn giai đoạn..."
                         placeholderTextColor={isDark ? colors.textLight : trainingUi.textMuted}
                         style={[styles.notesInput, { color: isDark ? colors.text : trainingUi.textStrong, backgroundColor: isDark ? colors.background : '#F6FAF7', borderColor: isDark ? colors.border : '#DDE8E1' }]}
                     />

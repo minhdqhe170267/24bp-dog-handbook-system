@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '../../../../../src/components/ScreenWrapper';
 import { useThemeStore } from '../../../../../src/stores/themeStore';
@@ -13,6 +12,7 @@ import { enrollmentService } from '../../../../../src/services/enrollmentService
 import { TrainingExercise } from '../../../../../src/types/training';
 import { trainingUi } from '../../../../../src/features/training/ui';
 import { buildTrainingInstructionSteps, pickTrainingCoverImage, useTrainingEntrance } from '../../../../../src/features/training/presentation';
+import { hasTrainingVideo, TrainingMediaSurface } from '../../../../../src/features/training/TrainingMediaSurface';
 
 const resolveProgressStatus = (value: string | null | undefined) => {
     const normalized = String(value || '').toUpperCase();
@@ -151,9 +151,10 @@ export default function ExerciseStepScreen() {
     const currentStep = steps[safeIndex];
 
     const currentMedia = useMemo(
-        () => pickTrainingCoverImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`, exercise?.mediaUrls),
-        [exercise?.exerciseId, exercise?.mediaUrls, id, safeIndex],
+        () => pickTrainingCoverImage(`${exercise?.exerciseId || id}-step-${safeIndex + 1}`, exercise?.mediaUrls, exercise?.imageUrl, exercise?.videoUrl),
+        [exercise?.exerciseId, exercise?.mediaUrls, exercise?.imageUrl, exercise?.videoUrl, id, safeIndex],
     );
+    const hasVideo = hasTrainingVideo(exercise?.videoUrl);
 
     const progressText = `${Math.min(safeIndex + 1, Math.max(steps.length, 1))}/${Math.max(steps.length, 1)}`;
     const isLastStep = steps.length > 0 && safeIndex >= steps.length - 1;
@@ -299,15 +300,18 @@ export default function ExerciseStepScreen() {
                 </View>
 
                 <View style={styles.mediaCard}>
-                    <Image source={currentMedia} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                    <View style={styles.mediaOverlay} />
-                    <View style={styles.playCircle}>
-                        <Ionicons name="play" size={24} color="#FFFFFF" />
-                    </View>
-                    <View style={styles.mediaLabel}>
-                        <Ionicons name="videocam" size={13} color="#E8F3EC" />
-                        <Text style={styles.mediaLabelText}>Video mô phỏng bước huấn luyện</Text>
-                    </View>
+                    <TrainingMediaSurface
+                        imageUrl={currentMedia}
+                        videoUrl={exercise.videoUrl}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                    />
+                    <View style={styles.mediaOverlay} pointerEvents="none" />
+                    {!hasVideo ? (
+                        <View style={styles.playCircle}>
+                            <Ionicons name="play" size={24} color="#FFFFFF" />
+                        </View>
+                    ) : null}
                     <View style={styles.stepHeroBadge}>
                         <Text style={styles.stepHeroBadgeText}>{currentStep.title}</Text>
                     </View>
@@ -536,20 +540,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 1,
     },
-    mediaLabel: {
-        position: 'absolute',
-        left: spacing.md,
-        bottom: spacing.md,
-        borderRadius: borderRadius.full,
-        backgroundColor: 'rgba(8, 14, 11, 0.62)',
-        borderWidth: 1,
-        borderColor: 'rgba(226, 238, 230, 0.24)',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 10,
-        minHeight: 30,
-    },
     stepHeroBadge: {
         position: 'absolute',
         right: spacing.md,
@@ -566,11 +556,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '700',
-    },
-    mediaLabelText: {
-        color: '#E8F3EC',
-        fontSize: 11,
-        fontWeight: '600',
     },
     tabRow: {
         gap: spacing.sm,

@@ -22,7 +22,7 @@ import { breedService } from '../../src/services/breedService';
 import { useThemeStore } from '../../src/stores/themeStore';
 import { Breed } from '../../src/types/breed';
 
-const TABS = ['Tổng quan', 'Đặc điểm', 'Chăm sóc', 'Huấn luyện'] as const;
+const TABS = ['Tổng quan', 'Đặc điểm', 'Huấn luyện'] as const;
 
 const colorsLight = {
   hero: '#1E5B3D',
@@ -90,36 +90,6 @@ const parseBulletList = (value: string | null | undefined, fallback: string[]): 
 const normalizeBreedText = (value: string | null | undefined, fallback = '') => {
   const normalized = (value ?? '').trim();
   return normalized.length > 0 ? normalized : fallback;
-};
-
-const buildWarningNotes = (breed: Breed, careBullets: string[], trainingBullets: string[]) => {
-  const warnings: string[] = [];
-  const size = normalizeBreedText(breed.sizeClassification).toLowerCase();
-  const trainability = normalizeBreedText(breed.trainabilityLevel).toLowerCase();
-  const maxWeight = Math.max(breed.weightMaleMaxKg || 0, breed.weightFemaleMaxKg || 0);
-  const minLifespan = Number.parseInt(`${breed.lifespanYears}`, 10);
-
-  if (size.includes('lớn') || maxWeight >= 32) {
-    warnings.push('Theo dõi kỹ khớp và cường độ vận động khi tăng tải hoặc đổi giáo án đột ngột.');
-  }
-
-  if (trainability.includes('trung') || trainability.includes('thấp')) {
-    warnings.push('Giữ chuỗi lệnh ngắn, nhất quán và tránh tăng độ khó liên tục trong một buổi.');
-  }
-
-  if (Number.isFinite(minLifespan) && minLifespan <= 10) {
-    warnings.push('Ưu tiên kiểm tra thể lực định kỳ để phát hiện sớm dấu hiệu xuống sức theo tuổi.');
-  }
-
-  if (careBullets[0]) {
-    warnings.push(`Lưu ý chăm sóc: ${careBullets[0]}`);
-  }
-
-  if (trainingBullets[0]) {
-    warnings.push(`Lưu ý huấn luyện: ${trainingBullets[0]}`);
-  }
-
-  return warnings.slice(0, 4);
 };
 
 const InfoRow = ({
@@ -208,12 +178,6 @@ export default function BreedDetailScreen() {
     [breed?.temperament],
   );
 
-  const careBullets = useMemo(
-    () =>
-      parseBulletList(breed?.careInstructions, []),
-    [breed?.careInstructions],
-  );
-
   const trainingBullets = useMemo(
     () =>
       parseBulletList(breed?.trainingTips, []),
@@ -231,10 +195,6 @@ export default function BreedDetailScreen() {
   );
 
   const metadataHighlights = Object.entries(metadata).slice(0, 4);
-  const warningNotes = useMemo(
-    () => (breed ? buildWarningNotes(breed, careBullets, trainingBullets) : []),
-    [breed, careBullets, trainingBullets],
-  );
 
   const introTranslateY = introProgress.interpolate({
     inputRange: [0, 1],
@@ -243,19 +203,6 @@ export default function BreedDetailScreen() {
 
   const openCompare = () => {
     router.push(`/breeds/compare?seed=${id}` as never);
-  };
-
-  const openDevelopmentStages = () => {
-    router.push(`/breeds/${id}/development-stages` as never);
-  };
-
-  const openWarnings = () => {
-    const summary =
-      warningNotes.length > 0
-        ? warningNotes.map((item) => `• ${item}`).join('\n\n')
-        : 'Chưa có cảnh báo riêng. Hãy tiếp tục theo dõi thể trạng, tải huấn luyện và khẩu phần của giống chó này.';
-
-    Alert.alert('Cảnh báo', summary);
   };
 
   const renderOverview = () => (
@@ -296,8 +243,6 @@ export default function BreedDetailScreen() {
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.panelTitle, { color: colors.text }]}>Hồ sơ chi tiết</Text>
         <InfoRow label="Xuất xứ" value={breedOrigin} colors={colors} />
-        <InfoRow label="Cân nặng đực" value={`${breed?.weightMaleMinKg ?? '--'} - ${breed?.weightMaleMaxKg ?? '--'} kg`} colors={colors} />
-        <InfoRow label="Cân nặng cái" value={`${breed?.weightFemaleMinKg ?? '--'} - ${breed?.weightFemaleMaxKg ?? '--'} kg`} colors={colors} />
         <InfoRow label="Người tạo" value={breed?.createdByName || 'Hệ thống'} colors={colors} />
       </View>
 
@@ -360,20 +305,6 @@ export default function BreedDetailScreen() {
     </View>
   );
 
-  const renderCare = () => (
-    <View style={styles.sectionStack}>
-      <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.panelTitle, { color: colors.text }]}>Chăm sóc hằng ngày</Text>
-        <Text style={[styles.panelCaption, { color: colors.textSecondary }]}>
-          {careBullets.length > 0
-            ? 'Dữ liệu chăm sóc được lấy từ hồ sơ giống chó hiện tại.'
-            : 'Chưa có dữ liệu chăm sóc trong hồ sơ giống chó.'}
-        </Text>
-      </View>
-      {careBullets.length > 0 ? renderBulletColumn(careBullets, 'leaf-outline', colors.primary) : null}
-    </View>
-  );
-
   const renderTraining = () => (
     <View style={styles.sectionStack}>
       <View style={[styles.panelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -429,8 +360,6 @@ export default function BreedDetailScreen() {
       case 1:
         return renderCharacteristics();
       case 2:
-        return renderCare();
-      case 3:
         return renderTraining();
       default:
         return null;
@@ -618,30 +547,6 @@ export default function BreedDetailScreen() {
               <Ionicons name="git-compare-outline" size={18} color={colors.primary} />
             </View>
             <Text style={[styles.utilityActionText, { color: colors.text }]}>So sánh</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => {
-              openDevelopmentStages();
-            }}
-            style={[styles.utilityActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <View style={[styles.utilityIconWrap, { backgroundColor: isDark ? 'rgba(82,183,136,0.14)' : '#EAF7F0' }]}>
-              <Ionicons name="trending-up-outline" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.utilityActionText, { color: colors.text }]}>Giai đoạn</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={openWarnings}
-            style={[styles.utilityActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          >
-            <View style={[styles.utilityIconWrap, { backgroundColor: isDark ? 'rgba(239,68,68,0.14)' : '#FFF1F0' }]}>
-              <Ionicons name="warning-outline" size={18} color={colors.error} />
-            </View>
-            <Text style={[styles.utilityActionText, { color: colors.error }]}>Cảnh báo</Text>
           </TouchableOpacity>
         </View>
 

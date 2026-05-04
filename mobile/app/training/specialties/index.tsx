@@ -180,11 +180,7 @@ export default function TrainingSpecialtyListScreen() {
                         <Ionicons name="ribbon-outline" size={14} color="#E8F3EC" />
                         <Text style={styles.heroBadgeText}>Chuyên ngành huấn luyện</Text>
                     </View>
-                    <Text style={styles.heroTitle}>Bức tranh chuyên ngành trong các chương trình trainer đang theo dõi</Text>
-                    <Text style={styles.heroSubtitle}>
-                        Màn này nhóm theo chuyên ngành mà trainer thực sự có quyền xem, rồi gom các lộ trình và
-                        chương trình đang gắn với chuyên ngành đó để nhìn luồng huấn luyện rõ hơn.
-                    </Text>
+                    <Text style={styles.heroTitle}>Tổng quan chuyên ngành</Text>
 
                     <View style={styles.metricGrid}>
                         <MetricCard label="Chuyên ngành" value={String(heroMetrics.specialtyCount)} />
@@ -334,7 +330,6 @@ const styles = StyleSheet.create({
     },
     heroBadgeText: { color: '#EAF7F0', fontSize: fontSize.sm, fontWeight: '700' },
     heroTitle: { marginTop: spacing.md, color: '#FFFFFF', fontSize: 30, lineHeight: 35, fontWeight: '800' },
-    heroSubtitle: { marginTop: spacing.sm, color: '#D9EDE1', fontSize: fontSize.md, lineHeight: 22 },
     metricGrid: { marginTop: spacing.lg, flexDirection: 'row', gap: spacing.sm },
     metricCard: { flex: 1, borderRadius: 20, padding: spacing.md, backgroundColor: '#FFFFFF' },
     metricValue: { color: trainingUi.textStrong, fontSize: 24, fontWeight: '800' },
