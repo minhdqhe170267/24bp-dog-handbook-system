@@ -129,10 +129,10 @@ export default function FieldNoteListScreen() {
         return (
             <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <TrainerRestrictedState
-                    title="Khong the mo ghi chu cua cho nay"
-                    description="Ban chi duoc xem ghi chu thuc dia lien quan den nhung cho dang nam trong pham vi phan cong hien tai."
+                    title="Không thể mở ghi chú của chó này"
+                    description="Bạn chỉ được xem ghi chú thực địa liên quan đến những chó đang nằm trong phạm vi phân công hiện tại."
                     onPrimaryPress={() => router.replace('/dog-management/field-notes' as any)}
-                    secondaryLabel="Quay lai"
+                    secondaryLabel="Quay lại"
                     onSecondaryPress={() => router.back()}
                 />
             </ScreenWrapper>
@@ -146,7 +146,7 @@ export default function FieldNoteListScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Ghi chu thuc dia
+                    Ghi chú thực địa
                 </Text>
                 <TouchableOpacity
                     onPress={() =>
@@ -161,8 +161,8 @@ export default function FieldNoteListScreen() {
 
             <Text style={[styles.subtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
                 {numericDogId
-                    ? `Dang hien thi ghi chu lien quan den ${contextDog?.dogName || 'cho duoc chon'}.`
-                    : 'Chi hien thi ghi chu cua ban va ghi chu gan voi nhung cho dang duoc phan cong.'}
+                    ? `Đang hiển thị ghi chú liên quan đến ${contextDog?.dogName || 'chó được chọn'}.`
+                    : 'Chỉ hiển thị ghi chú của bạn và ghi chú gắn với những chó đang được phân công.'}
             </Text>
 
             <View style={[styles.searchShell, { backgroundColor: isDark ? colors.surface : '#FAFCFB', borderColor: isDark ? colors.border : dogManagementUi.border }]}>
@@ -170,7 +170,7 @@ export default function FieldNoteListScreen() {
                 <TextInput
                     value={search}
                     onChangeText={setSearch}
-                    placeholder="Tim theo tieu de..."
+                    placeholder="Tìm theo tiêu đề..."
                     placeholderTextColor={isDark ? colors.textLight : dogManagementUi.textMuted}
                     style={[styles.searchInput, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.medium }]}
                 />
@@ -210,10 +210,10 @@ export default function FieldNoteListScreen() {
                         <View style={styles.emptyWrap}>
                             <Ionicons name="document-text-outline" size={30} color={colors.primary} />
                             <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                                Chua co ghi chu phu hop
+                                Chưa có ghi chú phù hợp
                             </Text>
                             <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted, fontFamily: dogManagementFonts.medium }]}>
-                                Hay tao ghi chu dau tien de luu lai hien truong hoac dien bien nhiem vu.
+                                Hãy tạo ghi chú đầu tiên để lưu lại hiện trường hoặc diễn biến nhiệm vụ.
                             </Text>
                         </View>
                     }
@@ -234,7 +234,7 @@ export default function FieldNoteListScreen() {
                                             {item.title}
                                         </Text>
                                         <Text style={[styles.noteMeta, { color: categoryMeta.text, fontFamily: dogManagementFonts.bold }]}>
-                                            {item.dogCode || 'Khong gan ma'} • {item.ownerName || 'Chua ro nguoi ghi'}
+                                            {item.dogCode || 'Không gắn mã'} • {item.ownerName || 'Chưa rõ người ghi'}
                                         </Text>
                                     </View>
                                     <Text style={[styles.noteTime, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
@@ -262,7 +262,7 @@ export default function FieldNoteListScreen() {
                                         {formatDate(item.recordedAt)}
                                     </Text>
                                     <Text style={[styles.noteFooterText, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
-                                        Xem chi tiet
+                                        Xem chi tiết
                                     </Text>
                                 </View>
                             </TouchableOpacity>

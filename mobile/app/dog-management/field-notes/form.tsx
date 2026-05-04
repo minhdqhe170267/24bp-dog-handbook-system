@@ -222,7 +222,7 @@ export default function FieldNoteFormScreen() {
             router.replace(`/dog-management/field-notes/${String(result.noteId)}` as any);
         } catch {
             const fallbackTarget = editingNote?.noteId;
-            Alert.alert('Đã lưu ở giao diện mẫu', 'Ghi chú đã được cập nhật trong luồng frontend.', [
+            Alert.alert('Đã lưu ở giao diện mẫu', 'Ghi chú đã được cập nhật trong luồng giao diện.', [
                 {
                     text: 'Tiếp tục',
                     onPress: () =>

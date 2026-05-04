@@ -434,9 +434,6 @@ export default function RoadmapListScreen() {
                             <View style={styles.heroTextWrap}>
                                 <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>LỘ TRÌNH</Text>
                                 <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn đúng lộ trình theo giống và vai trò</Text>
-                                <Text style={[styles.heroSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                                    Dùng bộ lọc nhanh để nhìn rõ tiến trình theo giai đoạn, không làm rối danh sách hiện tại.
-                                </Text>
                             </View>
                             <View style={[styles.heroCountCard, { backgroundColor: colors.primary }]}>
                                 <Text style={styles.heroCountValue}>{filteredItems.length}</Text>
@@ -557,12 +554,6 @@ const styles = StyleSheet.create({
         fontSize: 22,
         lineHeight: 28,
         fontWeight: '800',
-    },
-    heroSubtitle: {
-        marginTop: spacing.xs,
-        fontSize: 13,
-        lineHeight: 19,
-        fontWeight: '500',
     },
     heroCountCard: {
         minWidth: 82,

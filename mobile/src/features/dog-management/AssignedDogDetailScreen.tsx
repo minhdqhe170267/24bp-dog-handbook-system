@@ -115,12 +115,6 @@ const genderLabel = (value?: string | null) => {
     return value || EMPTY;
 };
 
-const sterilizedLabel = (value?: boolean | null) => {
-    if (value === true) return 'Đã triệt sản';
-    if (value === false) return 'Chưa triệt sản';
-    return EMPTY;
-};
-
 const statusMeta = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
         case 'ACTIVE':
@@ -378,16 +372,13 @@ export default function AssignedDogDetailScreen() {
     }
 
     const identityItems: InfoItem[] = [
-        { label: 'ID hồ sơ', value: String(dog.dogId), icon: 'finger-print-outline', tint: '#E3F0FF' },
         { label: 'Mã chó', value: display(dog.dogCode), icon: 'barcode-outline', tint: '#E8F7EE' },
         { label: 'Tên chó', value: display(dog.dogName), icon: 'paw-outline', tint: '#FFF2D8' },
         { label: 'Giống chó', value: display(dog.breedName), icon: 'ribbon-outline', tint: '#F2EFE8' },
-        { label: 'ID giống', value: dog.breedId ? String(dog.breedId) : EMPTY, icon: 'layers-outline', tint: '#EAF1FF' },
         { label: 'Giới tính', value: genderLabel(dog.gender), icon: 'male-female-outline', tint: '#F4EAFE' },
         { label: 'Ngày sinh', value: formatDate(dog.dateOfBirth), icon: 'calendar-outline', tint: '#E8F7EE' },
         { label: 'Tháng tuổi', value: formatAge(dog.ageMonths), icon: 'time-outline', tint: '#FFF2D8' },
         { label: 'Ngày phân công', value: formatDate(dog.assignmentDate), icon: 'briefcase-outline', tint: '#E3F0FF' },
-        { label: 'Triệt sản', value: sterilizedLabel(dog.isSterilized), icon: 'medical-outline', tint: '#FFE6E6' },
     ];
 
     const physicalItems: InfoItem[] = [
@@ -399,8 +390,6 @@ export default function AssignedDogDetailScreen() {
 
     const assignmentItems: InfoItem[] = [
         { label: 'Người phụ trách', value: display(assignment?.trainerName), icon: 'person-outline', tint: '#E8F7EE', wide: true },
-        { label: 'Trainer ID', value: assignment?.trainerId ? String(assignment.trainerId) : EMPTY, icon: 'id-card-outline', tint: '#E3F0FF' },
-        { label: 'ID phân công', value: assignment?.assignmentId ? String(assignment.assignmentId) : EMPTY, icon: 'clipboard-outline', tint: '#FFF2D8' },
         { label: 'Loại phân công', value: assignmentType.label, icon: 'shield-checkmark-outline', tint: assignmentType.bg },
         { label: 'Trạng thái', value: assignmentStatusLabel(assignment), icon: 'pulse-outline', tint: '#E8F7EE' },
         { label: 'Bắt đầu', value: formatDate(assignment?.startDate), icon: 'play-circle-outline', tint: '#EAF1FF' },
@@ -447,15 +436,17 @@ export default function AssignedDogDetailScreen() {
         </View>
     );
 
-    const renderSection = (index: number, title: string, subtitle: string, children: React.ReactNode) => (
+    const renderSection = (index: number, title: string, subtitle: string | null, children: React.ReactNode) => (
         <Animated.View style={[styles.sectionBlock, animatedCardStyle(index)]}>
             <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: isDark ? colors.text : dogManagementUi.textStrong }]}>
                     {title}
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted }]}>
-                    {subtitle}
-                </Text>
+                {subtitle ? (
+                    <Text style={[styles.sectionSubtitle, { color: isDark ? colors.textSecondary : dogManagementUi.textMuted }]}>
+                        {subtitle}
+                    </Text>
+                ) : null}
             </View>
             {children}
         </Animated.View>
@@ -576,7 +567,7 @@ export default function AssignedDogDetailScreen() {
                     ))}
                 </Animated.View>
 
-                {renderSection(1, 'Thông tin web-admin', 'Các trường đang tồn tại trong hồ sơ chó.', renderInfoGrid(identityItems))}
+                {renderSection(1, 'Thông tin chi tiết', null, renderInfoGrid(identityItems))}
                 {renderSection(2, 'Thể trạng và định danh', 'Chỉ số cơ thể, màu lông, chip và lịch sử cập nhật.', renderInfoGrid(physicalItems))}
                 {renderSection(3, 'Phân công hiện tại', 'Thông tin phân công chó trong phạm vi bạn phụ trách.', renderInfoGrid(assignmentItems))}
 

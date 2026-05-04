@@ -24,28 +24,24 @@ const collections = [
     {
         key: 'specialties',
         title: '\u0043huy\u00ean ng\u00e0nh',
-        subtitle: '\u0054heo d\u00f5i specialty, roadmap li\u00ean quan v\u00e0 c\u00e1c program \u0111ang v\u1eadn h\u00e0nh.',
         image: trainingImages.specialties,
         route: '/training/specialties',
     },
     {
         key: 'methods',
         title: 'Phương pháp',
-        subtitle: 'Khung huấn luyện khoa học cho chó nghiệp vụ.',
         image: trainingImages.methods,
         route: '/training/methods',
     },
     {
         key: 'exercises',
         title: 'Bài tập',
-        subtitle: 'Kỹ thuật theo từng tình huống thực chiến.',
         image: trainingImages.exercises,
         route: '/training/exercises',
     },
     {
         key: 'roadmaps',
         title: 'Lộ trình',
-        subtitle: 'Thư viện roadmap và cấu trúc phase của từng specialty.',
         image: trainingImages.roadmaps,
         route: '/training/roadmaps',
     },
@@ -395,7 +391,6 @@ export default function TrainingHubScreen() {
                             <View style={styles.collectionContent}>
                                 <View>
                                     <Text style={styles.collectionTitle}>{item.title}</Text>
-                                    <Text style={styles.collectionSubtitle}>{item.subtitle}</Text>
                                 </View>
                                 <View style={styles.chevronCircle}>
                                     <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -630,14 +625,6 @@ const styles = StyleSheet.create({
         fontSize: 24,
         lineHeight: 28,
         fontWeight: '800',
-    },
-    collectionSubtitle: {
-        marginTop: spacing.xs,
-        color: '#E6F1EA',
-        fontSize: 13,
-        lineHeight: 18,
-        fontWeight: '600',
-        maxWidth: '82%',
     },
     chevronCircle: {
         alignSelf: 'flex-end',

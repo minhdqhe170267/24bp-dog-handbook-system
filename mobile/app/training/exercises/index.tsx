@@ -165,9 +165,6 @@ export default function ExerciseListScreen() {
                     <View style={styles.introTextWrap}>
                         <Text style={[styles.introEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>PHÒNG BÀI TẬP</Text>
                         <Text style={[styles.introTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Tách bài tập theo từng mục tiêu và mức độ</Text>
-                        <Text style={[styles.introSubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Mỗi bài tập giữ ảnh riêng, bước hướng dẫn riêng và có thể mở nhanh sang từng step chi tiết.
-                        </Text>
                     </View>
                     <View style={[styles.introBadge, { backgroundColor: colors.primary }]}>
                         <Text style={styles.introBadgeText}>{filteredItems.length}</Text>
@@ -308,12 +305,6 @@ const styles = StyleSheet.create({
         fontSize: 22,
         lineHeight: 28,
         fontWeight: '800',
-    },
-    introSubtitle: {
-        marginTop: spacing.xs,
-        fontSize: 13,
-        lineHeight: 19,
-        fontWeight: '500',
     },
     introBadge: {
         minWidth: 74,

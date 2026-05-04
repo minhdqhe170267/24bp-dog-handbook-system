@@ -120,10 +120,10 @@ export default function FieldNoteDetailScreen() {
         return (
             <ScreenWrapper style={{ backgroundColor: isDark ? colors.background : dogManagementUi.page }}>
                 <TrainerRestrictedState
-                    title="Khong the mo ghi chu nay"
-                    description="Ban chi duoc xem va thao tac voi ghi chu cua minh hoac ghi chu gan voi nhung cho dang duoc phan cong."
+                    title="Không thể mở ghi chú này"
+                    description="Bạn chỉ được xem và thao tác với ghi chú của mình hoặc ghi chú gắn với những chó đang được phân công."
                     onPrimaryPress={() => router.replace('/dog-management/field-notes' as any)}
-                    secondaryLabel="Quay lai"
+                    secondaryLabel="Quay lại"
                     onSecondaryPress={() => router.back()}
                 />
             </ScreenWrapper>
@@ -136,7 +136,7 @@ export default function FieldNoteDetailScreen() {
                 <View style={styles.centered}>
                     <Ionicons name="document-text-outline" size={32} color={colors.primary} />
                     <Text style={[styles.emptyTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Khong tim thay ghi chu
+                        Không tìm thấy ghi chú
                     </Text>
                 </View>
             </ScreenWrapper>
@@ -154,13 +154,13 @@ export default function FieldNoteDetailScreen() {
                     <Ionicons name="arrow-back" size={20} color={isDark ? colors.text : dogManagementUi.textStrong} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                    Chi tiet ghi chu
+                    Chi tiết ghi chú
                 </Text>
                 <View style={styles.headerActions}>
                     <TouchableOpacity
                         style={styles.iconButton}
                         activeOpacity={0.85}
-                        onPress={() => Alert.alert('Chia se', 'Tinh nang chia se se duoc noi o buoc tiep theo.')}
+                        onPress={() => Alert.alert('Chia sẻ', 'Tính năng chia sẻ sẽ được bổ sung ở bước tiếp theo.')}
                     >
                         <Ionicons name="share-social-outline" size={18} color={isDark ? colors.text : dogManagementUi.textStrong} />
                     </TouchableOpacity>
@@ -182,20 +182,20 @@ export default function FieldNoteDetailScreen() {
 
                 <View style={styles.metaSection}>
                     <Text style={[styles.unitMeta, { color: isDark ? colors.textLight : dogManagementUi.textMuted, fontFamily: dogManagementFonts.bold }]}>
-                        {note.unitName || 'Don vi K9'}
+                        {note.unitName || 'Đơn vị K9'}
                     </Text>
                     <Text style={[styles.noteTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
                         {note.title}
                     </Text>
                     <View style={styles.metaRow}>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                            {note.dogName || 'Khong gan cho'}
+                            {note.dogName || 'Không gắn chó'}
                         </Text>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
                             {formatDateTime(note.recordedAt)}
                         </Text>
                         <Text style={[styles.metaText, { color: isDark ? colors.textSecondary : dogManagementUi.textNormal, fontFamily: dogManagementFonts.medium }]}>
-                            {note.location || 'Chua ro vi tri'}
+                            {note.location || 'Chưa rõ vị trí'}
                         </Text>
                     </View>
                 </View>
@@ -209,10 +209,10 @@ export default function FieldNoteDetailScreen() {
 
                 <View style={styles.galleryHeader}>
                     <Text style={[styles.galleryTitle, { color: isDark ? colors.text : dogManagementUi.textStrong, fontFamily: dogManagementFonts.bold }]}>
-                        Thu vien anh ({media.length})
+                        Thư viện ảnh ({media.length})
                     </Text>
                     <Text style={[styles.galleryLink, { color: colors.primary, fontFamily: dogManagementFonts.bold }]}>
-                        Xem tat ca
+                        Xem tất cả
                     </Text>
                 </View>
 
@@ -238,7 +238,7 @@ export default function FieldNoteDetailScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity activeOpacity={0.9} style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.push(`/dog-management/field-notes/form?noteId=${String(note.noteId)}` as any)}>
                         <Ionicons name="create-outline" size={18} color="#FFFFFF" />
-                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Chinh sua</Text>
+                        <Text style={[styles.primaryButtonText, { fontFamily: dogManagementFonts.bold }]}>Chỉnh sửa</Text>
                     </TouchableOpacity>
                 </View>
             ) : null}

@@ -143,7 +143,7 @@ export default function EnrollmentListScreen() {
             setItems(sorted);
             setSummaries(sorted);
         } catch (error) {
-            console.log('Training program list error:', error);
+            console.log('Lỗi danh sách chương trình huấn luyện:', error);
             setItems([]);
         } finally {
             setLoading(false);
@@ -203,26 +203,26 @@ export default function EnrollmentListScreen() {
     );
 
     const heroTitle = dogName
-        ? `Program của ${dogName}`
+        ? `Chương trình của ${dogName}`
         : specialtyName
-            ? `Program thuộc ${specialtyName}`
+            ? `Chương trình thuộc ${specialtyName}`
             : 'Chương trình huấn luyện của tôi';
 
     const heroSubtitle = dogName
-        ? 'Tập trung vào toàn bộ tiến độ specialty và roadmap đang gắn với chó này, giúp trainer đi thẳng vào phần follow-up cần xử lý.'
+        ? 'Tập trung vào toàn bộ tiến độ chuyên ngành và lộ trình đang gắn với chó này, giúp huấn luyện viên đi thẳng vào phần đánh giá cần xử lý.'
         : specialtyName
-            ? 'Danh sách đang thu hẹp theo specialty, để bạn xem đúng program, roadmap hiện tại và phase đang chạy.'
-            : 'Theo dõi specialty đang hoạt động, roadmap hiện tại, phase hiện thời và các bài tập cần follow-up ở một màn hình duy nhất.';
+            ? 'Danh sách đang thu hẹp theo chuyên ngành, để bạn xem đúng chương trình, lộ trình hiện tại và giai đoạn đang chạy.'
+            : 'Theo dõi chuyên ngành đang hoạt động, lộ trình hiện tại, giai đoạn hiện thời và các bài tập cần đánh giá ở một màn hình duy nhất.';
 
     const heroMeta = specialtyName
-        ? `${filteredItems.length} program trong specialty này`
-        : `${activeCount} program đang hoạt động`;
+        ? `${filteredItems.length} chương trình trong chuyên ngành này`
+        : `${activeCount} chương trình đang hoạt động`;
 
     const renderProgramCard = ({ item }: { item: TrainingEnrollmentSummary }) => {
         const statusInfo = enrollmentStatusMeta[normalizeEnrollmentStatus(item.status)];
         const progressValue = Math.max(0, Math.min(100, Math.round(item.progressPercent || 0)));
-        const roadmapLine = item.currentRoadmapName || 'Chưa vào roadmap';
-        const phaseLine = item.currentPhaseName || 'Đang chờ phase đầu tiên';
+        const roadmapLine = item.currentRoadmapName || 'Chưa vào lộ trình';
+        const phaseLine = item.currentPhaseName || 'Đang chờ giai đoạn đầu tiên';
 
         return (
             <TouchableOpacity
@@ -273,7 +273,7 @@ export default function EnrollmentListScreen() {
                     <View style={styles.progressRow}>
                         <View style={styles.progressLabelWrap}>
                             <Text style={[styles.progressLabel, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                                {item.trainerName || 'Trainer chưa cập nhật'}
+                                {item.trainerName || 'Huấn luyện viên chưa cập nhật'}
                             </Text>
                             <Text style={[styles.progressPercent, { color: colors.primary }]}>
                                 {formatProgressPercent(progressValue)}
@@ -303,7 +303,7 @@ export default function EnrollmentListScreen() {
                 <TextInput
                     value={search}
                     onChangeText={setSearch}
-                    placeholder="Tìm theo chó, specialty, roadmap hoặc phase..."
+                    placeholder="Tìm theo chó, chuyên ngành, lộ trình hoặc giai đoạn..."
                     placeholderTextColor={isDark ? colors.textLight : '#90A49A'}
                     style={[styles.searchInput, { color: isDark ? colors.text : trainingUi.textStrong }]}
                 />
@@ -377,7 +377,7 @@ export default function EnrollmentListScreen() {
                                 />
 
                                 <Text style={[styles.heroEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
-                                    THEO DÕI PROGRAM
+                                    THEO DÕI CHƯƠNG TRÌNH
                                 </Text>
                                 <Text style={[styles.heroTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
                                     {heroTitle}
@@ -389,7 +389,7 @@ export default function EnrollmentListScreen() {
                                 <View style={styles.heroStatRow}>
                                     <View style={[styles.heroStatCard, { backgroundColor: isDark ? colors.background : '#FFFFFF' }]}>
                                         <Text style={[styles.heroStatValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{items.length}</Text>
-                                        <Text style={[styles.heroStatLabel, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>Tổng program</Text>
+                                        <Text style={[styles.heroStatLabel, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>Tổng chương trình</Text>
                                     </View>
                                     <View style={[styles.heroStatCard, { backgroundColor: isDark ? colors.background : '#FFFFFF' }]}>
                                         <Text style={[styles.heroStatValue, { color: isDark ? colors.text : trainingUi.textStrong }]}>{activeCount}</Text>
@@ -470,10 +470,10 @@ export default function EnrollmentListScreen() {
                                 color={isDark ? colors.textLight : trainingUi.textMuted}
                             />
                             <Text style={[styles.emptyTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                                Chưa có program phù hợp
+                                Chưa có chương trình phù hợp
                             </Text>
                             <Text style={[styles.emptySubtitle, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                                Thử đổi bộ lọc hoặc mở lại từ màn chó/lộ trình để quay về đúng specialty đang cần theo dõi.
+                                Thử đổi bộ lọc hoặc mở lại từ màn chó/lộ trình để quay về đúng chuyên ngành đang cần theo dõi.
                             </Text>
                         </View>
                     )}

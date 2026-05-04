@@ -39,8 +39,8 @@ const STATUS_OPTIONS: {
 }[] = [
     { key: 'NOT_STARTED', title: 'Chưa bắt đầu', subtitle: 'Đưa bài tập về trạng thái ban đầu.', icon: 'radio-button-off-outline' },
     { key: 'IN_PROGRESS', title: 'Đang thực hiện', subtitle: 'Lưu trạng thái đang luyện và ghi chú tạm thời.', icon: 'play-outline' },
-    { key: 'COMPLETED', title: 'Hoàn thành', subtitle: 'Bài tập đã xong và có kết quả follow-up.', icon: 'checkmark-circle-outline' },
-    { key: 'SKIPPED', title: 'Bỏ qua', subtitle: 'Không thực hiện trong phase hiện tại.', icon: 'play-skip-forward-outline' },
+    { key: 'COMPLETED', title: 'Hoàn thành', subtitle: 'Bài tập đã xong và có kết quả đánh giá.', icon: 'checkmark-circle-outline' },
+    { key: 'SKIPPED', title: 'Bỏ qua', subtitle: 'Không thực hiện trong giai đoạn hiện tại.', icon: 'play-skip-forward-outline' },
 ];
 
 const NOTE_SUGGESTIONS = [
@@ -145,7 +145,7 @@ export default function EnrollmentEvaluateScreen() {
             applyExercisePatch(enrollmentId, payload);
             router.replace(`/training/enrollments/${enrollmentId}` as any);
         } catch (error: any) {
-            Alert.alert('Không thể lưu follow-up', error?.message || 'Hệ thống từ chối yêu cầu này.');
+            Alert.alert('Không thể lưu đánh giá', error?.message || 'Hệ thống từ chối yêu cầu này.');
         } finally {
             setSaving(false);
         }
@@ -166,7 +166,7 @@ export default function EnrollmentEvaluateScreen() {
             <ScreenWrapper>
                 <View style={styles.centered}>
                     <Text style={[styles.emptyText, { color: colors.text }]}>
-                        Không tìm thấy bài tập để follow-up.
+                        Không tìm thấy bài tập để đánh giá.
                     </Text>
                 </View>
             </ScreenWrapper>
@@ -181,7 +181,7 @@ export default function EnrollmentEvaluateScreen() {
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                        Follow-up bài tập
+                        Đánh giá bài tập
                     </Text>
                     <View style={styles.iconButton}>
                         <Ionicons name="sparkles-outline" size={20} color={colors.primary} />
@@ -197,13 +197,13 @@ export default function EnrollmentEvaluateScreen() {
                         </View>
                         <Text style={styles.heroExerciseName}>{selectedExercise.exerciseName}</Text>
                         <Text style={styles.heroMeta}>{detail.summary.specialtyName || 'Chương trình huấn luyện'}</Text>
-                        <Text style={styles.heroMeta}>{`${selectedExercise.roadmapName} • ${selectedExercise.phaseName || `Phase ${selectedExercise.phaseOrder || 1}`}`}</Text>
+                        <Text style={styles.heroMeta}>{`${selectedExercise.roadmapName} • ${selectedExercise.phaseName || `Giai đoạn ${selectedExercise.phaseOrder || 1}`}`}</Text>
                         <Text style={styles.heroMeta}>{formatTrainingRole(selectedExercise.targetRole)}</Text>
                     </View>
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn bài tập trong program</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chọn bài tập trong chương trình</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.exercisePickerRow}>
                         {exercises.map((exercise) => {
                             const active = exercise.progressId === selectedProgressId;
@@ -226,7 +226,7 @@ export default function EnrollmentEvaluateScreen() {
                                         {exercise.exerciseName}
                                     </Text>
                                     <Text style={[styles.exercisePickerSubtitle, { color: active ? '#E6F1EA' : isDark ? colors.textSecondary : trainingUi.textNormal }]} numberOfLines={2}>
-                                        {`${exercise.roadmapName} • ${exercise.phaseName || `Phase ${exercise.phaseOrder || 1}`}`}
+                                        {`${exercise.roadmapName} • ${exercise.phaseName || `Giai đoạn ${exercise.phaseOrder || 1}`}`}
                                     </Text>
                                     <View style={[styles.exercisePickerMeta, { backgroundColor: active ? 'rgba(255,255,255,0.18)' : meta.bg }]}>
                                         <Text style={[styles.exercisePickerMetaText, { color: active ? '#FFFFFF' : meta.text }]}>{meta.label}</Text>
@@ -238,7 +238,7 @@ export default function EnrollmentEvaluateScreen() {
                 </View>
 
                 <View style={[styles.sectionCard, { backgroundColor: isDark ? colors.surface : trainingUi.surface, borderColor: isDark ? colors.border : trainingUi.border }]}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Trạng thái follow-up</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Trạng thái đánh giá</Text>
                     <View style={styles.statusGrid}>
                         {STATUS_OPTIONS.map((option) => {
                             const active = status === option.key;
@@ -275,7 +275,7 @@ export default function EnrollmentEvaluateScreen() {
                         onChangeText={setNotes}
                         multiline
                         textAlignVertical="top"
-                        placeholder="Thêm ghi chú evaluator: mức độ ổn định, điểm cần lặp lại, bối cảnh bài tập..."
+                        placeholder="Thêm ghi chú đánh giá: mức độ ổn định, điểm cần lặp lại, bối cảnh bài tập..."
                         placeholderTextColor={isDark ? colors.textLight : trainingUi.textMuted}
                         style={[styles.notesInput, { color: isDark ? colors.text : trainingUi.textStrong, backgroundColor: isDark ? colors.background : '#F6FAF7', borderColor: isDark ? colors.border : '#DDE8E1' }]}
                     />
@@ -296,7 +296,7 @@ export default function EnrollmentEvaluateScreen() {
 
                 <TouchableOpacity style={[styles.submitButton, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]} activeOpacity={0.9} disabled={saving} onPress={onSubmit}>
                     {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="save-outline" size={18} color="#FFFFFF" />}
-                    <Text style={styles.submitButtonText}>{saving ? 'Đang lưu...' : 'Lưu follow-up'}</Text>
+                    <Text style={styles.submitButtonText}>{saving ? 'Đang lưu...' : 'Lưu đánh giá'}</Text>
                 </TouchableOpacity>
             </ScrollView>
         </ScreenWrapper>

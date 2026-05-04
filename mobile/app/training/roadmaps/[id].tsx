@@ -117,7 +117,7 @@ export default function RoadmapDetailScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.iconButton} activeOpacity={0.8}>
                         <Ionicons name="arrow-back" size={22} color={isDark ? colors.text : trainingUi.textStrong} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chi tiết roadmap</Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>Chi tiết lộ trình</Text>
                     <View style={styles.iconButton}>
                         <Ionicons name="albums-outline" size={20} color={colors.primary} />
                     </View>
@@ -146,7 +146,7 @@ export default function RoadmapDetailScreen() {
                         </Text>
 
                         <View style={styles.progressMeta}>
-                            <MiniMetric label="Phase" value={String(roadmap.totalPhases || phases.length || 1)} />
+                            <MiniMetric label="Giai đoạn" value={String(roadmap.totalPhases || phases.length || 1)} />
                             <MiniMetric label="Bài tập" value={String(totalExercises)} />
                             <MiniMetric label="Hoàn tất" value={String(completedExercises)} />
                         </View>
@@ -168,13 +168,13 @@ export default function RoadmapDetailScreen() {
                 >
                     <View style={styles.enrollmentShortcutCopy}>
                         <Text style={[styles.enrollmentShortcutEyebrow, { color: isDark ? colors.textSecondary : trainingUi.textMuted }]}>
-                            THEO DÕI PROGRAM
+                            THEO DÕI CHƯƠNG TRÌNH
                         </Text>
                         <Text style={[styles.enrollmentShortcutTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                            Mở các chương trình đang chạy cùng specialty này
+                            Mở các chương trình đang chạy cùng chuyên ngành này
                         </Text>
                         <Text style={[styles.enrollmentShortcutMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Dùng shortcut này để xem progress thật của trainer theo specialty, roadmap hiện tại và phase đang follow-up.
+                            Dùng lối tắt này để xem tiến độ thật của huấn luyện viên theo chuyên ngành, lộ trình hiện tại và giai đoạn đang cần đánh giá.
                         </Text>
                     </View>
                     <View style={[styles.enrollmentShortcutIcon, { backgroundColor: colors.primary }]}>
@@ -195,13 +195,13 @@ export default function RoadmapDetailScreen() {
                             {nextExercise.exerciseName}
                         </Text>
                         <Text style={[styles.nextExerciseMeta, { color: isDark ? colors.textSecondary : trainingUi.textNormal }]}>
-                            Trainer sẽ tiếp tục theo dõi đúng bài tập chưa hoàn tất đầu tiên trong roadmap này.
+                            Huấn luyện viên sẽ tiếp tục theo dõi đúng bài tập chưa hoàn tất đầu tiên trong lộ trình này.
                         </Text>
                     </TouchableOpacity>
                 ) : null}
 
                 <Text style={[styles.sectionTitle, styles.phaseHeading, { color: isDark ? colors.text : trainingUi.textStrong }]}>
-                    Cấu trúc phase trong roadmap
+                    Cấu trúc giai đoạn trong lộ trình
                 </Text>
 
                 <View style={styles.phaseList}>
@@ -218,7 +218,7 @@ export default function RoadmapDetailScreen() {
                                 <View style={styles.phaseHeader}>
                                     <View style={styles.phaseTitleWrap}>
                                         <Text style={[styles.phaseEyebrow, { color: isDark ? colors.textLight : trainingUi.textMuted }]}>
-                                            {`PHASE ${phase.phaseOrder}`}
+                                            {`GIAI ĐOẠN ${phase.phaseOrder}`}
                                         </Text>
                                         <Text style={[styles.phaseTitle, { color: isDark ? colors.text : trainingUi.textStrong }]}>
                                             {phase.phaseName}
