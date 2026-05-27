@@ -19,6 +19,8 @@ out/
 # Environment (safety net)
 .env
 .env.local
+.env.*
+!.env.example
 .env.*.local
 
 # Misc

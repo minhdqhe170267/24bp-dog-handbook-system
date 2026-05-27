@@ -35,6 +35,8 @@ bin/
 ### Environment ###
 .env
 .env.local
+.env.*
+!.env.example
 
 ### Misc ###
 out/

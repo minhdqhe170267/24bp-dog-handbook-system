@@ -36,6 +36,8 @@ yarn-error.*
 ### Environment ###
 .env
 .env.local
+.env.*
+!.env.example
 .env*.local
 
 ### TypeScript ###
